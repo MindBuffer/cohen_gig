@@ -1,5 +1,5 @@
 [package]
-name = "josh_cohen_gig"
+name = "cohen_gig"
 version = "0.1.0"
 authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
 edition = "2018"
