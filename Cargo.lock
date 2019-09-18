@@ -168,6 +168,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cohen_gig"
+version = "0.1.0"
+dependencies = [
+ "nannou 0.10.0 (git+https://github.com/nannou-org/nannou)",
+ "sacn 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "color_quant"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -565,14 +573,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "itoa"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "josh_cohen_gig"
-version = "0.1.0"
-dependencies = [
- "nannou 0.10.0 (git+https://github.com/nannou-org/nannou)",
- "sacn 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "jpeg-decoder"
