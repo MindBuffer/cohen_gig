@@ -1,12 +1,34 @@
 use nannou::prelude::*;
+use nannou::Ui;
 
-fn main() {
-    nannou::app(model).update(update).run();
-}
+mod arch;
+mod gui;
+mod strip;
+mod wash;
+
+const WINDOW_PAD: i32 = 20;
+const GUI_WINDOW_X: i32 = WINDOW_PAD;
+const GUI_WINDOW_Y: i32 = WINDOW_PAD;
+const VIS_WINDOW_X: i32 = GUI_WINDOW_X + gui::WINDOW_WIDTH as i32 + WINDOW_PAD;
+const VIS_WINDOW_Y: i32 = GUI_WINDOW_Y;
+const VIS_WINDOW_W: u32 = 1024;
+const VIS_WINDOW_H: u32 = 720;
+
+pub const FAR_Z: f32 = 0.0;
+pub const CLOSE_Z: f32 = 1.0;
+pub const LEFT_X: f32 = -1.0;
+pub const RIGHT_X: f32 = 1.0;
+pub const FLOOR_Y: f32 = -1.0;
+pub const ROOF_Y: f32 = 1.0;
+
+pub const LED_PPM: f32 = 60.0;
 
 struct Model {
-    _window: window::Id,
+    gui_window: window::Id,
+    vis_window: window::Id,
     dmx_source: Option<sacn::DmxSource>,
+    ui: Ui,
+    ids: gui::Ids,
 }
 
 struct Uniforms {
@@ -21,173 +43,58 @@ struct LedStrip {
     end: (Universe, Address),
 }
 
-pub const FAR_Z: f32 = 0.0;
-pub const CLOSE_Z: f32 = 1.0;
-pub const LEFT_X: f32 = -1.0;
-pub const RIGHT_X: f32 = 1.0;
-pub const FLOOR_Y: f32 = -1.0;
-pub const ROOF_Y: f32 = 1.0;
-
-pub const LED_PPM: f32 = 60.0;
-
-mod strip {
-    use crate::arch;
-    use nannou::prelude::*;
-
-    /// Count the number of points in a strip from a to b.
-    pub fn count_points(a: Point2, b: Point2, ppm: f32) -> usize {
-        let dist = a.distance(b);
-        let dist_m = dist * arch::METRES_PER_UNIT;
-        (ppm * dist_m) as usize
-    }
-
-    /// Convert the given line into a strip of pixel positions based on ppm.
-    pub fn points(a: Point2, b: Point2, ppm: f32) -> impl Iterator<Item = Point2> {
-        let n_px = count_points(a, b, ppm);
-        (0..n_px).map(move |i| {
-            let f = i as f32 / n_px as f32;
-            a.lerp(b, f)
-        })
-    }
-}
-
-mod arch {
-    use crate::strip;
-    use nannou::prelude::*;
-    pub const COUNT: usize = 5;
-    pub const L: f32 = -1.0;
-    pub const T: f32 = 0.3;
-    pub const R: f32 = 1.0;
-    pub const B: f32 = -0.7;
-    pub const W: f32 = R - L;
-    pub const H: f32 = T - B;
-    pub const W_METRES: f32 = 7.0;
-    pub const METRES_PER_UNIT: f32 = W_METRES / W;
-    pub const BL: Point2 = Point2 { x: L, y: B };
-    pub const TL: Point2 = Point2 { x: L, y: T };
-    pub const TR: Point2 = Point2 { x: R, y: T };
-    pub const BR: Point2 = Point2 { x: R, y: B };
-    pub const PTS: [Point2; 4] = [BL, TL, TR, BR];
-    pub const Z_GAP: f32 = W * 0.5 * (4.0 / 7.0);
-
-    /// A path around the arch subdivided into pixels per metre.
-    pub fn path_points(ppm: f32) -> impl Iterator<Item = Point2> {
-        PTS.windows(2).flat_map(move |w| strip::points(w[0], w[1], ppm))
-    }
-}
-
-mod wash {
-    use nannou::prelude::*;
-
-    /// All statically known wash light areas.
-    pub const AREAS: &[Area] = &[
-        roof::L_AREA,
-        roof::R_AREA,
-        floor::L_AREA,
-        floor::R_AREA,
-        wall::R_AREA,
-        wall::L_AREA,
-    ];
-
-    pub struct Area {
-        pub pn: Point2,
-        pub vn: Vector2,
-        pub rad: f32,
-    }
-
-    pub fn fade_scalar(w: f32, h: f32) -> f32 {
-        use crate::arch::*;
-        ((R - L) - w.max(h)) * 0.4
-    }
-
-    pub fn apply_fade(c: LinSrgb, f: f32) -> LinSrgb {
-        lin_srgb(c.red * f, c.green * f, c.blue * f)
-    }
-
-    pub mod floor {
-        use nannou::prelude::*;
-        use crate::arch;
-        use crate::wash::Area;
-        pub const L: f32 = arch::L + arch::W * 0.3;
-        pub const R: f32 = arch::L + arch::W * 0.7;
-        pub const Y: f32 = arch::B;
-        pub const W: f32 = arch::W * 0.3;
-        pub const H: f32 = W * 0.3;
-
-        pub const L_AREA: Area = Area {
-            pn: Point2 { x: L, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: 0.0,
-        };
-        pub const R_AREA: Area = Area {
-            pn: Point2 { x: R, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: 0.0,
-        };
-    }
-
-    pub mod wall {
-        use nannou::prelude::*;
-        use crate::arch;
-        use crate::wash::Area;
-        pub const H: f32 = arch::W * 0.5;
-        pub const W: f32 = H * 0.3;
-        pub const L: f32 = arch::L - arch::W * 0.4;
-        pub const R: f32 = arch::R + arch::W * 0.4;
-        pub const Y: f32 = arch::B + arch::H * 0.5;
-
-        pub const L_AREA: Area = Area {
-            pn: Point2 { x: L, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: 0.0,
-        };
-        pub const R_AREA: Area = Area {
-            pn: Point2 { x: R, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: 0.0,
-        };
-    }
-
-    pub mod roof {
-        use nannou::prelude::*;
-        use crate::arch;
-        use crate::wash::Area;
-        pub const H: f32 = arch::W * 0.6;
-        pub const W: f32 = H * 0.3;
-        pub const L: f32 = arch::L + arch::W * 0.2;
-        pub const R: f32 = arch::L + arch::W * 0.8;
-        pub const Y: f32 = arch::T + arch::H * 1.5;
-        pub const L_RAD: f32 = 0.8;
-        pub const R_RAD: f32 = -L_RAD;
-
-        pub const L_AREA: Area = Area {
-            pn: Point2 { x: L, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: L_RAD,
-        };
-        pub const R_AREA: Area = Area {
-            pn: Point2 { x: R, y: Y },
-            vn: Vector2 { x: W, y: H },
-            rad: R_RAD,
-        };
-    }
+fn main() {
+    nannou::app(model).update(update).run();
 }
 
 fn model(app: &App) -> Model {
-    let _window = app
+    let gui_window = app
         .new_window()
+        .with_title("COHEN GIG GUI")
+        .with_dimensions(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .view(gui_view)
+        .build()
+        .expect("failed to build GUI window");
+
+    let vis_window = app
+        .new_window()
+        .with_title("COHEN GIG PREVIS")
         .with_dimensions(1024, 720)
-        .view(view)
+        .view(vis_view)
         .build()
         .unwrap();
+
+    let mut ui = app
+        .new_ui()
+        .window(gui_window)
+        .build()
+        .expect("failed to build `Ui` for GUI window");
+    let ids = gui::Ids::new(ui.widget_id_generator());
+
+    app.window(gui_window)
+        .expect("GUI window closed unexpectedly")
+        .set_position(GUI_WINDOW_X, GUI_WINDOW_Y);
+
+    {
+        let w = app.window(vis_window)
+            .expect("visualisation window closed unexpectedly");
+        w.set_position(VIS_WINDOW_X, VIS_WINDOW_Y);
+    }
+
     let dmx_source = None;
     Model {
-        _window,
+        gui_window,
+        vis_window,
         dmx_source,
+        ui,
+        ids,
     }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
+    let ui = model.ui.set_widgets();
+    gui::update(ui, &model.ids);
+
     // Ensure we are connected to a DMX source.
     if model.dmx_source.is_none() {
         let source = sacn::DmxSource::new("Cohen Pre-vis")
@@ -220,9 +127,16 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     }
 }
 
-fn view(app: &App, _model: &Model, frame: &Frame) {
+fn gui_view(app: &App, model: &Model, frame: &Frame) {
+    model
+        .ui
+        .draw_to_frame(app, frame)
+        .expect("failed to draw `Ui` to `Frame`");
+}
+
+fn vis_view(app: &App, model: &Model, frame: &Frame) {
     // Begin drawing
-    let draw = app.draw();
+    let draw = app.draw_for_window(model.vis_window).unwrap();
 
     // Clear the background to blue.
     draw.background().color(BLACK);
@@ -231,7 +145,7 @@ fn view(app: &App, _model: &Model, frame: &Frame) {
         time: app.time,
     };
 
-    let w = app.main_window().rect();
+    let w = app.window(model.vis_window).unwrap().rect();
     let vis_z_scale = 0.5;
     let vis_y_offset = w.h() * -0.2;
     let front_arch_scale = w.right().min(w.top()) * 4.0 / 7.0;
