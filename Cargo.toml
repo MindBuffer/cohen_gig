@@ -1,11 +1,6 @@
-[package]
-name = "cohen_gig"
-version = "0.1.0"
-authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
-edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-nannou = "0.11"
-sacn = "0.4"
+[workspace]
+members = [
+    "cohen_gig",
+    "shader",
+    "shader_shared",
+]

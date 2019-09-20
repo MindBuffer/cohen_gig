@@ -1,5 +1,6 @@
 use nannou::prelude::*;
 use nannou::Ui;
+use shader_shared::Uniforms;
 
 mod arch;
 mod gui;
@@ -29,18 +30,35 @@ struct Model {
     dmx_source: Option<sacn::DmxSource>,
     ui: Ui,
     ids: gui::Ids,
-}
-
-struct Uniforms {
-    time: f32,
+    shader_watch: hotlib::Watch,
+    shader: Shader,
 }
 
 type Universe = u16;
 type Address = u16;
 
+struct Shader {
+    lib: libloading::Library,
+}
+
 struct LedStrip {
     start: (Universe, Address),
     end: (Universe, Address),
+}
+
+impl Shader {
+    /// Load the shader function.
+    pub fn get_fn(&self) -> libloading::Symbol<fn(Vector3, &Uniforms) -> LinSrgb> {
+        unsafe {
+            self.lib.get("shader".as_bytes()).expect("failed to load shader fn symbol")
+        }
+    }
+}
+
+impl From<libloading::Library> for Shader {
+    fn from(lib: libloading::Library) -> Self {
+        Shader { lib }
+    }
 }
 
 fn main() {
@@ -59,7 +77,7 @@ fn model(app: &App) -> Model {
     let vis_window = app
         .new_window()
         .with_title("COHEN GIG PREVIS")
-        .with_dimensions(1024, 720)
+        .with_dimensions(VIS_WINDOW_W, VIS_WINDOW_H)
         .view(vis_view)
         .build()
         .unwrap();
@@ -82,18 +100,37 @@ fn model(app: &App) -> Model {
     }
 
     let dmx_source = None;
+    let shader_watch = hotlib::watch(&shader_toml_path()).expect("failed to start watching shader");
+    let shader_lib = shader_watch.build().expect("initial shader lib build failed");
+    let shader = Shader::from(shader_lib);
+
     Model {
         gui_window,
         vis_window,
         dmx_source,
         ui,
         ids,
+        shader_watch,
+        shader,
     }
+}
+
+fn shader_toml_path() -> std::path::PathBuf {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_dir = path.parent().expect("could not find workspace dir");
+    workspace_dir.join("shader").join("Cargo").with_extension("toml")
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
     let ui = model.ui.set_widgets();
     gui::update(ui, &model.ids);
+
+    // Check for an update to the shader.
+    match model.shader_watch.try_next() {
+        Err(err) => eprintln!("an error occurred watching the shader lib: {}", err),
+        Ok(None) => (),
+        Ok(Some(lib)) => model.shader = Shader::from(lib),
+    };
 
     // Ensure we are connected to a DMX source.
     if model.dmx_source.is_none() {
@@ -110,6 +147,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
         let total_dist = (arch::COUNT - 1) as f32 * arch::Z_GAP;
         let universe = 1;
         let mut data = vec![];
+        let shader = model.shader.get_fn();
         for i in (0..arch::COUNT).rev() {
             let zn = total_dist - i as f32 * arch::Z_GAP;
             // For each area.
@@ -151,6 +189,7 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
     let front_arch_scale = w.right().min(w.top()) * 4.0 / 7.0;
     let perspective_scale = 0.66;
     let total_dist = (arch::COUNT - 1) as f32 * arch::Z_GAP * front_arch_scale;
+    let shader = model.shader.get_fn();
 
     for i in (0..arch::COUNT).rev() {
         let dist_scale = perspective_scale.powi(i as i32);
@@ -200,13 +239,4 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
 
     // Write the result of our drawing to the window's frame.
     draw.to_frame(app, &frame).unwrap();
-}
-
-fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let t = uniforms.time;
-    let b = (p.z + t).sin() * 0.5 + 0.5;
-    let r = (p.x + t * 2.0 * p.x.signum()).cos() * 0.5 + 0.5;
-    let g = (p.y + t).cos() * 0.5 + 0.5;
-    let col = vec3(b*r*0.5, g*b, b);
-    lin_srgb(col.x, col.y, col.z)
 }
