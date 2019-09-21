@@ -1,0 +1,16 @@
+[package]
+name = "shader"
+version = "0.1.0"
+authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["lib", "dylib"]
+name = "shader"
+path = "src/lib.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nannou = "0.11"
+shader_shared = { path = "../shader_shared" }
