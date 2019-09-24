@@ -4,8 +4,11 @@ use shader_shared::Uniforms;
 
 mod arch;
 mod gui;
+mod shader;
 mod strip;
 mod wash;
+
+use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
 
 const WINDOW_PAD: i32 = 20;
 const GUI_WINDOW_X: i32 = WINDOW_PAD;
@@ -25,41 +28,22 @@ pub const ROOF_Y: f32 = 1.0;
 pub const LED_PPM: f32 = 60.0;
 
 struct Model {
-    gui_window: window::Id,
+    _gui_window: window::Id,
     vis_window: window::Id,
     dmx_source: Option<sacn::DmxSource>,
     ui: Ui,
     ids: gui::Ids,
-    shader_watch: hotlib::Watch,
-    shader: Shader,
+    shader_rx: ShaderReceiver,
+    shader: Option<Shader>,
 }
 
-type Universe = u16;
-type Address = u16;
-
-struct Shader {
-    lib: libloading::Library,
-}
-
-struct LedStrip {
-    start: (Universe, Address),
-    end: (Universe, Address),
-}
-
-impl Shader {
-    /// Load the shader function.
-    pub fn get_fn(&self) -> libloading::Symbol<fn(Vector3, &Uniforms) -> LinSrgb> {
-        unsafe {
-            self.lib.get("shader".as_bytes()).expect("failed to load shader fn symbol")
-        }
-    }
-}
-
-impl From<libloading::Library> for Shader {
-    fn from(lib: libloading::Library) -> Self {
-        Shader { lib }
-    }
-}
+// type Universe = u16;
+// type Address = u16;
+//
+// struct LedStrip {
+//     start: (Universe, Address),
+//     end: (Universe, Address),
+// }
 
 fn main() {
     nannou::app(model).update(update).run();
@@ -100,37 +84,28 @@ fn model(app: &App) -> Model {
     }
 
     let dmx_source = None;
-    let shader_watch = hotlib::watch(&shader_toml_path()).expect("failed to start watching shader");
-    let shader_lib = shader_watch.build().expect("initial shader lib build failed");
-    let shader = Shader::from(shader_lib);
+    let shader = None;
+    let shader_rx = shader::spawn_watch();
 
     Model {
-        gui_window,
+        _gui_window: gui_window,
         vis_window,
         dmx_source,
         ui,
         ids,
-        shader_watch,
+        shader_rx,
         shader,
     }
 }
 
-fn shader_toml_path() -> std::path::PathBuf {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_dir = path.parent().expect("could not find workspace dir");
-    workspace_dir.join("shader").join("Cargo").with_extension("toml")
-}
-
-fn update(app: &App, model: &mut Model, _update: Update) {
+fn update(app: &App, model: &mut Model, update: Update) {
     let ui = model.ui.set_widgets();
-    gui::update(ui, &model.ids);
+    gui::update(ui, &model.ids, update.since_start, model.shader_rx.activity());
 
     // Check for an update to the shader.
-    match model.shader_watch.try_next() {
-        Err(err) => eprintln!("an error occurred watching the shader lib: {}", err),
-        Ok(None) => (),
-        Ok(Some(lib)) => model.shader = Shader::from(lib),
-    };
+    if let Some(shader) = model.shader_rx.update() {
+        model.shader = Some(shader);
+    }
 
     // Ensure we are connected to a DMX source.
     if model.dmx_source.is_none() {
@@ -147,7 +122,15 @@ fn update(app: &App, model: &mut Model, _update: Update) {
         let total_dist = (arch::COUNT - 1) as f32 * arch::Z_GAP;
         let universe = 1;
         let mut data = vec![];
-        let shader = model.shader.get_fn();
+
+        // Retrieve the shader or fall back to black if its not ready.
+        let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
+        let black_shader: ShaderFnPtr = shader::black;
+        let shader: &ShaderFnPtr = match maybe_shader {
+            Some(ref symbol) => symbol,
+            None => &black_shader,
+        };
+
         for i in (0..arch::COUNT).rev() {
             let zn = total_dist - i as f32 * arch::Z_GAP;
             // For each area.
@@ -185,11 +168,18 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
 
     let w = app.window(model.vis_window).unwrap().rect();
     let vis_z_scale = 0.5;
-    let vis_y_offset = w.h() * -0.2;
+    //let vis_y_offset = w.h() * -0.2;
     let front_arch_scale = w.right().min(w.top()) * 4.0 / 7.0;
     let perspective_scale = 0.66;
     let total_dist = (arch::COUNT - 1) as f32 * arch::Z_GAP * front_arch_scale;
-    let shader = model.shader.get_fn();
+
+    // Retrieve the shader or fall back to black if its not ready.
+    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
+    let black_shader: ShaderFnPtr = shader::black;
+    let shader: &ShaderFnPtr = match maybe_shader {
+        Some(ref symbol) => symbol,
+        None => &black_shader,
+    };
 
     for i in (0..arch::COUNT).rev() {
         let dist_scale = perspective_scale.powi(i as i32);
@@ -234,6 +224,49 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
         for area in wash::AREAS {
             let color = shader(area.pn.extend(zn), &uniforms);
             draw_wash_area(&draw, &area, z * vis_z_scale, color, &tp);
+        }
+    }
+
+    // If we only recently loaded a new shader, flash the screen a little.
+    let secs_since_load = model.shader_rx.last_timestamp().elapsed().secs();
+    if secs_since_load < 1.0 {
+        let flash_alpha = (1.0 - secs_since_load).powi(8);
+        let flash_color = match model.shader_rx.last_incoming() {
+            shader::LastIncoming::Succeeded => GREEN,
+            shader::LastIncoming::Failed(_) => RED,
+        };
+        let color = nannou::color::Alpha { color: flash_color, alpha: flash_alpha };
+        draw.rect()
+            .wh(w.wh())
+            .color(color);
+    }
+
+    // If we are building or there was some error compiling recently, display it.
+    match model.shader_rx.activity() {
+        shader::Activity::Incoming => {
+            let s = "Compiling";
+            let r = w.pad(20.0);
+            let color = YELLOW;
+            let alpha = (app.time * 2.0 * PI).sin() * 0.35 + 0.5;
+            let color = nannou::color::Alpha { color, alpha };
+            draw.text(&s)
+                .font_size(16)
+                .wh(r.wh())
+                .color(color)
+                .left_justify()
+                .align_text_top();
+        }
+        shader::Activity::LastIncoming(last) => {
+            if let shader::LastIncoming::Failed(ref err) = last {
+                let s = format!("{}", err);
+                let r = w.pad(20.0);
+                draw.text(&s)
+                    .font_size(16)
+                    .wh(r.wh())
+                    .color(RED)
+                    .left_justify()
+                    .align_text_top();
+            }
         }
     }
 

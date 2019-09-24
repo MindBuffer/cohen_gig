@@ -7,4 +7,3 @@
 pub struct Uniforms {
     pub time: f32,
 }
-
