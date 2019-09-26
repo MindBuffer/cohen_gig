@@ -179,9 +179,16 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
 
     let w = app.window(model.topdown_window).unwrap().rect();
 
-    // Functions ready for metres -> point translation.
-    let m_to_p = |m| m * 15.0;
-    let trans_pm = |pm: Point2| pt2(m_to_p(pm.x), m_to_p(pm.y));
+    // Functions ready for metres <-> point translations.
+    let metres_to_points_scale = 15.0;
+
+    let m_to_p = |m| m * metres_to_points_scale;
+    let p_to_m = |p| p / metres_to_points_scale;
+    let pm_to_pp = |pm: Point2| pt2(m_to_p(pm.x), m_to_p(pm.y));
+    let pp_to_pm = |pp: Point2| pt2(p_to_m(pp.x), p_to_m(pp.y));
+
+    // Topdown metres <-> shader coords.
+    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
 
     // Retrieve the shader or fall back to black if its not ready.
     let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
@@ -192,7 +199,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     };
 
     // Draw the walls.
-    let ps = layout::WALL_METRES.iter().cloned().map(trans_pm);
+    let ps = layout::WALL_METRES.iter().cloned().map(pm_to_pp);
     draw.path().fill().points(ps).rgb(0.1, 0.1, 0.1);
 
     // Shade the wash lights based on their target location.
@@ -202,14 +209,15 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     let mut wash_colors = [lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT];
     for wash_ix in 0..layout::WASH_COUNT {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_s = layout::topdown_metres_to_shader_coords(trg_m);
+        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
+        let trg_s = pm_to_ps(trg_m, trg_h);
         wash_colors[wash_ix] = shader(trg_s, &uniforms);
     }
 
     // Draw the wash target ellipses.
     for wash_ix in 0..layout::WASH_COUNT {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = trans_pm(trg_m);
+        let trg_p = pm_to_pp(trg_m);
         let r_m = 3.0;
         let r = m_to_p(r_m);
         let color = wash_colors[wash_ix];
@@ -221,9 +229,9 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     // Draw the wash source indices.
     for wash_ix in 0..layout::WASH_COUNT {
         let src_m = layout::wash_index_to_topdown_source_position_metres(wash_ix);
-        let src_p = trans_pm(src_m);
+        let src_p = pm_to_pp(src_m);
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = trans_pm(trg_m);
+        let trg_p = pm_to_pp(trg_m);
         let color = wash_colors[wash_ix];
         draw.line().color(color).points(src_p, trg_p);
         draw.text(&format!("{}", wash_ix))
@@ -241,8 +249,20 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     let blackness_points = layout::WALL_METRES.iter().cloned()
         .chain(Some(layout::WALL_METRES[0]))
         .chain(crop.iter().cloned())
-        .map(trans_pm);
+        .map(pm_to_pp);
     draw.polygon().points(blackness_points).color(BLACK);
+
+    // Draw the mouse position in shader coords.
+    if app.window_id() == model.topdown_window && app.keys.down.contains(&Key::LShift) {
+        let mouse_p = app.mouse.position();
+        let mouse_m = pp_to_pm(mouse_p);
+        let mouse_s = pm_to_ps(mouse_m, 0.0);
+        let coords_text = format!("{:.2}x, {:.2}z", mouse_s.x, mouse_s.z);
+        draw.text(&coords_text)
+            .x(mouse_p.x)
+            .y(mouse_p.y + 16.0)
+            .font_size(16);
+    }
 
     draw_hotload_feedback(app, model, &draw, w);
 
