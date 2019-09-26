@@ -4,6 +4,7 @@ use shader_shared::Uniforms;
 
 mod arch;
 mod gui;
+mod layout;
 mod shader;
 mod strip;
 mod wash;
@@ -15,8 +16,12 @@ const GUI_WINDOW_X: i32 = WINDOW_PAD;
 const GUI_WINDOW_Y: i32 = WINDOW_PAD;
 const VIS_WINDOW_X: i32 = GUI_WINDOW_X + gui::WINDOW_WIDTH as i32 + WINDOW_PAD;
 const VIS_WINDOW_Y: i32 = GUI_WINDOW_Y;
-const VIS_WINDOW_W: u32 = 1024;
-const VIS_WINDOW_H: u32 = 720;
+const VIS_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3 - gui::WINDOW_WIDTH;
+const VIS_WINDOW_H: u32 = 480;
+const TOPDOWN_WINDOW_X: i32 = VIS_WINDOW_X;
+const TOPDOWN_WINDOW_Y: i32 = VIS_WINDOW_Y + VIS_WINDOW_H as i32 + WINDOW_PAD;
+const TOPDOWN_WINDOW_W: u32 = VIS_WINDOW_W;
+const TOPDOWN_WINDOW_H: u32 = 480;
 
 pub const FAR_Z: f32 = 0.0;
 pub const CLOSE_Z: f32 = 1.0;
@@ -30,6 +35,7 @@ pub const LED_PPM: f32 = 60.0;
 struct Model {
     _gui_window: window::Id,
     vis_window: window::Id,
+    topdown_window: window::Id,
     dmx_source: Option<sacn::DmxSource>,
     ui: Ui,
     ids: gui::Ids,
@@ -52,7 +58,7 @@ fn main() {
 fn model(app: &App) -> Model {
     let gui_window = app
         .new_window()
-        .with_title("COHEN GIG GUI")
+        .with_title("COHEN GIG - GUI")
         .with_dimensions(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
         .view(gui_view)
         .build()
@@ -60,9 +66,17 @@ fn model(app: &App) -> Model {
 
     let vis_window = app
         .new_window()
-        .with_title("COHEN GIG PREVIS")
+        .with_title("COHEN GIG - PREVIS")
         .with_dimensions(VIS_WINDOW_W, VIS_WINDOW_H)
         .view(vis_view)
+        .build()
+        .unwrap();
+
+    let topdown_window = app
+        .new_window()
+        .with_title("COHEN GIG - TOPDOWN")
+        .with_dimensions(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
+        .view(topdown_view)
         .build()
         .unwrap();
 
@@ -81,6 +95,9 @@ fn model(app: &App) -> Model {
         let w = app.window(vis_window)
             .expect("visualisation window closed unexpectedly");
         w.set_position(VIS_WINDOW_X, VIS_WINDOW_Y);
+        let w = app.window(topdown_window)
+            .expect("visualisation window closed unexpectedly");
+        w.set_position(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
     let dmx_source = None;
@@ -90,6 +107,7 @@ fn model(app: &App) -> Model {
     Model {
         _gui_window: gui_window,
         vis_window,
+        topdown_window,
         dmx_source,
         ui,
         ids,
@@ -153,6 +171,82 @@ fn gui_view(app: &App, model: &Model, frame: &Frame) {
         .ui
         .draw_to_frame(app, frame)
         .expect("failed to draw `Ui` to `Frame`");
+}
+
+fn topdown_view(app: &App, model: &Model, frame: &Frame) {
+    let draw = app.draw_for_window(model.topdown_window).unwrap();
+    draw.background().color(BLACK);
+
+    let w = app.window(model.topdown_window).unwrap().rect();
+
+    // Functions ready for metres -> point translation.
+    let m_to_p = |m| m * 15.0;
+    let trans_pm = |pm: Point2| pt2(m_to_p(pm.x), m_to_p(pm.y));
+
+    // Retrieve the shader or fall back to black if its not ready.
+    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
+    let black_shader: ShaderFnPtr = shader::black;
+    let shader: &ShaderFnPtr = match maybe_shader {
+        Some(ref symbol) => symbol,
+        None => &black_shader,
+    };
+
+    // Draw the walls.
+    let ps = layout::WALL_METRES.iter().cloned().map(trans_pm);
+    draw.path().fill().points(ps).rgb(0.1, 0.1, 0.1);
+
+    // Shade the wash lights based on their target location.
+    let uniforms = Uniforms {
+        time: app.time,
+    };
+    let mut wash_colors = [lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT];
+    for wash_ix in 0..layout::WASH_COUNT {
+        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+        let trg_s = layout::topdown_metres_to_shader_coords(trg_m);
+        wash_colors[wash_ix] = shader(trg_s, &uniforms);
+    }
+
+    // Draw the wash target ellipses.
+    for wash_ix in 0..layout::WASH_COUNT {
+        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+        let trg_p = trans_pm(trg_m);
+        let r_m = 3.0;
+        let r = m_to_p(r_m);
+        let color = wash_colors[wash_ix];
+        let alpha = 0.2;
+        let c = nannou::color::Alpha { color, alpha };
+        draw.ellipse().xy(trg_p).radius(r).color(c);
+    }
+
+    // Draw the wash source indices.
+    for wash_ix in 0..layout::WASH_COUNT {
+        let src_m = layout::wash_index_to_topdown_source_position_metres(wash_ix);
+        let src_p = trans_pm(src_m);
+        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+        let trg_p = trans_pm(trg_m);
+        let color = wash_colors[wash_ix];
+        draw.line().color(color).points(src_p, trg_p);
+        draw.text(&format!("{}", wash_ix))
+            .font_size(16)
+            .xy(src_p);
+    }
+
+    // Draw blackness outside the walls as an adhoc crop.
+    let crop_p = layout::WALL_METRES[0] - pt2(0.0, 20.0);
+    let crop_bl = crop_p - pt2(20.0, 0.0);
+    let crop_tl = crop_bl + pt2(0.0, 50.0);
+    let crop_tr = crop_tl + pt2(50.0, 0.0);
+    let crop_br = crop_tr - pt2(0.0, 50.0);
+    let crop = [crop_p, crop_bl, crop_tl, crop_tr, crop_br, crop_p];
+    let blackness_points = layout::WALL_METRES.iter().cloned()
+        .chain(Some(layout::WALL_METRES[0]))
+        .chain(crop.iter().cloned())
+        .map(trans_pm);
+    draw.polygon().points(blackness_points).color(BLACK);
+
+    draw_hotload_feedback(app, model, &draw, w);
+
+    draw.to_frame(app, &frame).unwrap();
 }
 
 fn vis_view(app: &App, model: &Model, frame: &Frame) {
@@ -227,6 +321,14 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
         }
     }
 
+    draw_hotload_feedback(app, model, &draw, w);
+
+    // Write the result of our drawing to the window's frame.
+    draw.to_frame(app, &frame).unwrap();
+}
+
+// Draw hotloading status in top-left corner. Flash screen on build completion.
+fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Rect) {
     // If we only recently loaded a new shader, flash the screen a little.
     let secs_since_load = model.shader_rx.last_timestamp().elapsed().secs();
     if secs_since_load < 1.0 {
@@ -269,7 +371,4 @@ fn vis_view(app: &App, model: &Model, frame: &Frame) {
             }
         }
     }
-
-    // Write the result of our drawing to the window's frame.
-    draw.to_frame(app, &frame).unwrap();
 }
