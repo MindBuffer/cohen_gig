@@ -1,6 +1,6 @@
-//use nannou_osc as osc;
 use nannou::prelude::*;
 use nannou::Ui;
+use nannou_osc as osc;
 use shader_shared::Uniforms;
 
 mod gui;
@@ -57,7 +57,7 @@ struct Dmx {
 }
 
 pub struct Osc {
-    //tx: Option<osc::Sender>,
+    tx: Option<osc::Sender>,
     addr: std::net::SocketAddr,
 }
 
@@ -119,9 +119,9 @@ fn model(app: &App) -> Model {
     let shader_rx = shader::spawn_watch();
 
     // Bind an `osc::Sender` and connect it to the target address.
-    //let tx = osc::sender().expect("failed to create OSC sender");
+    let tx = None;
     let addr = "127.0.0.1:34254".parse().unwrap();
-    let osc = Osc { addr };
+    let osc = Osc { tx, addr };
 
     let state = State {
         dmx_on: false,
@@ -204,14 +204,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.dmx.source.take();
     }
 
-    // // Ensure we are connected to an OSC source if enabled.
-    // if model.state.osc_on && model.osc.tx.is_none() {
-    //     let tx = osc::sender()
-    //         .expect("failed to create OSC sender");
-    //     model.osc.tx = Some(tx);
-    // } else if !model.state.osc_on && model.osc.tx.is_some() {
-    //     model.osc.tx.take();
-    // }
+    // Ensure we are connected to an OSC source if enabled.
+    if model.state.osc_on && model.osc.tx.is_none() {
+        let tx = osc::sender()
+            .expect("failed to create OSC sender");
+        model.osc.tx = Some(tx);
+    } else if !model.state.osc_on && model.osc.tx.is_some() {
+        model.osc.tx.take();
+    }
 
     // Convert the floating point f32 representation to bytes.
     fn lin_srgb_f32_to_bytes(lin_srgb: &LinSrgb) -> [u8; 3] {
@@ -250,34 +250,34 @@ fn update(app: &App, model: &mut Model, update: Update) {
             .expect("failed to send DMX data");
     }
 
+    // If we have an OSC sender, send data over it!
+    if let Some(ref osc_tx) = model.osc.tx {
+        // Send wash lights colors.
+        let addr = "/cohen/wash/";
+        let mut args = Vec::with_capacity(model.wash_colors.len() * 3);
+        for col in model.wash_colors.iter() {
+            let [r, g, b] = lin_srgb_f32_to_bytes(col);
+            args.push(osc::Type::Int(r as _));
+            args.push(osc::Type::Int(g as _));
+            args.push(osc::Type::Int(b as _));
+        }
+        osc_tx.send((addr, args), &model.osc.addr).ok();
 
-    // // If we have an OSC sender, send data over it!
-    // if let Some(ref osc_tx) = model.osc.tx {
-    //     // Send wash lights colors.
-    //     let addr = "/cohen/wash/";
-    //     let mut args = Vec::with_capacity(model.wash_colors.len() * 3);
-    //     for col in model.wash_colors.iter() {
-    //         let [r, g, b] = lin_srgb_f32_to_bytes(col);
-    //         args.push(Type::Int(r as _));
-    //         args.push(Type::Int(g as _));
-    //         args.push(Type::Int(b as _));
-    //     }
-    //     model.sender.send((addr, args)).ok();
-
-    //     // Send LED colors.
-    //     let addr = "/cohen/leds/";
-    //     let mut args = Vec::with_capacity(metre.len() * 3);
-    //     for (metre_ix, metre) in model.led_colors.chunks(layout::LEDS_PER_METRE).enumerate() {
-    //         args.clear();
-    //         for col in metre {
-    //             let [r, g, b] = lin_srgb_f32_to_bytes(col);
-    //             args.push(Type::Int(r as _));
-    //             args.push(Type::Int(g as _));
-    //             args.push(Type::Int(b as _));
-    //         }
-    //         model.sender.send((addr, args.clone())).ok();
-    //     }
-    // }
+        // Send LED colors.
+        let addr = "/cohen/leds/";
+        let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
+        for (metre_ix, metre) in model.led_colors.chunks(layout::LEDS_PER_METRE).enumerate() {
+            // TODO: Account for strip IDs etc here.
+            args.clear();
+            for col in metre {
+                let [r, g, b] = lin_srgb_f32_to_bytes(col);
+                args.push(osc::Type::Int(r as _));
+                args.push(osc::Type::Int(g as _));
+                args.push(osc::Type::Int(b as _));
+            }
+            osc_tx.send((addr, args.clone()), &model.osc.addr).ok();
+        }
+    }
 }
 
 fn gui_view(app: &App, model: &Model, frame: &Frame) {
