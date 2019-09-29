@@ -10,5 +10,6 @@ edition = "2018"
 hotlib = { git = "https://github.com/mitchmindtree/hotlib", branch = "master" }
 libloading = "0.5"
 nannou = "0.11"
+nannou_osc = "0.1"
 sacn = "0.4"
 shader_shared = { path = "../shader_shared" }

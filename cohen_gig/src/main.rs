@@ -1,5 +1,6 @@
 use nannou::prelude::*;
 use nannou::Ui;
+use nannou_osc as osc;
 use shader_shared::Uniforms;
 
 mod gui;
@@ -33,11 +34,31 @@ struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
     topdown_window: window::Id,
-    dmx_source: Option<sacn::DmxSource>,
+    dmx: Dmx,
+    osc: Osc,
     ui: Ui,
     ids: gui::Ids,
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
+    state: State,
+    wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
+    led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
+}
+
+pub struct State {
+    osc_on: bool,
+    dmx_on: bool,
+    osc_addr_textbox_string: String,
+}
+
+struct Dmx {
+    source: Option<sacn::DmxSource>,
+    buffer: Vec<u8>,
+}
+
+pub struct Osc {
+    tx: Option<osc::Sender>,
+    addr: std::net::SocketAddr,
 }
 
 fn main() {
@@ -89,69 +110,173 @@ fn model(app: &App) -> Model {
         w.set_position(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
-    let dmx_source = None;
+    let dmx = Dmx {
+        source: None,
+        buffer: vec![],
+    };
+
     let shader = None;
     let shader_rx = shader::spawn_watch();
+
+    // Bind an `osc::Sender` and connect it to the target address.
+    let tx = None;
+    let addr = "127.0.0.1:34254".parse().unwrap();
+    let osc = Osc { tx, addr };
+
+    let state = State {
+        dmx_on: false,
+        osc_on: false,
+        osc_addr_textbox_string: format!("{}", osc.addr),
+    };
+
+    let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
+    let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
 
     Model {
         _gui_window: gui_window,
         led_strip_window,
         topdown_window,
-        dmx_source,
+        dmx,
+        osc,
         ui,
         ids,
         shader_rx,
         shader,
+        state,
+        wash_colors,
+        led_colors,
     }
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
+    // Apply the GUI update.
     let ui = model.ui.set_widgets();
-    gui::update(ui, &model.ids, update.since_start, model.shader_rx.activity());
+    gui::update(
+        ui,
+        &model.ids,
+        &mut model.state,
+        &mut model.osc,
+        update.since_start,
+        model.shader_rx.activity(),
+    );
 
     // Check for an update to the shader.
     if let Some(shader) = model.shader_rx.update() {
         model.shader = Some(shader);
     }
 
-    // Ensure we are connected to a DMX source.
-    if model.dmx_source.is_none() {
-        let source = sacn::DmxSource::new("Cohen Pre-vis")
-            .expect("failed to connect to DMX source");
-        model.dmx_source = Some(source);
+    // Retrieve the shader or fall back to black if its not ready.
+    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
+    let black_shader: ShaderFnPtr = shader::black;
+    let shader: &ShaderFnPtr = match maybe_shader {
+        Some(ref symbol) => symbol,
+        None => &black_shader,
+    };
+
+    // Topdown metres to shader coords.
+    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
+
+    // Collect the uniforms.
+    let uniforms = Uniforms {
+        time: app.time,
+    };
+
+    // Apply the shader for the washes.
+    for wash_ix in 0..model.wash_colors.len() {
+        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
+        let trg_s = pm_to_ps(trg_m, trg_h);
+        model.wash_colors[wash_ix] = shader(trg_s, &uniforms);
     }
 
-    // If we have a DMX source ready, send data over it!
-    if let Some(ref dmx) = model.dmx_source {
-        let uniforms = Uniforms { time: app.time };
+    // Apply the shader for the LEDs.
+    for (led_ix, (x, h)) in layout::led_positions_metres().enumerate() {
+        let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES.y), h);
+        model.led_colors[led_ix] = shader(ps, &uniforms);
+    }
 
-        // // For each arch, emit the DMX
-        // let total_dist = (arch::COUNT - 1) as f32 * arch::Z_GAP;
-        // let universe = 1;
-        // let mut data = vec![];
+    // Ensure we are connected to a DMX source if enabled.
+    if model.state.dmx_on && model.dmx.source.is_none() {
+        let source = sacn::DmxSource::new("Cohen Pre-vis")
+            .expect("failed to connect to DMX source");
+        model.dmx.source = Some(source);
+    } else if !model.state.dmx_on && model.dmx.source.is_some() {
+        model.dmx.source.take();
+    }
 
-        // // Retrieve the shader or fall back to black if its not ready.
-        // let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
-        // let black_shader: ShaderFnPtr = shader::black;
-        // let shader: &ShaderFnPtr = match maybe_shader {
-        //     Some(ref symbol) => symbol,
-        //     None => &black_shader,
-        // };
+    // Ensure we are connected to an OSC source if enabled.
+    if model.state.osc_on && model.osc.tx.is_none() {
+        let tx = osc::sender()
+            .expect("failed to create OSC sender");
+        model.osc.tx = Some(tx);
+    } else if !model.state.osc_on && model.osc.tx.is_some() {
+        model.osc.tx.take();
+    }
 
-        // for i in (0..arch::COUNT).rev() {
-        //     let zn = total_dist - i as f32 * arch::Z_GAP;
-        //     // For each area.
-        //     for area in wash::AREAS {
-        //         let lin_srgb = shader(area.pn.extend(zn), &uniforms);
-        //         let lin_bytes: LinSrgb<u8> = lin_srgb.into_format();
-        //         let color_data = [lin_bytes.red, lin_bytes.green, lin_bytes.blue, 0];
-        //         //let color_data = [0u8, 0, 0, 255];
-        //         data.extend(color_data.iter().cloned());
-        //     }
-        // }
+    // Convert the floating point f32 representation to bytes.
+    fn lin_srgb_f32_to_bytes(lin_srgb: &LinSrgb) -> [u8; 3] {
+        fn convert_channel(f: f32) -> u8 {
+            (f.min(1.0).max(0.0) * 255.0) as u8
+        }
+        let r = convert_channel(lin_srgb.red);
+        let g = convert_channel(lin_srgb.green);
+        let b = convert_channel(lin_srgb.blue);
+        [r, g, b]
+    }
 
-        // dmx.send(universe, &data[..])
-        //     .expect("failed to send DMX data");
+    // If we have a DMX source, send data over it!
+    if let Some(ref dmx_source) = model.dmx.source {
+        model.dmx.buffer.clear();
+
+        // TODO: We'll use multiple universes for LEDs.
+        let universe = 1;
+
+        // Collect wash light color data.
+        for col in model.wash_colors.iter() {
+            let [r, g, b] = lin_srgb_f32_to_bytes(col);
+            let amber = 0;
+            let col = [r, g, b, amber];
+            model.dmx.buffer.extend(col.iter().cloned());
+        }
+
+        // Collect LED color data.
+        for col in model.led_colors.iter() {
+            let col = lin_srgb_f32_to_bytes(col);
+            model.dmx.buffer.extend(col.iter().cloned());
+        }
+
+        dmx_source
+            .send(universe, &model.dmx.buffer[..])
+            .expect("failed to send DMX data");
+    }
+
+    // If we have an OSC sender, send data over it!
+    if let Some(ref osc_tx) = model.osc.tx {
+        // Send wash lights colors.
+        let addr = "/cohen/wash/";
+        let mut args = Vec::with_capacity(model.wash_colors.len() * 3);
+        for col in model.wash_colors.iter() {
+            let [r, g, b] = lin_srgb_f32_to_bytes(col);
+            args.push(osc::Type::Int(r as _));
+            args.push(osc::Type::Int(g as _));
+            args.push(osc::Type::Int(b as _));
+        }
+        osc_tx.send((addr, args), &model.osc.addr).ok();
+
+        // Send LED colors.
+        let addr = "/cohen/leds/";
+        let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
+        for (metre_ix, metre) in model.led_colors.chunks(layout::LEDS_PER_METRE).enumerate() {
+            // TODO: Account for strip IDs etc here.
+            args.clear();
+            for col in metre {
+                let [r, g, b] = lin_srgb_f32_to_bytes(col);
+                args.push(osc::Type::Int(r as _));
+                args.push(osc::Type::Int(g as _));
+                args.push(osc::Type::Int(b as _));
+            }
+            osc_tx.send((addr, args.clone()), &model.osc.addr).ok();
+        }
     }
 }
 
@@ -179,29 +304,9 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     // Topdown metres <-> shader coords.
     let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
 
-    // Retrieve the shader or fall back to black if its not ready.
-    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
-    let black_shader: ShaderFnPtr = shader::black;
-    let shader: &ShaderFnPtr = match maybe_shader {
-        Some(ref symbol) => symbol,
-        None => &black_shader,
-    };
-
     // Draw the walls.
     let ps = layout::WALL_METRES.iter().cloned().map(pm_to_pp);
     draw.path().fill().points(ps).rgb(0.1, 0.1, 0.1);
-
-    // Shade the wash lights based on their target location.
-    let uniforms = Uniforms {
-        time: app.time,
-    };
-    let mut wash_colors = [lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT];
-    for wash_ix in 0..layout::WASH_COUNT {
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
-        let trg_s = pm_to_ps(trg_m, trg_h);
-        wash_colors[wash_ix] = shader(trg_s, &uniforms);
-    }
 
     // Draw the wash target ellipses.
     for wash_ix in 0..layout::WASH_COUNT {
@@ -209,7 +314,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
         let trg_p = pm_to_pp(trg_m);
         let r_m = 3.0;
         let r = m_to_p(r_m);
-        let color = wash_colors[wash_ix];
+        let color = model.wash_colors[wash_ix];
         let alpha = 0.2;
         let c = nannou::color::Alpha { color, alpha };
         draw.ellipse().xy(trg_p).radius(r).color(c);
@@ -221,7 +326,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
         let src_p = pm_to_pp(src_m);
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_p = pm_to_pp(trg_m);
-        let color = wash_colors[wash_ix];
+        let color = model.wash_colors[wash_ix];
         draw.line().color(color).points(src_p, trg_p);
         draw.text(&format!("{}", wash_ix))
             .font_size(16)
@@ -262,18 +367,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
     let draw = app.draw_for_window(model.led_strip_window).unwrap();
     draw.background().color(BLACK);
 
-    // Retrieve the shader or fall back to black if its not ready.
-    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
-    let black_shader: ShaderFnPtr = shader::black;
-    let shader: &ShaderFnPtr = match maybe_shader {
-        Some(ref symbol) => symbol,
-        None => &black_shader,
-    };
-
     let w = app.window(model.led_strip_window).unwrap().rect();
-    let uniforms = Uniforms {
-        time: app.time,
-    };
 
     let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND as f32)
         .min(w.w() / layout::METRES_PER_LED_ROW as f32) * 0.8;
@@ -286,15 +380,13 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
     let pm_to_ps = |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h);
 
     // Draw the LEDs one row at a time.
-    let mut leds = layout::led_positions_metres();
-    for row in 0..layout::LED_ROW_COUNT {
+    let mut leds = layout::led_positions_metres().zip(model.led_colors.iter());
+    for _ in 0..layout::LED_ROW_COUNT {
         let vs = leds
             .by_ref()
             .take(layout::LEDS_PER_ROW)
-            .map(|(x, h)| {
+            .map(|((x, h), &c)| {
                 let pp = pm_to_pp(x, h);
-                let ps = pm_to_ps(x, h);
-                let c = shader(ps, &uniforms);
                 (pp, c)
             });
         draw.polyline().weight(5.0).colored_points(vs);
