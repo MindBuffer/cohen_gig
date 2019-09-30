@@ -30,6 +30,9 @@ pub const ROOF_Y: f32 = 1.0;
 
 pub const LED_PPM: f32 = 60.0;
 
+pub const LED_SHADER_RESOLUTION_X: f32 = 864.0;
+pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
+
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
@@ -179,6 +182,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Collect the uniforms.
     let uniforms = Uniforms {
         time: app.time,
+        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
     };
 
     // Apply the shader for the washes.
@@ -253,13 +257,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // If we have an OSC sender, send data over it!
     if let Some(ref osc_tx) = model.osc.tx {
         // Send wash lights colors.
-        let addr = "/cohen/wash/";
-        let mut args = Vec::with_capacity(model.wash_colors.len() * 3);
+        let addr = "/cohen/wash_lights/";
+        let mut args = Vec::with_capacity(model.wash_colors.len() * 4);
         for col in model.wash_colors.iter() {
-            let [r, g, b] = lin_srgb_f32_to_bytes(col);
-            args.push(osc::Type::Int(r as _));
-            args.push(osc::Type::Int(g as _));
-            args.push(osc::Type::Int(b as _));
+            //let [r, g, b] = lin_srgb_f32_to_bytes(col);
+            args.push(osc::Type::Float(col.red as _));
+            args.push(osc::Type::Float(col.green as _));
+            args.push(osc::Type::Float(col.blue as _));
+            args.push(osc::Type::Float(0.0))
         }
         osc_tx.send((addr, args), &model.osc.addr).ok();
 
@@ -269,6 +274,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         for (metre_ix, metre) in model.led_colors.chunks(layout::LEDS_PER_METRE).enumerate() {
             // TODO: Account for strip IDs etc here.
             args.clear();
+            args.push(osc::Type::Int(metre_ix as _));
             for col in metre {
                 let [r, g, b] = lin_srgb_f32_to_bytes(col);
                 args.push(osc::Type::Int(r as _));
