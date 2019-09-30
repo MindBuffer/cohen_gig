@@ -6,4 +6,5 @@
 #[repr(C)]
 pub struct Uniforms {
     pub time: f32,
+    pub resolution: nannou::geom::vector::Vector2,
 }
