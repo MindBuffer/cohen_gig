@@ -16,7 +16,6 @@ struct Params {
     dc: f32,
     amp: f32,
     freq: f32,
-    num_bands: f32,
     direction: Direction,
     mirror: bool,
     signal_type: Signal,
@@ -31,15 +30,26 @@ fn palette(t: f32, signal: &Signal, a: Vector3, b: Vector3, c: Vector3, d: Vecto
 }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let params = Params {
+    let mut params = Params {
         speed: 0.03,
         dc: 0.05,
         amp: 0.5,
         freq: 0.5,
-        num_bands: 1.0,
-        direction: Direction::Horizontal,
-        mirror: true,
-        signal_type: Signal::SINE_IN_OUT,
+        direction: Direction::Vertical,
+        mirror: false,
+        signal_type: Signal::SINE,//SINE_IN_OUT,
+    };
+    
+    params.direction = if uniforms.slider1 > 0.5 {
+        Direction::Vertical
+    } else {
+        Direction::Horizontal
+    };
+
+    params.mirror = if uniforms.slider2 > 0.5 {
+        true
+    } else {
+        false
     };
 
     let phase = uniforms.time * params.speed;
@@ -52,8 +62,8 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
 
     if params.mirror {
         match params.direction {
-            Direction::Horizontal => uv.y = uv.y.abs(),
-            Direction::Vertical => uv.x = uv.x.abs(),
+            Direction::Vertical => uv.y = uv.y.abs(),
+            Direction::Horizontal => uv.x = uv.x.abs(),
         }
     }
 
@@ -61,15 +71,15 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     // animate
     let t = uniforms.time * params.speed;
     match params.direction {
-        Direction::Horizontal => uv.y += t,
-        Direction::Vertical => uv.x += t,
+        Direction::Vertical => uv.y += t,
+        Direction::Horizontal => uv.x += t,
     }
 
     let idx = 0.10;
 
     let d = match params.direction {
-        Direction::Horizontal => uv.y,
-        Direction::Vertical => uv.x,
+        Direction::Vertical => uv.y,
+        Direction::Horizontal => uv.x * 0.15,
     };
 
     let col = palette(d, 

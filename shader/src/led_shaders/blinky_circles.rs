@@ -23,15 +23,15 @@ fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = Params {
         speed: 0.5125,
-        zoom: 0.0,
-        offset: 7.5,
+        zoom: 0.05,
+        offset: 2.5,
     };
 
 
     let t = uniforms.time * params.speed;
 
-    params.zoom = map_range((t*0.5).sin(), -1.0, 1.0, 0.0, 1.0);
-    params.offset = map_range(t.cos(), -1.0, 1.0, 1.0, 10.0);
+    params.zoom = uniforms.slider3;
+    params.offset = uniforms.slider4 * 10.0;
     
     let d = 0.3 * params.offset;
 
@@ -52,12 +52,21 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
             vec3(0.5,0.5,0.5),
             vec3(0.5,0.5,0.5),
             vec3(1.0,1.0,1.0),
-            vec3(0.5,0.10,0.0));
+            vec3(0.0,0.10,0.2));
 
+    let x1 = (1.5 + t*0.2).sin() * 8.0;
+    let x2 = (2.5 + t*0.1).cos() * 4.0;
+
+    let r1 = length(vec3(uv.x * -x1,uv.y * x1,0.0)).powf(10.5);
+    let r2 = length(vec3(uv.x * -x2 ,uv.y * -x2, 0.0)).powf(10.5);
+    let r3= r1*r2;
+
+    let mut e = (1.0 - g.dot(g)) * 0.2 / ((f.fract() - 0.5) * 8.0).abs();
+    e = map_range(e, -0.02, 0.02, 0.0, 1.0);
+    let e = 1.0-((1.0) * 0.2 / ((f.fract() - 0.5) * 8.0).abs()).sqrt() * r3;//.powf(0.75);
+    //dbg!(g);
     
-    //let e = (1.0 - g.dot(g)) * 0.2 / ((f.fract() - 0.5) * 8.0).abs();
-    let e = 1.0-((1.0) * 0.2 / ((f.fract() - 0.5) * 8.0).abs()).sqrt();//.powf(0.75);
-
+    //lin_srgb(r1*r2,r1*r2, r1*r2)
     lin_srgb(c.x * e, c.y * e, c.z * e)
     
 }

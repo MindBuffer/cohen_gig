@@ -8,8 +8,8 @@ use std::net::SocketAddr;
 pub const COLUMN_W: Scalar = 240.0;
 pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const PAD: Scalar = 20.0;
-pub const WINDOW_WIDTH: u32 = (COLUMN_W + PAD * 2.0) as u32;
-pub const WINDOW_HEIGHT: u32 = 720;
+pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
+pub const WINDOW_HEIGHT: u32 = 1080 - PAD as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 
@@ -23,6 +23,21 @@ widget_ids! {
         osc_address_text_box,
         shader_title_text,
         shader_state_text,
+
+        led_shader_left_text,
+        led_shader_left_ddl,
+
+        led_shader_right_text,
+        led_shader_right_ddl,
+
+        wash_shader_text,
+        wash_shader_ddl,
+
+        colour_post_process_text,
+        colour_post_process_ddl,
+
+        blend_mode_text,
+        blend_mode_ddl,
     }
 }
 
@@ -39,6 +54,8 @@ pub fn update(
         .border(0.0)
         .rgb(0.1, 0.1, 0.1)
         .pad(PAD)
+        .x(-(WINDOW_WIDTH as f64 / 2.0) + COLUMN_W / 2.0 + PAD)
+        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
         .set(ids.background, ui);
 
     text("COHEN GIG")
@@ -129,6 +146,106 @@ pub fn update(
         .color(color)
         .down(PAD)
         .set(ids.shader_state_text, ui);
+
+    //---------------------- LED SHADER LEFT 
+    text("LED Shader Left")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.led_shader_left_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.led_shader_names, state.led_shader_idx_left)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("LED Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.led_shader_left_ddl, ui)
+    {
+        state.led_shader_idx_left = Some(selected_idx);
+    }
+
+    //---------------------- LED SHADER RIGHT 
+    text("LED Shader Right")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.led_shader_right_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.led_shader_names, state.led_shader_idx_right)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("LED Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.led_shader_right_ddl, ui)
+    {
+        state.led_shader_idx_right = Some(selected_idx);
+    }
+
+    //---------------------- WASH SHADER
+    text("Wash Shader")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.wash_shader_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.wash_shader_names, state.wash_shader_idx)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("Wash Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.wash_shader_ddl, ui)
+    {
+        state.wash_shader_idx = Some(selected_idx);
+    }
+
+    //---------------------- COLOUT POST PROCESS SHADER
+    text("Colour Post Process")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.colour_post_process_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.solid_colour_names, state.solid_colour_idx)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("Wash Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.colour_post_process_ddl, ui)
+    {
+        state.solid_colour_idx = Some(selected_idx);
+    }
+
+    //---------------------- BLEND MODES
+    text("LED Blend Mode")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.blend_mode_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.blend_mode_names, state.blend_mode_idx)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("Wash Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.blend_mode_ddl, ui)
+    {
+        state.blend_mode_idx = Some(selected_idx);
+    }
 }
 
 fn text(s: &str) -> widget::Text {

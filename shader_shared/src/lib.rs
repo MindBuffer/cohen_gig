@@ -7,4 +7,14 @@
 pub struct Uniforms {
     pub time: f32,
     pub resolution: nannou::geom::vector::Vector2,
+    pub slider1: f32,
+    pub slider2: f32,
+    pub slider3: f32,
+    pub slider4: f32,
+    pub slider5: f32,
+    pub slider6: f32,
+    pub pot6: f32,
+    pub pot7: f32,
+    pub pot8: f32,
 }
+
