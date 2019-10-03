@@ -53,14 +53,17 @@ fn hue(colour: Vector3, shift: f32) -> Vector3 {
     //colour
 }
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let params = Params {
-        speed: 2.15,
+    let mut params = Params {
+        speed: 0.5,
         scale: 0.83,
         colour_iter: 0.015,
-        line_amp: 1.0,
+        line_amp: 0.0,
         diag_amp: 0.0,
         boarder_amp: 9.0,
     };
+
+    params.scale = uniforms.slider3;
+    params.colour_iter = map_range(uniforms.slider4,0.0,1.0,0.0001,0.5);
 
     let t = uniforms.time * params.speed;
     

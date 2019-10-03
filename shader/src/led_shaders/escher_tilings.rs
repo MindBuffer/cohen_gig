@@ -23,7 +23,7 @@ struct Params {
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let params = Params {
         speed: 0.2,
-        scale: 6.0,
+        scale: uniforms.slider1 * 30.0, //6.0,
         shape_iter: 0.2,
         direction: Direction::Horizontal,
     };

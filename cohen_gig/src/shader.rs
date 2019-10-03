@@ -38,7 +38,7 @@ pub struct Shader {
 }
 
 /// The function signature of the shader function.
-pub type ShaderFnPtr = fn(Vector3, &Uniforms) -> LinSrgb;
+pub type ShaderFnPtr = fn(Vector3, &Uniforms, &String) -> LinSrgb;
 
 struct Incoming {
     rx: mpsc::Receiver<Result<hotlib::TempLibrary, BuildError>>,
@@ -164,6 +164,6 @@ pub fn spawn_watch() -> ShaderReceiver {
 
 // A function that matches the `ShaderFnPtr` that can be used as a fallback while the dylib is
 // building and loading for the first time.
-pub fn black(_: Vector3, _: &Uniforms) -> LinSrgb {
+pub fn black(_: Vector3, _: &Uniforms, _: &String) -> LinSrgb {
     lin_srgb(0.0, 0.0, 0.0)
 }

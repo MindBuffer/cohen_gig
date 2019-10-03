@@ -13,6 +13,8 @@ pub const WALL_METRES: &[Point2] = &[
     Point2 { x: -12.0, y: -12.0 },
 ];
 
+/// Total number of spot lights.
+pub const SPOT_LIGHT_COUNT: usize = 2;
 /// Total number of wash lights.
 pub const WASH_COUNT: usize = 28;
 /// The number of uniquely coloured LEDs per metre.

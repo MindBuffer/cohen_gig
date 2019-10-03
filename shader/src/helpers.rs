@@ -31,6 +31,19 @@ pub fn mix(x: f32, y: f32, p: f32) -> f32 {
     x * (1.0 - p) + y * p
 }
 
+pub fn fract(p: Vector2) -> Vector2 {
+    vec2(p.x.fract(), p.y.fract())
+}
+
+pub fn ceil(p: Vector2) -> Vector2 {
+    vec2(p.x.ceil(), p.y.ceil())
+}
+
+pub fn sin(p: Vector2) -> Vector2 {
+    vec2(p.x.sin(), p.y.sin())
+}
+
+
 ///--------------- HANDY FUNCTIONS
 pub fn rotate_2d(angle: f32) -> Matrix2<f32> {
     Matrix2::new(angle.cos(), -angle.sin(), angle.sin(), angle.cos())
