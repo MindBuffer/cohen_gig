@@ -6,20 +6,24 @@ use crate::helpers::*;
 
 // https://www.interactiveshaderformat.com/sketches/2329
 
+/* PARAMS
+- speed
+- dc
+- amp
+*/
+
 enum Direction {
     Vertical,
     Horizontal,
 }
 
-struct Params {
-    speed: f32,
-    dc: f32,
-    amp: f32,
-    freq: f32,
-    direction: Direction,
-    mirror: bool,
-    signal_type: Signal,
-}
+// struct Params {
+//     speed: f32,
+//     dc: f32,
+//     amp: f32,
+//     freq: f32,
+//     mirror: bool,
+// }
 
 //--------- Colour Palette
 fn palette(t: f32, signal: &Signal, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
@@ -30,17 +34,12 @@ fn palette(t: f32, signal: &Signal, a: Vector3, b: Vector3, c: Vector3, d: Vecto
 }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = Params {
-        speed: 0.03,
-        dc: 0.05,
-        amp: 0.5,
-        freq: 0.5,
-        direction: Direction::Vertical,
-        mirror: false,
-        signal_type: Signal::SINE,//SINE_IN_OUT,
-    };
+    let mut params = uniforms.params.bw_gradient;
     
-    params.direction = if uniforms.slider1 > 0.5 {
+    let mut direction = Direction::Vertical;
+    let signal_type = Signal::SINE;
+
+    direction = if uniforms.slider1 > 0.5 {
         Direction::Vertical
     } else {
         Direction::Horizontal
@@ -61,7 +60,7 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     
 
     if params.mirror {
-        match params.direction {
+        match direction {
             Direction::Vertical => uv.y = uv.y.abs(),
             Direction::Horizontal => uv.x = uv.x.abs(),
         }
@@ -70,20 +69,20 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
 
     // animate
     let t = uniforms.time * params.speed;
-    match params.direction {
+    match direction {
         Direction::Vertical => uv.y += t,
         Direction::Horizontal => uv.x += t,
     }
 
     let idx = 0.10;
 
-    let d = match params.direction {
+    let d = match direction {
         Direction::Vertical => uv.y,
         Direction::Horizontal => uv.x * 0.15,
     };
 
     let col = palette(d, 
-        &params.signal_type,
+        &signal_type,
         vec3(params.dc,params.dc,params.dc),
         vec3(params.amp, params.amp, params.amp),
         vec3(idx + params.freq, idx + params.freq, idx + params.freq),

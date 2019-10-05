@@ -2,35 +2,23 @@ use nannou::prelude::*;
 use shader_shared::Uniforms;
 use nannou::math::Matrix2;
 
-use crate::signals::*;
 use crate::helpers::*;
 
 // https://www.shadertoy.com/view/wllGzB
 
-struct Params {
-    speed: f32,
-    scale: f32,
-    red: f32,
-    green: f32,
-    blue: f32,
-}
-
+// struct Params {
+//     speed: f32,
+//     scale: f32,
+//     red: f32,
+//     green: f32,
+//     blue: f32,
+// }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = Params {
-        speed: 0.47,
-        scale: 1.0,
-        red: 1.0,
-        green: 1.0,
-        blue: 1.0,
-    };
+    let mut params = uniforms.params.metafall;
 
-/*
-    params.scale = 1.0 + uniforms.slider4 * 15.0;
-    params.red = uniforms.slider5;
-    params.green = uniforms.slider6;
-    params.blue = uniforms.slider7;
-*/
+    params.scale = uniforms.slider1;
+
 
     let t = uniforms.time * params.speed;
     
@@ -41,7 +29,8 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let r = uniforms.resolution;
     let mut q = vec2(0.0,0.0);
     let mut d = vec2(0.0,0.0);
-    let mut v = vec2(params.scale,params.scale) * uv;
+    let s = 1.0+(params.scale*15.0);
+    let mut v = vec2(s,s) * uv;
     v.y += t;
     let mut pt = 0.0;
 
@@ -49,7 +38,7 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     for k in 0..9 {
         q = vec2(fmod(k as f32, 3.0)-1.0, k as f32 / 3.0 - 1.0);
         let c = ceil(v-q);
-        d = fract(vec2(10000.0,10000.0) * sin(multiply_mat2_with_vec2(Matrix2::new(r.x,r.y,r.x,r.y), c))) - vec2(0.5,0.5);
+        d = fract(vec2(10000.0,10000.0) * sin(multiply_mat2_with_vec2(Matrix2::new(r.x,r.y,r.y,r.x), c))) - vec2(0.5,0.5);
         q = fract(v) -vec2(0.5,0.5) + q + d;
         pt += smoothstep(1.3 * uv.y, 0.0, length(vec3(q.x,q.y,0.0)));
     }

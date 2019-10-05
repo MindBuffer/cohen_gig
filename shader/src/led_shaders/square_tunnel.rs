@@ -2,33 +2,33 @@ use nannou::prelude::*;
 use shader_shared::Uniforms;
 use nannou::math::Matrix2;
 
-use crate::signals::*;
 use crate::helpers::*;
 
 // https://www.interactiveshaderformat.com/sketches/2346
 
-struct Params {
-    speed: f32,
-    rotation_speed: f32,
-    rotation_offset: f32,
-}
-
+// struct Params {
+//     speed: f32,
+//     rotation_speed: f32,
+//     rotation_offset: f32,
+//     zoom: f32,
+// }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let params = Params {
-        speed: 1.3,
-        rotation_speed: 0.025,
-        rotation_offset: 0.0,
-    };
+    let mut params = uniforms.params.square_tunnel;
 
-    let t = uniforms.time * params.speed;
-    
+    params.rotation_offset = uniforms.slider1;
+    params.zoom = uniforms.slider2;
+
+    let t = uniforms.time * (params.speed*2.0);
+
     let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
     let y = map_range(p.y, 0.25, 1.05, -1.0, 1.0);
     let mut uv = vec2(x,y);
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
+
+    uv *= vec2(params.zoom,params.zoom);
     
-    let t = params.rotation_speed * (t - (params.rotation_offset * 100.0));
+    let t = params.rotation_speed * (t - (params.rotation_offset * 33.0));
     let mut r = 1.0;
     let mut c;
     let mut s;
