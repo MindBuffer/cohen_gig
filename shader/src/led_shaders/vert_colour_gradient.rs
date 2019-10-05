@@ -1,19 +1,18 @@
 use nannou::prelude::*;
 use shader_shared::Uniforms;
 
-use crate::signals::*;
 use crate::helpers::*;
 
 // https://www.interactiveshaderformat.com/sketches/4822
 
-struct Params {
-    speed: f32,
-    scale: f32,
-    colour_iter: f32,
-    line_amp: f32,
-    diag_amp: f32,
-    boarder_amp: f32,
-}
+// struct Params {
+//     speed: f32,
+//     scale: f32,
+//     colour_iter: f32,
+//     line_amp: f32,
+//     diag_amp: f32,
+//     boarder_amp: f32,
+// }
 
 fn hue(colour: Vector3, shift: f32) -> Vector3 {
     let k_rgb_to_yprime: Vector3 = vec3(0.299, 0.587, 0.114);
@@ -53,14 +52,7 @@ fn hue(colour: Vector3, shift: f32) -> Vector3 {
     //colour
 }
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = Params {
-        speed: 0.5,
-        scale: 0.83,
-        colour_iter: 0.015,
-        line_amp: 0.0,
-        diag_amp: 0.0,
-        boarder_amp: 9.0,
-    };
+    let mut params = uniforms.params.vert_colour_gradient;
 
     params.scale = uniforms.slider3;
     params.colour_iter = map_range(uniforms.slider4,0.0,1.0,0.0001,0.5);
@@ -78,11 +70,12 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     d = d.powf(1.5);
     let j = (t*0.4).powf(PI);
     let mut f;
-    f = (((fmod(uv.x,1.0) - 0.5).abs() - 0.45 ) * params.boarder_amp) * params.line_amp;    
-    f = f.max( ((fmod(uv.y,0.5)-0.25).abs() - 0.2) * params.boarder_amp) * params.line_amp;
+    let ba = params.boarder_amp*12.0;
+    f = (((fmod(uv.x,1.0) - 0.5).abs() - 0.45 ) * ba) * params.line_amp;    
+    f = f.max( ((fmod(uv.y,0.5)-0.25).abs() - 0.2) * ba) * params.line_amp;
 
-    f = mix(f, f.max( ((fmod(uv.y+uv.x*1.5,1.0)-0.5).abs() - 0.4) * params.boarder_amp), params.diag_amp);
-    f = mix(f, f.max( ((fmod(uv.y+uv.x*-1.5,1.0)-0.5).abs() - 0.4) * params.boarder_amp), params.diag_amp);
+    f = mix(f, f.max( ((fmod(uv.y+uv.x*1.5,1.0)-0.5).abs() - 0.4) * ba), params.diag_amp);
+    f = mix(f, f.max( ((fmod(uv.y+uv.x*-1.5,1.0)-0.5).abs() - 0.4) * ba), params.diag_amp);
 
     let mut c = vec3(0.0,0.0,0.0);
     c.x = f;

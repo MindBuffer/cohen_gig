@@ -4,7 +4,7 @@ use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
 use std::sync::mpsc;
-use shader_shared::{Uniforms};
+use shader_shared::{Uniforms, ShaderParams};
 
 mod gui;
 mod layout;
@@ -46,8 +46,6 @@ struct Model {
     osc: Osc,
     midi_inputs: Vec<midir::MidiInputConnection<()>>,
     midi_rx: mpsc::Receiver<korg::Event>,
-    ui: Ui,
-    ids: gui::Ids,
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
     state: State,
@@ -58,6 +56,26 @@ struct Model {
     wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
     spot_lights: Box<[f32; layout::SPOT_LIGHT_COUNT]>,
+    ui: Ui,
+    ids: gui::Ids,
+    acid_gradient_ids: gui::AcidGradientIds,
+    blinky_circles_ids: gui::BlinkyCirclesIds,
+    bw_gradient_ids: gui::BwGradientIds,
+    colour_grid_ids: gui::ColourGridIds,
+    escher_tilings_ids: gui::EscherTilingsIds,
+    gilmore_acid_ids: gui::GilmoreAcidIds,
+    just_relax_ids: gui::JustRelaxIds,
+    life_led_wall_ids: gui::LifeLedWallIds,
+    line_gradient_ids: gui::LineGradientIds,
+    metafall_ids: gui::MetafallIds,
+    particle_zoom_ids: gui::ParticleZoomIds,
+    radial_lines_ids: gui::RadialLinesIds,
+    satis_spiraling_ids: gui::SatisSpiralingIds,
+    spiral_intersect_ids: gui::SpiralIntersectIds,
+    square_tunnel_ids: gui::SquareTunnelIds,
+    the_pulse_ids: gui::ThePulseIds,
+    tunnel_projection_ids: gui::TunnelProjectionIds,
+    vert_colour_gradient_ids: gui::VertColourGradientIds,
 }
 
 pub struct State {
@@ -78,6 +96,7 @@ pub struct State {
     solid_colour_idx: Option<usize>,
     blend_mode_names: Vec<String>,
     blend_mode_idx: Option<usize>,
+    shader_params: ShaderParams,
 }
 
 struct Dmx {
@@ -125,6 +144,24 @@ fn model(app: &App) -> Model {
         .build()
         .expect("failed to build `Ui` for GUI window");
     let ids = gui::Ids::new(ui.widget_id_generator());
+    let acid_gradient_ids = gui::AcidGradientIds::new(ui.widget_id_generator());
+    let blinky_circles_ids = gui::BlinkyCirclesIds::new(ui.widget_id_generator());
+    let bw_gradient_ids = gui::BwGradientIds::new(ui.widget_id_generator());
+    let colour_grid_ids = gui::ColourGridIds::new(ui.widget_id_generator());
+    let escher_tilings_ids = gui::EscherTilingsIds::new(ui.widget_id_generator());
+    let gilmore_acid_ids = gui::GilmoreAcidIds::new(ui.widget_id_generator());
+    let just_relax_ids = gui::JustRelaxIds::new(ui.widget_id_generator());
+    let life_led_wall_ids = gui::LifeLedWallIds::new(ui.widget_id_generator());
+    let line_gradient_ids = gui::LineGradientIds::new(ui.widget_id_generator());
+    let metafall_ids = gui::MetafallIds::new(ui.widget_id_generator());
+    let particle_zoom_ids = gui::ParticleZoomIds::new(ui.widget_id_generator());
+    let radial_lines_ids = gui::RadialLinesIds::new(ui.widget_id_generator());
+    let satis_spiraling_ids = gui::SatisSpiralingIds::new(ui.widget_id_generator());
+    let spiral_intersect_ids = gui::SpiralIntersectIds::new(ui.widget_id_generator());
+    let square_tunnel_ids = gui::SquareTunnelIds::new(ui.widget_id_generator());
+    let the_pulse_ids = gui::ThePulseIds::new(ui.widget_id_generator());
+    let tunnel_projection_ids = gui::TunnelProjectionIds::new(ui.widget_id_generator());
+    let vert_colour_gradient_ids = gui::VertColourGradientIds::new(ui.widget_id_generator());
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
@@ -195,6 +232,158 @@ fn model(app: &App) -> Model {
     blend_mode_names.push("Negation".to_string());
     blend_mode_names.push("Exclusion".to_string());
 
+    let acid_gradient = shader_shared::AcidGradient {
+        speed: 0.5125,
+        zoom: 0.0,
+        offset: 0.75,
+    };
+
+    let blinky_circles = shader_shared::BlinkyCircles {
+        speed: 0.5125,
+        zoom: 0.05,
+        offset: 0.25,
+    };
+
+    let bw_gradient = shader_shared::BwGradient {
+        speed: 0.03,
+        dc: 0.05,
+        amp: 0.5,
+        freq: 0.5,
+        mirror: false,
+    };
+
+    let colour_grid = shader_shared::ColourGrid {
+        speed: 0.5,
+        zoom_amount: 0.1,
+    };
+
+    let escher_tilings = shader_shared::EscherTilings {
+        speed: 0.2,
+        scale: 0.20,
+        shape_iter: 0.2,
+    };
+
+    let gilmore_acid = shader_shared::GilmoreAcid {
+        speed: 0.025,
+        displace: 0.01,
+        colour_offset: 0.85,
+        grid_size: 0.345,
+        wave: 0.088,
+        zoom_amount: 0.0,
+        rotation_amount: 0.0,
+        brightness: 1.0,
+        saturation: 0.15,
+    };
+
+    let just_relax = shader_shared::JustRelax {
+        speed: 0.6,
+        shape_offset: 0.728,
+        iter: 1.0,
+    };
+
+    let life_led_wall = shader_shared::LifeLedWall {
+        speed: 0.25,
+        size: 1.0,
+        red: 0.5,
+        green: 0.2,
+        blue: 0.1, 
+        saturation: 1.0,
+        colour_offset: 0.01,
+    };
+
+    let line_gradient = shader_shared::LineGradient {
+        speed: 0.03,
+        num_stripes: 1.0,
+        stripe_width: 0.9,
+        angle: 0.5,
+        smooth_width: 0.155,
+    };
+
+    let metafall = shader_shared::Metafall {
+        speed: 0.47,
+        scale: 0.0,
+        red: 1.0,
+        green: 1.0,
+        blue: 1.0,
+    };
+
+    let particle_zoom = shader_shared::ParticleZoom {
+        speed: 0.01,
+        density: 0.01,
+        shape: 0.35,
+        tau: 1.0,
+    };
+
+    let radial_lines = shader_shared::RadialLines {
+        speed: 0.05,
+        zoom_amount: 0.8,
+    };
+
+    let satis_spiraling = shader_shared::SatisSpiraling {
+        speed: 0.5,
+        loops: 125.0,
+        mirror: true,
+        rotate: true,
+    };
+
+    let spiral_intersect = shader_shared::SpiralIntersect {
+        speed: 0.2,
+        g1: 0.4,
+        g2: 0.6,
+        rot1: 1.0,
+        rot2: 0.5,
+        colours: 1.0,
+    };
+
+    let square_tunnel = shader_shared::SquareTunnel {
+        speed: 0.6,
+        rotation_speed: 0.025,
+        rotation_offset: 0.0,
+        zoom: 0.8,
+    };
+
+    let the_pulse = shader_shared::ThePulse {
+        speed: 0.08,
+        scale: 0.1,
+        colour_iter: 0.25,
+        thickness: 0.0,
+    };  
+
+    let tunnel_projection = shader_shared::TunnelProjection {
+        speed: 0.5,
+        res: 0.5,
+    };
+
+    let vert_colour_gradient = shader_shared::VertColourGradient {
+        speed: 0.5,
+        scale: 0.83,
+        colour_iter: 0.015,
+        line_amp: 0.0,
+        diag_amp: 0.0,
+        boarder_amp: 0.65,
+    };
+
+    let shader_params = ShaderParams {
+        acid_gradient,
+        blinky_circles,
+        bw_gradient,
+        colour_grid,
+        escher_tilings,
+        gilmore_acid,
+        just_relax,
+        life_led_wall,
+        line_gradient,
+        metafall,
+        particle_zoom,
+        radial_lines,
+        satis_spiraling,
+        spiral_intersect,
+        square_tunnel,
+        the_pulse,
+        tunnel_projection,
+        vert_colour_gradient,
+    };
+
     let state = State {
         dmx_on: false,
         osc_on: false,
@@ -213,6 +402,7 @@ fn model(app: &App) -> Model {
         solid_colour_idx: Some(0),
         blend_mode_names,
         blend_mode_idx: Some(2),
+        shader_params,
     };
 
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
@@ -252,6 +442,7 @@ fn model(app: &App) -> Model {
         pot6: 1.0, // Red / Hue
         pot7: 1.0, // Green / Saturation
         pot8: 1.0, // Blue / Value
+        params: state.shader_params.clone(),
     };
 
     Model {
@@ -262,8 +453,6 @@ fn model(app: &App) -> Model {
         osc,
         midi_inputs,
         midi_rx,
-        ui,
-        ids,
         shader_rx,
         shader,
         state,
@@ -274,6 +463,26 @@ fn model(app: &App) -> Model {
         wash_colors,
         led_colors,
         spot_lights,
+        ui,
+        ids,
+        acid_gradient_ids,
+        blinky_circles_ids,
+        bw_gradient_ids,
+        colour_grid_ids,
+        escher_tilings_ids,
+        gilmore_acid_ids,
+        just_relax_ids,
+        life_led_wall_ids,
+        line_gradient_ids,
+        metafall_ids,
+        particle_zoom_ids,
+        radial_lines_ids,
+        satis_spiraling_ids,
+        spiral_intersect_ids,
+        square_tunnel_ids,
+        the_pulse_ids,
+        tunnel_projection_ids,
+        vert_colour_gradient_ids,
     }
 }
 
@@ -282,11 +491,29 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let ui = model.ui.set_widgets();
     gui::update(
         ui,
-        &model.ids,
         &mut model.state,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
+        &model.ids,
+        &model.acid_gradient_ids,
+        &model.blinky_circles_ids,
+        &model.bw_gradient_ids,
+        &model.colour_grid_ids,
+        &model.escher_tilings_ids,
+        &model.gilmore_acid_ids,
+        &model.just_relax_ids,
+        &model.life_led_wall_ids,
+        &model.line_gradient_ids,
+        &model.metafall_ids,
+        &model.particle_zoom_ids,
+        &model.radial_lines_ids,
+        &model.satis_spiraling_ids,
+        &model.spiral_intersect_ids,
+        &model.square_tunnel_ids,
+        &model.the_pulse_ids,
+        &model.tunnel_projection_ids,
+        &model.vert_colour_gradient_ids,
     );
 
     // Check for an update to the shader.
@@ -355,6 +582,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.spot_lights[0] = model.state.spot_light1_fade_to_black;
     model.spot_lights[1] = model.state.spot_light2_fade_to_black;
 
+    // Update the shader params
+    model.uniforms.params = model.state.shader_params;
+
     // Apply the shader for the washes.
     for wash_ix in 0..model.wash_colors.len() {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
@@ -372,23 +602,25 @@ fn update(app: &App, model: &mut Model, update: Update) {
     */
     let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
+    let xfl = lin_srgb(xfade_left,xfade_left,xfade_left);
+    let xfr = lin_srgb(xfade_right,xfade_right,xfade_right);
 
     // Apply the shader for the LEDs.
     for (led_ix, (x, h)) in layout::led_positions_metres().enumerate() {
         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES.y), h);
-        let left = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_left.unwrap()]) * lin_srgb(xfade_left,xfade_left,xfade_left);
-        let right = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_right.unwrap()]) * lin_srgb(xfade_right,xfade_right,xfade_right);
+        let left = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_left.unwrap()]);
+        let right = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_right.unwrap()]);
         let colour = shader(ps, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
         let ftb = model.state.led_fade_to_black;
         let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
         model.led_colors[led_ix] = match blend_mode.as_str() {
-            "Add" => blend_modes::add(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Subtract" => blend_modes::subtract(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Multiply" => blend_modes::multiply(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Average" => blend_modes::average(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Difference" => blend_modes::difference(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Negation" => blend_modes::negation(left,right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Exclusion" => blend_modes::exclusion(left,right) * colour * lin_srgb(ftb,ftb,ftb),
+            "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Multiply" => blend_modes::multiply(left, right) * colour * lin_srgb(ftb,ftb,ftb),
+            "Average" => blend_modes::average(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Difference" => blend_modes::difference(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Negation" => blend_modes::negation(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Exclusion" => blend_modes::exclusion(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
             _ => colour,
         }
     }

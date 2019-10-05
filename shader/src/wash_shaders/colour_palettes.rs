@@ -25,15 +25,17 @@ fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
 }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let params = Params {
+    let mut params = Params {
         speed: 01.25,
-        interval: 0.05 + uniforms.slider1,
+        interval: 0.05,
     };
+
+    params.interval = 0.05 + uniforms.slider5;
 
     let t = uniforms.time * params.speed;
     let mut uv = vec3(p.x,p.y,p.z);
 
-    let selected = map_range(uniforms.slider2,0.0,1.0,0.0,9.0) as usize;
+    let selected = map_range(uniforms.slider6,0.0,1.0,0.0,9.0) as usize;
     
     // animate
     uv.z += t;

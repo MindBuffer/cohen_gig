@@ -1,17 +1,16 @@
 use nannou::prelude::*;
 use shader_shared::Uniforms;
 
-use crate::signals::*;
 use crate::helpers::*;
 
 // https://www.interactiveshaderformat.com/sketches/1678
 
-struct Params {
-    speed: f32,
-    scale: f32,
-    colour_iter: f32,
-    thickness: f32,
-}
+// struct Params {
+//     speed: f32,
+//     scale: f32,
+//     colour_iter: f32,
+//     thickness: f32,
+// }
 
 fn hsv(h: f32, s: f32, v: f32) -> Vector3 {
     let f = vec3(h+3.0, h+2.0, h+1.0) / vec3(3.0,3.0,3.0);
@@ -26,12 +25,11 @@ fn circle(uv: Vector2, r: f32, thickness: f32) -> f32 {
 }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let params = Params {
-        speed: 0.08,
-        scale: 0.1,
-        colour_iter: 0.25,
-        thickness: 0.0,
-    };
+    let mut params = uniforms.params.the_pulse;
+
+    params.scale = uniforms.slider3 * 0.8;
+    params.colour_iter = uniforms.slider4;
+
 
     let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
     let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
