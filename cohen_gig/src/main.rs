@@ -4,7 +4,7 @@ use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
 use std::sync::mpsc;
-use shader_shared::{Uniforms, ShaderParams};
+use shader_shared::{Light, ShaderParams, Uniforms, Vertex};
 
 mod gui;
 mod layout;
@@ -286,7 +286,7 @@ fn model(app: &App) -> Model {
         size: 1.0,
         red: 0.5,
         green: 0.2,
-        blue: 0.1, 
+        blue: 0.1,
         saturation: 1.0,
         colour_offset: 0.01,
     };
@@ -347,7 +347,7 @@ fn model(app: &App) -> Model {
         scale: 0.1,
         colour_iter: 0.25,
         thickness: 0.0,
-    };  
+    };
 
     let tunnel_projection = shader_shared::TunnelProjection {
         speed: 0.5,
@@ -591,7 +591,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
         let trg_s = pm_to_ps(trg_m, trg_h);
         let ftb = model.state.wash_fade_to_black;
-        model.wash_colors[wash_ix] = shader(trg_s, &model.uniforms, &model.state.wash_shader_names[model.state.wash_shader_idx.unwrap()]) * lin_srgb(ftb,ftb,ftb);
+        let light = Light::Wash { index: wash_ix };
+        let vertex = Vertex { position: trg_s, light };
+        model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &model.state.wash_shader_names[model.state.wash_shader_idx.unwrap()]) * lin_srgb(ftb,ftb,ftb);
     }
 
     /*
@@ -608,9 +610,18 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Apply the shader for the LEDs.
     for (led_ix, (x, h)) in layout::led_positions_metres().enumerate() {
         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES.y), h);
-        let left = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_left.unwrap()]);
-        let right = shader(ps, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_right.unwrap()]);
-        let colour = shader(ps, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
+        let index = led_ix;
+        let col = led_ix % layout::LEDS_PER_ROW;
+        let row = led_ix / layout::LEDS_PER_ROW;
+        let col_row = [col, row];
+        let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
+        let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
+        let normalised_coords = vec2(n_x, n_y);
+        let light = Light::Led { index, col_row, normalised_coords };
+        let vertex = Vertex { position: ps, light };
+        let left = shader(vertex, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_left.unwrap()]);
+        let right = shader(vertex, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_right.unwrap()]);
+        let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
         let ftb = model.state.led_fade_to_black;
         let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
         model.led_colors[led_ix] = match blend_mode.as_str() {
