@@ -2,11 +2,46 @@
 //! important in order to ensure types are laid out the same way between the dynamic library and
 //! the exe.
 
+use nannou::prelude::*;
+
+/// Attributes unique to each vertex.
+#[derive(Copy, Clone)]
+pub struct Vertex {
+    /// Positioned normalised across the entire venue space.
+    pub position: Point3,
+    /// Information specific to the light fixture type.
+    pub light: Light,
+}
+
+#[derive(Copy, Clone)]
+pub enum Light {
+    /// Wash light info.
+    Wash {
+        /// The index of the light within the layout.
+        index: usize,
+    },
+    /// Single LED light info.
+    Led {
+        /// The index of the LED within all LEDs.
+        index: usize,
+        /// The column and row indices respectively.
+        col_row: [usize; 2],
+        /// The coordinates of the light normalised to the bounds of the LED strips.
+        ///
+        /// - Left edge is -1.0
+        /// - Right edge is 1.0
+        /// - Bottom edge is -1.0
+        /// - Top edge is 1.0
+        normalised_coords: Point2,
+    },
+}
+
+
 /// Data that is uniform across all shader calls for a single frame.
 #[repr(C)]
 pub struct Uniforms {
     pub time: f32,
-    pub resolution: nannou::geom::vector::Vector2,
+    pub resolution: Vector2,
     pub slider1: f32,
     pub slider2: f32,
     pub slider3: f32,

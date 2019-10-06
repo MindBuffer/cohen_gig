@@ -1,7 +1,7 @@
 //! The shader function hotloaded at runtime by the cohen_gig crate.
 
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex};
 
 mod signals;
 mod helpers;
@@ -15,12 +15,13 @@ mod led_shaders;
 mod wash_shaders;
 
 #[no_mangle]
-fn shader(p: Vector3, uniforms: &Uniforms, shader_name: &String) -> LinSrgb {
+fn shader(v: Vertex, uniforms: &Uniforms, shader_name: &String) -> LinSrgb {
+    let p = v.position;
     match shader_name.as_ref() {
         "SolidHsvColour" => solid_hsv_colour::shader(p, uniforms),
         "SolidRgbColour" => solid_rgb_colour::shader(p, uniforms),
 
-        "AcidGradient" => led_shaders::acid_gradient::shader(p, uniforms),        
+        "AcidGradient" => led_shaders::acid_gradient::shader(p, uniforms),
         "BlinkyCircles" => led_shaders::blinky_circles::shader(p, uniforms),
         "BwGradient" => led_shaders::bw_gradient::shader(p, uniforms),
         "ColourGrid" => led_shaders::colour_grid::shader(p,uniforms),
@@ -44,5 +45,5 @@ fn shader(p: Vector3, uniforms: &Uniforms, shader_name: &String) -> LinSrgb {
         _ => lin_srgb(0.0, 0.0, 0.0)
     }
 
-    
+
 }
