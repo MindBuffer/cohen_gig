@@ -43,6 +43,11 @@ pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
 pub const SPOT_COUNT: usize = 2;
 pub const DMX_ADDRS_PER_SPOT: u8 = 1;
 pub const DMX_ADDRS_PER_WASH: u8 = 4;
+pub const DMX_ADDRS_PER_LED: u8 = 3;
+pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
+
+const SPOT_AND_WASH_UNIVERSE: u16 = 1;
+const LED_START_UNIVERSE: u16 = 2;
 
 struct Model {
     _gui_window: window::Id,
@@ -61,6 +66,7 @@ struct Model {
     target_pot_values: Vec<f32>,
     smoothing_speed: f32,
     wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
+    // Starts from top left, one row at a time.
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
     spot_lights: Box<[f32; layout::SPOT_LIGHT_COUNT]>,
     ui: Ui,
@@ -626,11 +632,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let xfr = lin_srgb(xfade_right,xfade_right,xfade_right);
 
     // Apply the shader for the LEDs.
-    for (led_ix, (x, h)) in layout::led_positions_metres().enumerate() {
+    for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES.y), h);
         let index = led_ix;
         let col = led_ix % layout::LEDS_PER_ROW;
-        let row = led_ix / layout::LEDS_PER_ROW;
         let col_row = [col, row];
         let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
         let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
@@ -686,11 +691,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
-        const SPOT_AND_WASH_UNIVERSE: u16 = 1;
-
         // First, send data to spotlights and washes on universe 1.
         model.dmx.buffer.clear();
-        model.dmx.buffer.extend((0..std::u8::MAX).map(|_| 0u8));
+        model.dmx.buffer.extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
 
         // Collect spot light dimming data.
         for (spot_ix, dim) in model.spot_lights.iter().enumerate() {
@@ -720,12 +723,22 @@ fn update(app: &App, model: &mut Model, update: Update) {
             .send(SPOT_AND_WASH_UNIVERSE, &model.dmx.buffer[..])
             .expect("failed to send DMX data");
 
-        // // TODO: Collect LED color data.
-        // model.dmx.buffer.clear();
-        // for col in model.led_colors.iter() {
-        //     let col = lin_srgb_f32_to_bytes(col);
-        //     model.dmx.buffer.extend(col.iter().cloned());
-        // }
+        // Collect and send LED data.
+        model.dmx.buffer.clear();
+        let mut universe = LED_START_UNIVERSE;
+        for col in model.led_colors.iter() {
+            let col = lin_srgb_f32_to_bytes(col);
+            model.dmx.buffer.extend(col.iter().cloned());
+            // If we've filled a universe, send it.
+            if model.dmx.buffer.len() >= DMX_ADDRS_PER_UNIVERSE as usize {
+                let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
+                dmx_source.send(universe, data).expect("failed to send LED DMX data");
+                model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
+                universe += 1;
+            }
+        }
+        let data = &model.dmx.buffer;
+        dmx_source.send(universe, data).expect("failed to send LED DMX data");
     }
 
     // If we have an OSC sender, send data over it!
@@ -876,7 +889,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
         let vs = leds
             .by_ref()
             .take(layout::LEDS_PER_ROW)
-            .map(|((x, h), &c)| {
+            .map(|((_row, x, h), &c)| {
                 let pp = pm_to_pp(x, h);
                 (pp, c)
             });
