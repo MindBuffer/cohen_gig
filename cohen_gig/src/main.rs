@@ -89,6 +89,8 @@ struct Model {
     the_pulse_ids: gui::ThePulseIds,
     tunnel_projection_ids: gui::TunnelProjectionIds,
     vert_colour_gradient_ids: gui::VertColourGradientIds,
+    solid_hsv_colour_ids: gui::SolidHsvColourIds,
+    solid_rgb_colour_ids: gui::SolidRgbColourIds,
 }
 
 pub struct State {
@@ -182,6 +184,8 @@ fn model(app: &App) -> Model {
     let the_pulse_ids = gui::ThePulseIds::new(ui.widget_id_generator());
     let tunnel_projection_ids = gui::TunnelProjectionIds::new(ui.widget_id_generator());
     let vert_colour_gradient_ids = gui::VertColourGradientIds::new(ui.widget_id_generator());
+    let solid_hsv_colour_ids = gui::SolidHsvColourIds::new(ui.widget_id_generator());
+    let solid_rgb_colour_ids = gui::SolidRgbColourIds::new(ui.widget_id_generator());
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
@@ -383,6 +387,19 @@ fn model(app: &App) -> Model {
         boarder_amp: 0.65,
     };
 
+    let solid_hsv_colour = shader_shared::SolidHsvColour {
+        hue: 1.0,
+        saturation: 0.0,
+        value: 1.0,
+    };
+
+    let solid_rgb_colour = shader_shared::SolidRgbColour {
+        red: 0.0,
+        green: 0.0,
+        blue: 0.0,
+    };
+
+
     let shader_params = ShaderParams {
         acid_gradient,
         blinky_circles,
@@ -402,6 +419,8 @@ fn model(app: &App) -> Model {
         the_pulse,
         tunnel_projection,
         vert_colour_gradient,
+        solid_hsv_colour,
+        solid_rgb_colour,
     };
 
     let state = State {
@@ -451,6 +470,7 @@ fn model(app: &App) -> Model {
     let uniforms = Uniforms {
         time: 0.0,
         resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
+        use_midi: true,
         slider1: 0.0, // BW param 1
         slider2: 0.0, // BW param 2
         slider3: 0.0, // Colour param 1
@@ -458,7 +478,7 @@ fn model(app: &App) -> Model {
         slider5: 0.0, // Wash param 1
         slider6: 0.0, // Wash param 2
         pot6: 1.0, // Red / Hue
-        pot7: 1.0, // Green / Saturation
+        pot7: 0.0, // Green / Saturation
         pot8: 1.0, // Blue / Value
         params: state.shader_params.clone(),
     };
@@ -476,8 +496,8 @@ fn model(app: &App) -> Model {
         state,
         config,
         uniforms,
-        target_slider_values: vec![0.0; 6], // First 6 Sliders
-        target_pot_values: vec![0.0; 3], // Last 3 Pots
+        target_slider_values: vec![0.5; 6], // First 6 Sliders
+        target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
         led_colors,
@@ -502,6 +522,8 @@ fn model(app: &App) -> Model {
         the_pulse_ids,
         tunnel_projection_ids,
         vert_colour_gradient_ids,
+        solid_hsv_colour_ids,
+        solid_rgb_colour_ids,
     }
 }
 
@@ -534,6 +556,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         &model.the_pulse_ids,
         &model.tunnel_projection_ids,
         &model.vert_colour_gradient_ids,
+        &model.solid_hsv_colour_ids,
+        &model.solid_rgb_colour_ids,
     );
 
     // Check for an update to the shader.
@@ -598,6 +622,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.uniforms.pot7 = model.uniforms.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
     model.uniforms.pot8 = model.uniforms.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
+    model.uniforms.use_midi = model.config.midi_on;
+    
     // Update dimming control of the 2 house spot lights
     model.spot_lights[0] = model.state.spot_light1_fade_to_black;
     model.spot_lights[1] = model.state.spot_light2_fade_to_black;

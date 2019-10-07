@@ -15,6 +15,9 @@ pub struct Config {
     /// Whether or not DMX is enabled.
     #[serde(default)]
     pub dmx_on: bool,
+    /// Whether or not MIDI is enabled.
+    #[serde(default)]
+    pub midi_on: bool,
     /// A map from the layout index of each wash to their starting DMX address.
     #[serde(default = "default::wash_dmx_addrs")]
     pub wash_dmx_addrs: Box<[u8; crate::layout::WASH_COUNT]>,
@@ -33,6 +36,7 @@ impl Default for Config {
         Config {
             osc_on: Default::default(),
             dmx_on: Default::default(),
+            midi_on: Default::default(),
             wash_dmx_addrs: default::wash_dmx_addrs(),
             spot_dmx_addrs: default::spot_dmx_addrs(),
         }
