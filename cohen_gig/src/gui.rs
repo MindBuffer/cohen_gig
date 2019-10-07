@@ -369,7 +369,7 @@ pub fn update(
             false => config.spot_dmx_addrs[light_i],
         };
         let min = 0.0;
-        let max = std::u8::MAX as f32;
+        let max = (crate::DMX_ADDRS_PER_UNIVERSE - 1) as f32;
         let precision = 0;
         let dialer = widget::NumberDialer::new(v as f32, min, max, precision)
             .border(0.0)

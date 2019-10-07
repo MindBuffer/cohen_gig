@@ -38,7 +38,7 @@ pub const TOP_LED_ROW_FROM_GROUND: f32 = BOTTOM_LED_ROW_FROM_GROUND_METRES + LED
 /// The shader origin position in metres.
 pub const SHADER_ORIGIN_METRES: Point2 = Point2 { x: -4.5, y: 12.0 };
 
-/// The height of the LED row from the ground.
+/// The height of the LED row from the ground. Row `0` is at the bottom.
 fn led_row_index_to_height_metres(idx: usize) -> f32 {
     BOTTOM_LED_ROW_FROM_GROUND_METRES + LED_ROW_GAP_METRES * idx as f32
 }
@@ -49,11 +49,13 @@ fn led_row_xs_metres() -> impl Iterator<Item = f32> {
     (0..LEDS_PER_ROW).map(move |ix| x_start + ix as f32 * LED_GAP_METRES)
 }
 
-/// The x and height of every LED in all of the rows, left-most LED of the bottom row.
-pub fn led_positions_metres() -> impl Iterator<Item = (f32, f32)> {
-    (0..LED_ROW_COUNT).flat_map(|ix| {
-        let h = led_row_index_to_height_metres(ix);
-        led_row_xs_metres().map(move |x| (x, h))
+/// The row index, x and height of every LED in all of the rows.
+///
+/// Starts from the left-most LED of the top row.
+pub fn led_positions_metres() -> impl Iterator<Item = (usize, f32, f32)> {
+    (0..LED_ROW_COUNT).rev().flat_map(|row_ix| {
+        let h = led_row_index_to_height_metres(row_ix);
+        led_row_xs_metres().map(move |x| (row_ix, x, h))
     })
 }
 
