@@ -30,8 +30,10 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
         interval: 0.05,
     };
 
-    params.interval = 0.05 + uniforms.slider5;
-
+    if uniforms.use_midi {
+        params.interval = 0.05 + uniforms.slider5;
+    }
+    
     let t = uniforms.time * params.speed;
     let mut uv = vec3(p.x,p.y,p.z);
 

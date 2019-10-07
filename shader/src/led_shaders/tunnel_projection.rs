@@ -13,8 +13,10 @@ use crate::helpers::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.tunnel_projection;
 
-    params.res = uniforms.slider3;
-
+    if uniforms.use_midi {
+        params.res = uniforms.slider3;
+    }
+    
     let t = uniforms.time * params.speed;
     let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);
     let y = map_range(p.y, 0.3, 1.0, 0.0, 1.0);

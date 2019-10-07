@@ -34,9 +34,11 @@ fn calc(tx: Vector2, t: f32, params: &shader_shared::GilmoreAcid, uniforms: &Uni
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.gilmore_acid;
 
-    params.grid_size = 0.1 + uniforms.slider3;
-    params.displace = uniforms.slider4 * 0.01;
-
+    if uniforms.use_midi {
+        params.grid_size = 0.1 + uniforms.slider3;
+        params.displace = uniforms.slider4 * 0.01;
+    }
+    
     let t = uniforms.time * params.speed;
     
     let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);

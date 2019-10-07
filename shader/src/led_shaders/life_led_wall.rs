@@ -27,9 +27,11 @@ use crate::helpers::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.life_led_wall;
 
-    params.size = uniforms.slider3;
-    params.colour_offset = uniforms.slider4 * 0.01;
-    
+    if uniforms.use_midi {
+        params.size = uniforms.slider3;
+        params.colour_offset = uniforms.slider4 * 0.01;
+    }
+        
     let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);
     let y = map_range(p.y, 0.25, 1.05, 0.0, 1.0);
     let uv = vec2(x,y) * (params.size*80.0);

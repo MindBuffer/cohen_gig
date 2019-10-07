@@ -20,9 +20,11 @@ enum Direction {
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.escher_tilings;
 
-    params.scale = uniforms.slider1;
-    params.shape_iter = uniforms.slider2;
-
+    if uniforms.use_midi {
+        params.scale = uniforms.slider1;
+        params.shape_iter = uniforms.slider2;
+    }
+    
     let direction = Direction::Horizontal;
     let t = uniforms.time * params.speed;
     

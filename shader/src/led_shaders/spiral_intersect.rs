@@ -36,11 +36,12 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
 
     let mut t = uniforms.time * params.speed;
 
-    params.g1 = uniforms.slider3;
-    params.g2 = uniforms.slider3;
+    if uniforms.use_midi {
+        params.g1 = uniforms.slider3;
+        params.g2 = uniforms.slider3;
+        params.colours = uniforms.slider4;
+    }
 
-    params.colours = uniforms.slider4;
-    
     let x = map_range(p.x, -0.18, 0.13, 0.0, 1.0);
     let y = map_range(p.y, 0.25, 1.05, 0.0, 1.00);
     let uv = vec2(x,y);// / uniforms.resolution;

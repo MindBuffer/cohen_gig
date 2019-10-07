@@ -39,17 +39,19 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut direction = Direction::Vertical;
     let signal_type = Signal::SINE;
 
-    direction = if uniforms.slider1 > 0.5 {
-        Direction::Vertical
-    } else {
-        Direction::Horizontal
-    };
+    if uniforms.use_midi {
+        direction = if uniforms.slider1 > 0.5 {
+            Direction::Vertical
+        } else {
+            Direction::Horizontal
+        };
 
-    params.mirror = if uniforms.slider2 > 0.5 {
-        true
-    } else {
-        false
-    };
+        params.mirror = if uniforms.slider2 > 0.5 {
+            true
+        } else {
+            false
+        };
+    }
 
     let phase = uniforms.time * params.speed;
     

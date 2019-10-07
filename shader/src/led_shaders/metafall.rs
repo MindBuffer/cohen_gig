@@ -17,8 +17,9 @@ use crate::helpers::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.metafall;
 
-    params.scale = uniforms.slider1;
-
+    if uniforms.use_midi {
+        params.scale = uniforms.slider1;
+    }
 
     let t = uniforms.time * params.speed;
     

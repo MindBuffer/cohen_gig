@@ -23,9 +23,10 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * params.speed;
 
-    params.zoom = uniforms.slider3;
-    params.offset = uniforms.slider4;
-    
+    if uniforms.use_midi {
+        params.zoom = uniforms.slider3;
+        params.offset = uniforms.slider4;
+    }
     let d = 0.3 * (params.offset* 10.0);
 
     let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);

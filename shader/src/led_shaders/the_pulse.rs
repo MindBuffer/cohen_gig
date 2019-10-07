@@ -27,9 +27,10 @@ fn circle(uv: Vector2, r: f32, thickness: f32) -> f32 {
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.the_pulse;
 
-    params.scale = uniforms.slider3 * 0.8;
-    params.colour_iter = uniforms.slider4;
-
+    if uniforms.use_midi {
+        params.scale = uniforms.slider3 * 0.8;
+        params.colour_iter = uniforms.slider4;
+    }
 
     let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
     let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);

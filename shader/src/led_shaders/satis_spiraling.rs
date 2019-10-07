@@ -26,8 +26,10 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.satis_spiraling;
 
     //params.speed = map_range((uniforms.time*0.01).sin() * (uniforms.time*0.001 * 10.0).cos(), -1.0, 1.0, 0.05, 0.2);
-    params.loops = uniforms.slider3;
-
+    if uniforms.use_midi {
+        params.loops = uniforms.slider3;
+    }
+    
     let t = uniforms.time * -params.speed;
     let aspect = uniforms.resolution.x/uniforms.resolution.y;
     let w = 50.0/(uniforms.resolution.x*aspect+uniforms.resolution.y).sqrt();
