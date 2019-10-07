@@ -14,6 +14,7 @@ pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
 pub const WINDOW_HEIGHT: u32 = 1080 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
+pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
 
 widget_ids! {
     pub struct Ids {
@@ -22,6 +23,7 @@ widget_ids! {
         title_text,
         dmx_button,
         osc_button,
+        midi_button,
         osc_address_text,
         osc_address_text_box,
         shader_title_text,
@@ -215,6 +217,22 @@ widget_ids! {
     }
 }
 
+widget_ids! {
+    pub struct SolidHsvColourIds {
+        hue,
+        saturation,
+        value,
+    }
+}
+
+widget_ids! {
+    pub struct SolidRgbColourIds {
+        red,
+        green,
+        blue,
+    }
+}
+
 /// Update the user interface.
 pub fn update(
     ref mut ui: UiCell,
@@ -242,6 +260,8 @@ pub fn update(
     the_pulse_ids: &ThePulseIds,
     tunnel_projection_ids: &TunnelProjectionIds,
     vert_colour_gradient_ids: &VertColourGradientIds,
+    solid_hsv_colour_ids: &SolidHsvColourIds,
+    solid_rgb_colour_ids: &SolidRgbColourIds,
 ) {
     widget::Canvas::new()
         .border(0.0)
@@ -257,7 +277,7 @@ pub fn update(
     if button()
         .color(toggle_color(config.dmx_on))
         .label("DMX")
-        .w(HALF_WIDGET_W)
+        .w(THIRD_WIDGET_W)
         .mid_left_of(ids.background)
         .down(PAD * 1.5)
         .set(ids.dmx_button, ui)
@@ -270,11 +290,22 @@ pub fn update(
         .color(toggle_color(config.osc_on))
         .label("OSC")
         .right(PAD * 0.5)
-        .w(HALF_WIDGET_W)
+        .w(THIRD_WIDGET_W)
         .set(ids.osc_button, ui)
         .was_clicked()
     {
         config.osc_on = !config.osc_on;
+    }
+
+    if button()
+        .color(toggle_color(config.midi_on))
+        .label("MIDI")
+        .right(PAD * 0.5)
+        .w(THIRD_WIDGET_W)
+        .set(ids.midi_button, ui)
+        .was_clicked()
+    {
+        config.midi_on = !config.midi_on;
     }
 
     text("OSC Address")
@@ -428,6 +459,8 @@ pub fn update(
         "ThePulse" => set_the_pulse_widgets(ui, &the_pulse_ids, state),
         "TunnelProjection" => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, state),
         "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, state),
+        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
+        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
         _ => (),
     }
 
@@ -470,6 +503,8 @@ pub fn update(
         "ThePulse" => set_the_pulse_widgets(ui, &the_pulse_ids, state),
         "TunnelProjection" => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, state),
         "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, state),
+        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
+        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
         _ => (),
     }
 
@@ -493,7 +528,7 @@ pub fn update(
         state.wash_shader_idx = Some(selected_idx);
     }
 
-    //---------------------- COLOUT POST PROCESS SHADER
+    //---------------------- COLOUR POST PROCESS SHADER
     text("Colour Post Process")
         .down(20.0)
         .color(color::WHITE)
@@ -511,6 +546,12 @@ pub fn update(
         .set(ids.colour_post_process_ddl, ui)
     {
         state.solid_colour_idx = Some(selected_idx);
+    }
+
+    match state.solid_colour_names[state.solid_colour_idx.unwrap()].as_str() {
+        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
+        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
+        _ => (),
     }
 
     //---------------------- BLEND MODES
@@ -1130,6 +1171,54 @@ pub fn set_vert_colour_gradient_widgets(ui: &mut UiCell, ids: &VertColourGradien
         .set(ids.boarder_amp, ui)
     {
         state.shader_params.vert_colour_gradient.boarder_amp = value;
+    }
+}
+
+pub fn set_solid_hsv_colour_widgets(ui: &mut UiCell, ids: &SolidHsvColourIds, state: &mut State) {
+    for value in slider(state.shader_params.solid_hsv_colour.hue, 0.0, 1.0)
+        .down(10.0)
+        .label("Hue")
+        .set(ids.hue, ui)
+    {
+        state.shader_params.solid_hsv_colour.hue = value;
+    }
+    for value in slider(state.shader_params.solid_hsv_colour.saturation, 0.0, 1.0)
+        .down(10.0)
+        .label("Saturation")
+        .set(ids.saturation, ui)
+    {
+        state.shader_params.solid_hsv_colour.saturation = value;
+    }
+    for value in slider(state.shader_params.solid_hsv_colour.value, 0.0, 1.0)
+        .down(10.0)
+        .label("Value")
+        .set(ids.value, ui)
+    {
+        state.shader_params.solid_hsv_colour.value = value;
+    }
+}
+
+pub fn set_solid_rgb_colour_widgets(ui: &mut UiCell, ids: &SolidRgbColourIds, state: &mut State) {
+    for value in slider(state.shader_params.solid_rgb_colour.red, 0.0, 1.0)
+        .down(10.0)
+        .label("Red")
+        .set(ids.red, ui)
+    {
+        state.shader_params.solid_rgb_colour.red = value;
+    }
+    for value in slider(state.shader_params.solid_rgb_colour.green, 0.0, 1.0)
+        .down(10.0)
+        .label("Green")
+        .set(ids.green, ui)
+    {
+        state.shader_params.solid_rgb_colour.green = value;
+    }
+    for value in slider(state.shader_params.solid_rgb_colour.blue, 0.0, 1.0)
+        .down(10.0)
+        .label("Blue")
+        .set(ids.blue, ui)
+    {
+        state.shader_params.solid_rgb_colour.blue = value;
     }
 }
 
