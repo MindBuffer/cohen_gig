@@ -15,8 +15,10 @@ use crate::helpers::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.line_gradient;
 
-    params.num_stripes = uniforms.slider1;
-    params.angle = uniforms.slider2;
+    if uniforms.use_midi {
+        params.num_stripes = uniforms.slider1;
+        params.angle = uniforms.slider2;
+    }
     //params.angle = map_range(uniforms.time * 0.5, -1.0 ,1.0, 0.0, 0.5);
 
     let signal_type = Signal::TRIANGLE;

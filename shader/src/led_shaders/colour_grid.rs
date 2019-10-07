@@ -24,8 +24,9 @@ use crate::signals::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.colour_grid;
 
-    params.zoom_amount = uniforms.slider3;
-
+    if uniforms.use_midi {
+        params.zoom_amount = uniforms.slider3;
+    }
     let t = uniforms.time * params.speed;
     
     let x = map_range(p.x, -0.18, 0.13, 0.0, 1.0);

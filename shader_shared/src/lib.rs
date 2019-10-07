@@ -42,6 +42,7 @@ pub enum Light {
 pub struct Uniforms {
     pub time: f32,
     pub resolution: Vector2,
+    pub use_midi: bool,
     pub slider1: f32,
     pub slider2: f32,
     pub slider3: f32,
@@ -74,6 +75,8 @@ pub struct ShaderParams {
     pub the_pulse: ThePulse,
     pub tunnel_projection: TunnelProjection,
     pub vert_colour_gradient: VertColourGradient,
+    pub solid_hsv_colour: SolidHsvColour,
+    pub solid_rgb_colour: SolidRgbColour,
 }
 
 #[derive(Copy,Clone)]
@@ -223,4 +226,18 @@ pub struct VertColourGradient {
     pub line_amp: f32,
     pub diag_amp: f32,
     pub boarder_amp: f32,
+}
+
+#[derive(Copy,Clone)]
+pub struct SolidHsvColour {
+    pub hue: f32,
+    pub saturation: f32,
+    pub value: f32,
+}
+
+#[derive(Copy,Clone)]
+pub struct SolidRgbColour {
+    pub red: f32,
+    pub green: f32,
+    pub blue: f32,
 }

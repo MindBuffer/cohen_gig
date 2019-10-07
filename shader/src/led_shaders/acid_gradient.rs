@@ -22,9 +22,11 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.acid_gradient;
 
     let t = uniforms.time * params.speed;
-    params.zoom = map_range((t*0.5).sin(), -1.0, 1.0, 0.0, uniforms.slider3);
-    params.offset = map_range((t*0.2).sin(), -1.0, 1.0, 0.0, uniforms.slider4);
-    
+    if uniforms.use_midi {
+        params.zoom = map_range((t*0.5).sin(), -1.0, 1.0, 0.0, uniforms.slider3);
+        params.offset = map_range((t*0.2).sin(), -1.0, 1.0, 0.0, uniforms.slider4);
+    }
+
     let d = 0.3 * (1.0 + params.offset * 10.0);
 
     let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);

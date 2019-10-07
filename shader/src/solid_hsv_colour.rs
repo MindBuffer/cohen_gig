@@ -3,11 +3,11 @@ use shader_shared::Uniforms;
 
 use crate::helpers::*;
 
-struct Params {
-    hue: f32,
-    saturation: f32,
-    value: f32,
-}
+// struct Params {
+//     hue: f32,
+//     saturation: f32,
+//     value: f32,
+// }
 
 
 // Smooth HSV to RGB conversion 
@@ -25,16 +25,14 @@ fn hsv2rgb_smooth( c: Vector3) -> Vector3 {
 }
 
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = Params {
-        hue: 0.0,
-        saturation: 1.0,
-        value: 1.0,
-    };
+    let mut params = uniforms.params.solid_hsv_colour;
 
-    params.hue = uniforms.pot6;
-    params.saturation = uniforms.pot7;
-    params.value = uniforms.pot8;
-
+    if uniforms.use_midi {
+        params.hue = uniforms.pot6;
+        params.saturation = uniforms.pot7;
+        params.value = uniforms.pot8;
+    }
+    
     let hsv = vec3( params.hue, params.saturation, params.value );
 	let rgb = hsv2rgb_smooth( hsv );
     

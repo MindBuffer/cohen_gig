@@ -16,9 +16,11 @@ use crate::helpers::*;
 pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.square_tunnel;
 
-    params.rotation_offset = uniforms.slider1;
-    params.zoom = uniforms.slider2;
-
+    if uniforms.use_midi {
+        params.rotation_offset = uniforms.slider1;
+        params.zoom = uniforms.slider2;
+    }
+    
     let t = uniforms.time * (params.speed*2.0);
 
     let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
