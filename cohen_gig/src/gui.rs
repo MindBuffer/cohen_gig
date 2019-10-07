@@ -1,3 +1,4 @@
+use crate::conf::Config;
 use crate::{shader, Osc, State};
 use nannou::prelude::*;
 use nannou::ui::conrod_core::widget_ids;
@@ -25,6 +26,9 @@ widget_ids! {
         osc_address_text_box,
         shader_title_text,
         shader_state_text,
+
+        wash_dmx_addrs_text,
+        wash_dmx_addrs_list,
 
         led_shader_left_text,
         led_shader_left_ddl,
@@ -215,6 +219,7 @@ widget_ids! {
 pub fn update(
     ref mut ui: UiCell,
     state: &mut State,
+    config: &mut Config,
     osc: &mut Osc,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
@@ -250,7 +255,7 @@ pub fn update(
         .set(ids.title_text, ui);
 
     if button()
-        .color(toggle_color(state.dmx_on))
+        .color(toggle_color(config.dmx_on))
         .label("DMX")
         .w(HALF_WIDGET_W)
         .mid_left_of(ids.background)
@@ -258,18 +263,18 @@ pub fn update(
         .set(ids.dmx_button, ui)
         .was_clicked()
     {
-        state.dmx_on = !state.dmx_on;
+        config.dmx_on = !config.dmx_on;
     }
 
     if button()
-        .color(toggle_color(state.osc_on))
+        .color(toggle_color(config.osc_on))
         .label("OSC")
         .right(PAD * 0.5)
         .w(HALF_WIDGET_W)
         .set(ids.osc_button, ui)
         .was_clicked()
     {
-        state.osc_on = !state.osc_on;
+        config.osc_on = !config.osc_on;
     }
 
     text("OSC Address")
@@ -334,9 +339,59 @@ pub fn update(
         .down(PAD)
         .set(ids.shader_state_text, ui);
 
+    text("Wash and Spot DMX Addrs")
+        .mid_left_of(ids.background)
+        .down(PAD * 1.5)
+        .set(ids.wash_dmx_addrs_text, ui);
+
+    let wash_count = config.wash_dmx_addrs.len();
+    let spot_count = config.spot_dmx_addrs.len();
+    let n_items = wash_count + spot_count;
+    let (mut items, scrollbar) = widget::List::flow_down(n_items)
+        .item_size(DEFAULT_WIDGET_H)
+        .scrollbar_next_to()
+        .h(DEFAULT_WIDGET_H * 4.0)
+        .mid_left_of(ids.background)
+        .down(PAD)
+        .w(COLUMN_W)
+        .set(ids.wash_dmx_addrs_list, ui);
+
+    while let Some(item) = items.next(ui) {
+        let i = item.i;
+        let is_wash = i < wash_count;
+        let light_i = if is_wash { i } else { i - wash_count };
+        let label = match is_wash {
+            true => format!("Wash {}", light_i),
+            false => format!("Spot {}", light_i),
+        };
+        let v = match is_wash {
+            true => config.wash_dmx_addrs[light_i],
+            false => config.spot_dmx_addrs[light_i],
+        };
+        let min = 0.0;
+        let max = std::u8::MAX as f32;
+        let precision = 0;
+        let dialer = widget::NumberDialer::new(v as f32, min, max, precision)
+            .border(0.0)
+            .label(&label)
+            .label_color(color::WHITE)
+            .label_font_size(14)
+            .color(color::DARK_CHARCOAL);
+        for v in item.set(dialer, ui) {
+            match is_wash {
+                true => config.wash_dmx_addrs[light_i] = v as u8,
+                false => config.spot_dmx_addrs[light_i] = v as u8,
+            }
+        }
+    }
+
+    if let Some(s) = scrollbar { s.set(ui) }
+
+
     //---------------------- LED SHADER LEFT
     text("LED Shader Left")
-        .down(20.0)
+        .mid_left_of(ids.background)
+        .down(PAD * 1.5)
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
@@ -1102,7 +1157,7 @@ fn button() -> widget::Button<'static, widget::button::Flat> {
 fn toggle(b: bool) -> widget::Toggle<'static> {
     widget::Toggle::new(b)
         .w_h(COLUMN_W, DEFAULT_SLIDER_H)
-        .label_font_size(15)
+        .label_font_size(14)
         .rgb(0.176, 0.513, 0.639)
         .label_rgb(1.0, 1.0, 1.0)
         .border(0.0)
@@ -1112,7 +1167,7 @@ fn toggle(b: bool) -> widget::Toggle<'static> {
 fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
     widget::Slider::new(val, min, max)
         .w_h(COLUMN_W, DEFAULT_SLIDER_H)
-        .label_font_size(15)
+        .label_font_size(14)
         .rgb(0.176, 0.513, 0.639)
         .label_rgb(1.0, 1.0, 1.0)
         .border(0.0)
