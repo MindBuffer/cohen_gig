@@ -10,13 +10,14 @@ pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const PAD: Scalar = 20.0;
 pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
-pub const WINDOW_HEIGHT: u32 = 1080 - PAD as u32;
+pub const WINDOW_HEIGHT: u32 = 1080 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 
 widget_ids! {
     pub struct Ids {
         background,
+        scrollbar,
         title_text,
         dmx_button,
         osc_button,
@@ -241,8 +242,7 @@ pub fn update(
         .border(0.0)
         .rgb(0.1, 0.1, 0.1)
         .pad(PAD)
-        .x(-(WINDOW_WIDTH as f64 / 2.0) + COLUMN_W / 2.0 + PAD)
-        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
+        .scroll_kids_vertically()
         .set(ids.background, ui);
 
     text("COHEN GIG")
@@ -334,7 +334,7 @@ pub fn update(
         .down(PAD)
         .set(ids.shader_state_text, ui);
 
-    //---------------------- LED SHADER LEFT 
+    //---------------------- LED SHADER LEFT
     text("LED Shader Left")
         .down(20.0)
         .color(color::WHITE)
@@ -355,7 +355,7 @@ pub fn update(
     }
 
     match state.led_shader_names[state.led_shader_idx_left.unwrap()].as_str() {
-        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),        
+        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
         "ColourGrid" => set_colour_grid_widgets(ui, &colour_grid_ids, state),
@@ -376,7 +376,7 @@ pub fn update(
         _ => (),
     }
 
-    //---------------------- LED SHADER RIGHT 
+    //---------------------- LED SHADER RIGHT
     text("LED Shader Right")
         .down(20.0)
         .color(color::WHITE)
@@ -397,7 +397,7 @@ pub fn update(
     }
 
     match state.led_shader_names[state.led_shader_idx_right.unwrap()].as_str() {
-        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),        
+        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
         "ColourGrid" => set_colour_grid_widgets(ui, &colour_grid_ids, state),
@@ -477,6 +477,9 @@ pub fn update(
     {
         state.blend_mode_idx = Some(selected_idx);
     }
+
+    // A scrollbar for the canvas.
+    widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
 }
 
 pub fn set_acid_gradient_widgets(ui: &mut UiCell, ids: &AcidGradientIds, state: &mut State) {
