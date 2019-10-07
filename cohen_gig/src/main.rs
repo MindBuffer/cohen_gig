@@ -6,11 +6,13 @@ use midir;
 use std::sync::mpsc;
 use shader_shared::{Light, ShaderParams, Uniforms, Vertex};
 
+mod conf;
 mod gui;
 mod layout;
 mod shader;
 mod blend_modes;
 
+use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
 
 const WINDOW_PAD: i32 = 20;
@@ -38,6 +40,10 @@ pub const LED_PPM: f32 = 60.0;
 pub const LED_SHADER_RESOLUTION_X: f32 = 864.0;
 pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
 
+pub const SPOT_COUNT: usize = 2;
+pub const DMX_ADDRS_PER_SPOT: u8 = 1;
+pub const DMX_ADDRS_PER_WASH: u8 = 4;
+
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
@@ -48,6 +54,7 @@ struct Model {
     midi_rx: mpsc::Receiver<korg::Event>,
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
+    config: Config,
     state: State,
     uniforms: Uniforms,
     target_slider_values: Vec<f32>,
@@ -79,8 +86,6 @@ struct Model {
 }
 
 pub struct State {
-    osc_on: bool,
-    dmx_on: bool,
     osc_addr_textbox_string: String,
     led_shader_names: Vec<String>,
     wash_shader_names: Vec<String>,
@@ -110,10 +115,19 @@ pub struct Osc {
 }
 
 fn main() {
-    nannou::app(model).update(update).run();
+    nannou::app(model).update(update).exit(exit).run();
 }
 
 fn model(app: &App) -> Model {
+    let assets = app
+        .assets_path()
+        .expect("failed to find project `assets` directory");
+
+    let config_path = conf::path(&assets);
+    let config: Config = load_from_json(config_path)
+        .ok()
+        .unwrap_or_else(Config::default);
+
     let gui_window = app
         .new_window()
         .with_title("COHEN GIG - GUI")
@@ -385,8 +399,6 @@ fn model(app: &App) -> Model {
     };
 
     let state = State {
-        dmx_on: false,
-        osc_on: false,
         osc_addr_textbox_string: format!("{}", osc.addr),
         led_shader_names,
         wash_shader_names,
@@ -456,6 +468,7 @@ fn model(app: &App) -> Model {
         shader_rx,
         shader,
         state,
+        config,
         uniforms,
         target_slider_values: vec![0.0; 6], // First 6 Sliders
         target_pot_values: vec![0.0; 3], // Last 3 Pots
@@ -492,6 +505,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     gui::update(
         ui,
         &mut model.state,
+        &mut model.config,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
@@ -593,7 +607,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let ftb = model.state.wash_fade_to_black;
         let light = Light::Wash { index: wash_ix };
         let vertex = Vertex { position: trg_s, light };
-        model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &model.state.wash_shader_names[model.state.wash_shader_idx.unwrap()]) * lin_srgb(ftb,ftb,ftb);
+        model.wash_colors[wash_ix] = shader(
+            vertex,
+            &model.uniforms,
+            &model.state.wash_shader_names[model.state.wash_shader_idx.unwrap()],
+        ) * lin_srgb(ftb,ftb,ftb);
     }
 
     /*
@@ -637,20 +655,20 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // Ensure we are connected to a DMX source if enabled.
-    if model.state.dmx_on && model.dmx.source.is_none() {
+    if model.config.dmx_on && model.dmx.source.is_none() {
         let source = sacn::DmxSource::new("Cohen Pre-vis")
             .expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
-    } else if !model.state.dmx_on && model.dmx.source.is_some() {
+    } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
     }
 
     // Ensure we are connected to an OSC source if enabled.
-    if model.state.osc_on && model.osc.tx.is_none() {
+    if model.config.osc_on && model.osc.tx.is_none() {
         let tx = osc::sender()
             .expect("failed to create OSC sender");
         model.osc.tx = Some(tx);
-    } else if !model.state.osc_on && model.osc.tx.is_some() {
+    } else if !model.config.osc_on && model.osc.tx.is_some() {
         model.osc.tx.take();
     }
 
@@ -668,34 +686,46 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
-        model.dmx.buffer.clear();
+        const SPOT_AND_WASH_UNIVERSE: u16 = 1;
 
-        // TODO: We'll use multiple universes for LEDs.
-        let universe = 1;
+        // First, send data to spotlights and washes on universe 1.
+        model.dmx.buffer.clear();
+        model.dmx.buffer.extend((0..std::u8::MAX).map(|_| 0u8));
 
         // Collect spot light dimming data.
-        for dim in model.spot_lights.iter() {
+        for (spot_ix, dim) in model.spot_lights.iter().enumerate() {
             let dimmer = convert_channel(*dim);
-            model.dmx.buffer.push(dimmer);
+            let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
+            let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
+            let end_addr = start_addr + DMX_ADDRS_PER_SPOT as usize;
+            let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
+            let col = &col[..range.len()];
+            model.dmx.buffer[range].copy_from_slice(col);
         }
 
         // Collect wash light color data.
-        for col in model.wash_colors.iter() {
+        for (wash_ix, col) in model.wash_colors.iter().enumerate() {
             let [r, g, b] = lin_srgb_f32_to_bytes(col);
             let amber = 0;
-            let col = [r, g, b, amber];
-            model.dmx.buffer.extend(col.iter().cloned());
+            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [r, g, b, amber];
+            let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
+            let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
+            let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
+            let col = &col[..range.len()];
+            model.dmx.buffer[range].copy_from_slice(col);
         }
 
-        // Collect LED color data.
-        for col in model.led_colors.iter() {
-            let col = lin_srgb_f32_to_bytes(col);
-            model.dmx.buffer.extend(col.iter().cloned());
-        }
-
+        // Send spot and wash data.
         dmx_source
-            .send(universe, &model.dmx.buffer[..])
+            .send(SPOT_AND_WASH_UNIVERSE, &model.dmx.buffer[..])
             .expect("failed to send DMX data");
+
+        // // TODO: Collect LED color data.
+        // model.dmx.buffer.clear();
+        // for col in model.led_colors.iter() {
+        //     let col = lin_srgb_f32_to_bytes(col);
+        //     model.dmx.buffer.extend(col.iter().cloned());
+        // }
     }
 
     // If we have an OSC sender, send data over it!
@@ -915,4 +945,12 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Re
             }
         }
     }
+}
+
+fn exit(app: &App, model: Model) {
+    let assets = app
+        .assets_path()
+        .expect("failed to find project `assets` directory");
+    let config_path = conf::path(&assets);
+    save_to_json(config_path, &model.config).expect("failed to save config");
 }
