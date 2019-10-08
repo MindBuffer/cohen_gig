@@ -38,14 +38,15 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
-        wash_shader_text,
-        wash_shader_ddl,
-
         colour_post_process_text,
         colour_post_process_ddl,
 
         blend_mode_text,
         blend_mode_ddl,
+
+        shader_mix_left_right,
+        led_fade_to_black,
+        wash_fade_to_black,
     }
 }
 
@@ -426,7 +427,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.led_shader_names, state.led_shader_idx_left)
+    for selected_idx in widget::DropDownList::new(&state.shader_names, state.led_shader_idx_left)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -440,7 +441,7 @@ pub fn update(
         state.led_shader_idx_left = Some(selected_idx);
     }
 
-    match state.led_shader_names[state.led_shader_idx_left.unwrap()].as_str() {
+    match state.shader_names[state.led_shader_idx_left.unwrap()].as_str() {
         "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
@@ -470,7 +471,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_right_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.led_shader_names, state.led_shader_idx_right)
+    for selected_idx in widget::DropDownList::new(&state.shader_names, state.led_shader_idx_right)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -484,7 +485,7 @@ pub fn update(
         state.led_shader_idx_right = Some(selected_idx);
     }
 
-    match state.led_shader_names[state.led_shader_idx_right.unwrap()].as_str() {
+    match state.shader_names[state.led_shader_idx_right.unwrap()].as_str() {
         "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
@@ -506,26 +507,6 @@ pub fn update(
         "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
         "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
         _ => (),
-    }
-
-    //---------------------- WASH SHADER
-    text("Wash Shader")
-        .down(20.0)
-        .color(color::WHITE)
-        .set(ids.wash_shader_text, ui);
-
-    for selected_idx in widget::DropDownList::new(&state.wash_shader_names, state.wash_shader_idx)
-        .w_h(COLUMN_W, PAD * 2.0)
-        .down(10.0)
-        .max_visible_items(15)
-        .rgb(0.176, 0.513, 0.639)
-        .label("Wash Shader Preset")
-        .label_font_size(15)
-        .label_rgb(1.0, 1.0, 1.0)
-        .scrollbar_on_top()
-        .set(ids.wash_shader_ddl, ui)
-    {
-        state.wash_shader_idx = Some(selected_idx);
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -572,6 +553,30 @@ pub fn update(
         .set(ids.blend_mode_ddl, ui)
     {
         state.blend_mode_idx = Some(selected_idx);
+    }
+
+    for value in slider(state.led_left_right_mix, -1.0, 1.0)
+        .down(10.0)
+        .label("Left Right Mix")
+        .set(ids.shader_mix_left_right, ui)
+    {
+        state.led_left_right_mix = value;
+    }
+
+    for value in slider(state.led_fade_to_black, 0.0, 1.0)
+        .down(10.0)
+        .label("LED Fade to Black")
+        .set(ids.led_fade_to_black, ui)
+    {
+        state.led_fade_to_black = value;
+    }
+
+    for value in slider(state.wash_fade_to_black, 0.0, 1.0)
+        .down(10.0)
+        .label("Wash Fade to Black")
+        .set(ids.wash_fade_to_black, ui)
+    {
+        state.wash_fade_to_black = value;
     }
 
     // A scrollbar for the canvas.

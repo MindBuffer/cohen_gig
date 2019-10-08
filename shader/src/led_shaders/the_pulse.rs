@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::helpers::*;
 
@@ -24,7 +24,7 @@ fn circle(uv: Vector2, r: f32, thickness: f32) -> f32 {
     smoothstep(0.1 + (thickness * 0.6), 0.0, (length(vec3(uv.x, uv.y, 0.0))-r).abs())
 }
 
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.the_pulse;
 
     if uniforms.use_midi {
@@ -32,9 +32,11 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
         params.colour_iter = uniforms.slider4;
     }
 
-    let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
-    let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
-    let mut uv = vec2(x,y);
+    let mut uv = match v.light {
+        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
+        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+    };
+
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
     uv *= vec2(2.0+(params.scale*50.0), 2.0+(params.scale*50.0));
     let r = smoothstep(-0.7, 0.7, (uniforms.time*(0.1+params.speed*3.5) - length(vec3(uv.x,uv.y,0.0)) * (0.01+params.colour_iter*0.7)).sin()) + 1.0;

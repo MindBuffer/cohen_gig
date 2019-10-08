@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::helpers::*;
 
@@ -51,7 +51,7 @@ fn hue(colour: Vector3, shift: f32) -> Vector3 {
     //colour.z = yIQ.dot(kYIQToB);
     //colour
 }
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.vert_colour_gradient;
 
     if uniforms.use_midi {
@@ -60,9 +60,14 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     }
 
     let t = uniforms.time * params.speed;
-    
-    let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);
-    let y = map_range(p.y, 0.25, 1.0, 0.0, 1.0);
+
+    let p = match v.light {
+        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
+        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+    };
+
+    let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
+    let y = map_range(p.y, -1.0, 1.0, 0.0, 1.0);
     let mut uv = vec2(x,y) * uniforms.resolution;
 
     let i = 4.0 + params.scale * 35.0;

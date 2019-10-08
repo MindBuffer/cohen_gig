@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::helpers::*;
 
@@ -7,10 +7,12 @@ struct Params {
     speed: f32,
 }
 
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let params = Params {
         speed: 0.5,
     };
+
+    let p = v.position;
 
     let t = uniforms.time * params.speed;
     let b = (p.z + t).sin() * 0.5 + 0.5;

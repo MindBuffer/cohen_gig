@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::signals::*;
 use crate::helpers::*;
@@ -33,7 +33,7 @@ fn palette(t: f32, signal: &Signal, a: Vector3, b: Vector3, c: Vector3, d: Vecto
         signal.amp(TWO_PI * (c.z * t + d.z)))
 }
 
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.bw_gradient;
     
     let mut direction = Direction::Vertical;
@@ -54,10 +54,15 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     }
 
     let phase = uniforms.time * params.speed;
+
+    let mut uv = match v.light {
+        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
+        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+    };
     
-    let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
-    let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
-    let mut uv = vec2(x,y);
+    // let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
+    // let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
+    // let mut uv = vec2(x,y);
     
     
 
