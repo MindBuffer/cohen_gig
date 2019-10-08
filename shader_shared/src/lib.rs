@@ -13,6 +13,20 @@ pub struct Vertex {
     pub light: Light,
     /// The last colour produced by the shader for this vertex.
     pub last_color: LinSrgb,
+    /// Amount of interpolation 
+    pub lerp_amt: f32,
+}
+
+#[derive(Clone)]
+pub struct MixingInfo {
+    pub left_name: String,
+    pub right_name: String,
+    pub colour_name: String,
+    pub blend_mode: String,
+    /// x fade left amount
+    pub xfade_left: f32,
+    /// x fade right amount
+    pub xfade_right: f32,
 }
 
 #[derive(Copy, Clone)]
