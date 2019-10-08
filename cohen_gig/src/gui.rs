@@ -6,11 +6,13 @@ use nannou::ui::prelude::*;
 use std::f64::consts::PI;
 use std::net::SocketAddr;
 
+pub const NUM_COLUMMNS: u32 = 3;
 pub const COLUMN_W: Scalar = 240.0;
 pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const PAD: Scalar = 20.0;
-pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
+//pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
+pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32) * NUM_COLUMMNS;
 pub const WINDOW_HEIGHT: u32 = 1080 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
@@ -18,7 +20,10 @@ pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
 
 widget_ids! {
     pub struct Ids {
-        background,
+        column_1_id,
+        column_2_id,
+        column_3_id, 
+
         scrollbar,
         title_text,
         dmx_button,
@@ -239,6 +244,14 @@ widget_ids! {
     }
 }
 
+widget_ids! {
+    pub struct ColourPalettesIds {
+        speed,
+        interval,
+        selected,
+    }
+}
+
 /// Update the user interface.
 pub fn update(
     ref mut ui: UiCell,
@@ -268,23 +281,26 @@ pub fn update(
     vert_colour_gradient_ids: &VertColourGradientIds,
     solid_hsv_colour_ids: &SolidHsvColourIds,
     solid_rgb_colour_ids: &SolidRgbColourIds,
+    colour_palettes_ids: &ColourPalettesIds,
 ) {
     widget::Canvas::new()
         .border(0.0)
         .rgb(0.1, 0.1, 0.1)
         .pad(PAD)
+        .x(-(WINDOW_WIDTH as f64 / 2.0) + COLUMN_W / 2.0 + PAD)
+        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
         .scroll_kids_vertically()
-        .set(ids.background, ui);
+        .set(ids.column_1_id, ui);
 
     text("COHEN GIG")
-        .mid_top_of(ids.background)
+        .mid_top_of(ids.column_1_id)
         .set(ids.title_text, ui);
 
     if button()
         .color(toggle_color(config.dmx_on))
         .label("DMX")
         .w(THIRD_WIDGET_W)
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.dmx_button, ui)
         .was_clicked()
@@ -315,7 +331,7 @@ pub fn update(
     }
 
     text("OSC Address")
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.osc_address_text, ui);
 
@@ -347,7 +363,7 @@ pub fn update(
     }
 
     text("Shader State")
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.shader_title_text, ui);
 
@@ -377,7 +393,7 @@ pub fn update(
         .set(ids.shader_state_text, ui);
 
     text("Universes")
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.universe_starts_text, ui);
 
@@ -415,7 +431,7 @@ pub fn update(
     }
 
     text("Wash and Spot DMX Addrs")
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.wash_dmx_addrs_text, ui);
 
@@ -426,7 +442,7 @@ pub fn update(
         .item_size(DEFAULT_WIDGET_H)
         .scrollbar_next_to()
         .h(DEFAULT_WIDGET_H * 4.0)
-        .mid_left_of(ids.background)
+        .mid_left_of(ids.column_1_id)
         .down(PAD)
         .w(COLUMN_W)
         .set(ids.wash_dmx_addrs_list, ui);
@@ -464,9 +480,18 @@ pub fn update(
 
 
     //---------------------- LED SHADER LEFT
+    widget::Canvas::new()
+        .border(0.0)
+        .rgb(0.1, 0.1, 0.1)
+        .pad(PAD)
+        .align_top_of(ids.column_1_id)
+        .right_from(ids.column_1_id, 0.0)
+        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
+        .scroll_kids_vertically()
+        .set(ids.column_2_id, ui);
+
     text("LED Shader Left")
-        .mid_left_of(ids.background)
-        .down(PAD * 1.5)
+        .top_left_of(ids.column_2_id)
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
@@ -505,12 +530,50 @@ pub fn update(
         "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, state),
         "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
         "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
+        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, state),
+        _ => (),
+    }
+
+    //---------------------- COLOUR POST PROCESS SHADER
+    text("Colour Post Process")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.colour_post_process_text, ui);
+
+    for selected_idx in widget::DropDownList::new(&state.solid_colour_names, state.solid_colour_idx)
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .max_visible_items(15)
+        .rgb(0.176, 0.513, 0.639)
+        .label("Wash Shader Preset")
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.colour_post_process_ddl, ui)
+    {
+        state.solid_colour_idx = Some(selected_idx);
+    }
+
+    match state.solid_colour_names[state.solid_colour_idx.unwrap()].as_str() {
+        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
+        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
+        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, state),
         _ => (),
     }
 
     //---------------------- LED SHADER RIGHT
+    widget::Canvas::new()
+        .border(0.0)
+        .rgb(0.1, 0.1, 0.1)
+        .pad(PAD)
+        .align_top_of(ids.column_2_id)
+        .right_from(ids.column_2_id, 0.0)
+        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
+        .scroll_kids_vertically()
+        .set(ids.column_3_id, ui);
+
     text("LED Shader Right")
-        .down(20.0)
+        .top_left_of(ids.column_3_id)
         .color(color::WHITE)
         .set(ids.led_shader_right_text, ui);
 
@@ -549,32 +612,7 @@ pub fn update(
         "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, state),
         "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
         "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
-        _ => (),
-    }
-
-    //---------------------- COLOUR POST PROCESS SHADER
-    text("Colour Post Process")
-        .down(20.0)
-        .color(color::WHITE)
-        .set(ids.colour_post_process_text, ui);
-
-    for selected_idx in widget::DropDownList::new(&state.solid_colour_names, state.solid_colour_idx)
-        .w_h(COLUMN_W, PAD * 2.0)
-        .down(10.0)
-        .max_visible_items(15)
-        .rgb(0.176, 0.513, 0.639)
-        .label("Wash Shader Preset")
-        .label_font_size(15)
-        .label_rgb(1.0, 1.0, 1.0)
-        .scrollbar_on_top()
-        .set(ids.colour_post_process_ddl, ui)
-    {
-        state.solid_colour_idx = Some(selected_idx);
-    }
-
-    match state.solid_colour_names[state.solid_colour_idx.unwrap()].as_str() {
-        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
-        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
+        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, state),
         _ => (),
     }
 
@@ -598,7 +636,7 @@ pub fn update(
         state.blend_mode_idx = Some(selected_idx);
     }
 
-    for value in slider(state.led_left_right_mix, -1.0, 1.0)
+    for value in slider(state.led_left_right_mix, 1.0, -1.0)
         .down(10.0)
         .label("Left Right Mix")
         .set(ids.shader_mix_left_right, ui)
@@ -631,7 +669,7 @@ pub fn update(
     }
 
     // A scrollbar for the canvas.
-    widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
+    //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
 }
 
 pub fn set_acid_gradient_widgets(ui: &mut UiCell, ids: &AcidGradientIds, state: &mut State) {
@@ -1275,6 +1313,30 @@ pub fn set_solid_rgb_colour_widgets(ui: &mut UiCell, ids: &SolidRgbColourIds, st
         .set(ids.blue, ui)
     {
         state.shader_params.solid_rgb_colour.blue = value;
+    }
+}
+
+pub fn set_colour_palettes_ids_widgets(ui: &mut UiCell, ids: &ColourPalettesIds, state: &mut State) {
+    for value in slider(state.shader_params.colour_palettes.speed, 0.0, 1.0)
+        .down(10.0)
+        .label("Speed")
+        .set(ids.speed, ui)
+    {
+        state.shader_params.colour_palettes.speed = value;
+    }
+    for value in slider(state.shader_params.colour_palettes.interval, 0.0, 1.0)
+        .down(10.0)
+        .label("Interval")
+        .set(ids.interval, ui)
+    {
+        state.shader_params.colour_palettes.interval = value;
+    }
+    for value in slider(state.shader_params.colour_palettes.selected as f32, 0.0, 9.0)
+        .down(10.0)
+        .label("Selected")
+        .set(ids.selected, ui)
+    {
+        state.shader_params.colour_palettes.selected = value as usize;
     }
 }
 

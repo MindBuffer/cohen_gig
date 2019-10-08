@@ -10,6 +10,7 @@ mod shaders;
 
 mod solid_hsv_colour;
 mod solid_rgb_colour;
+mod colour_palettes;
 
 mod led_shaders;
 
@@ -47,6 +48,7 @@ fn render_shader(v: Vertex, uniforms: &Uniforms, shader_name: &String) -> LinSrg
     match shader_name.as_ref() {
         "SolidHsvColour" => solid_hsv_colour::shader(v, uniforms),
         "SolidRgbColour" => solid_rgb_colour::shader(v, uniforms),
+        "ColourPalettes" => colour_palettes::shader(v, uniforms),
 
         "AcidGradient" => led_shaders::acid_gradient::shader(v, uniforms),
         "BlinkyCircles" => led_shaders::blinky_circles::shader(v, uniforms),
@@ -68,7 +70,6 @@ fn render_shader(v: Vertex, uniforms: &Uniforms, shader_name: &String) -> LinSrg
         "VertColourGradient" => led_shaders::vert_colour_gradient::shader(v, uniforms),
 
         // "MitchWash" => wash_shaders::mitch_wash::shader(v, uniforms),
-        // "ColourPalettes" => wash_shaders::colour_palettes::shader(v, uniforms),
         _ => lin_srgb(0.0, 0.0, 0.0)
     }
 }
