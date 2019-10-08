@@ -51,6 +51,7 @@ widget_ids! {
         shader_mix_left_right,
         led_fade_to_black,
         wash_fade_to_black,
+        lerp_amount,
     }
 }
 
@@ -619,6 +620,14 @@ pub fn update(
         .set(ids.wash_fade_to_black, ui)
     {
         state.wash_fade_to_black = value;
+    }
+
+    for value in slider(state.lerp_amt, 0.0, 1.0)
+        .down(10.0)
+        .label("Wash Lerp Amount")
+        .set(ids.lerp_amount, ui)
+    {
+        state.lerp_amt = value;
     }
 
     // A scrollbar for the canvas.

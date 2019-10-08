@@ -4,13 +4,12 @@ use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
 use std::sync::mpsc;
-use shader_shared::{Light, ShaderParams, Uniforms, Vertex};
+use shader_shared::{Light, ShaderParams, Uniforms, Vertex, MixingInfo};
 
 mod conf;
 mod gui;
 mod layout;
 mod shader;
-mod blend_modes;
 
 use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
@@ -101,6 +100,7 @@ pub struct State {
     wash_fade_to_black: f32,
     spot_light1_fade_to_black: f32,
     spot_light2_fade_to_black: f32,
+    lerp_amt: f32,
     solid_colour_idx: Option<usize>,
     blend_mode_names: Vec<String>,
     blend_mode_idx: Option<usize>,
@@ -423,6 +423,7 @@ fn model(app: &App) -> Model {
         wash_fade_to_black: 1.0,
         spot_light1_fade_to_black: 1.0,
         spot_light2_fade_to_black: 1.0,
+        lerp_amt: 0.5,
         solid_colour_idx: Some(0),
         blend_mode_names,
         blend_mode_idx: Some(0),
@@ -588,6 +589,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::B => model.state.wash_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::C => model.state.spot_light1_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::D => model.state.spot_light2_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::E => model.state.lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
                     korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
@@ -626,9 +628,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     */
     let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
-    let xfl = lin_srgb(xfade_left,xfade_left,xfade_left);
-    let xfr = lin_srgb(xfade_right,xfade_right,xfade_right);
-
     let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
 
     // Apply the shader for the washes.
@@ -640,22 +639,21 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
-        let vertex = Vertex { position, light, last_color };
+        let lerp_amt = model.state.lerp_amt;
+        let vertex = Vertex { position, light, last_color, lerp_amt };
 
-        let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
-        let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
-        let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
-
-        model.wash_colors[wash_ix] = match blend_mode.as_str() {
-            "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Multiply" => blend_modes::multiply(left, right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Average" => blend_modes::average(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Difference" => blend_modes::difference(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Negation" => blend_modes::negation(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Exclusion" => blend_modes::exclusion(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            _ => colour,
-        }
+        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
+        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
+        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+        let mix_info = MixingInfo { 
+            left_name: left_name.to_string(), 
+            right_name: right_name.to_string(), 
+            colour_name: colour_name.to_string(), 
+            blend_mode: blend_mode.to_string(), 
+            xfade_left, 
+            xfade_right 
+        };
+        model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Apply the shader for the LEDs.
@@ -670,22 +668,22 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let light = Light::Led { index, col_row, normalised_coords };
         let last_color = model.led_colors[led_ix];
         let position = ps;
-        let vertex = Vertex { position, light, last_color };
-        let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
-        let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
-        let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
+        let lerp_amt = model.state.lerp_amt;
+        let vertex = Vertex { position, light, last_color, lerp_amt };
         let ftb = model.state.led_fade_to_black;
 
-        model.led_colors[led_ix] = match blend_mode.as_str() {
-            "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Multiply" => blend_modes::multiply(left, right) * colour * lin_srgb(ftb,ftb,ftb),
-            "Average" => blend_modes::average(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Difference" => blend_modes::difference(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Negation" => blend_modes::negation(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            "Exclusion" => blend_modes::exclusion(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
-            _ => colour,
-        }
+        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
+        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
+        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+        let mix_info = MixingInfo { 
+            left_name: left_name.to_string(), 
+            right_name: right_name.to_string(), 
+            colour_name: colour_name.to_string(), 
+            blend_mode: blend_mode.to_string(), 
+            xfade_left, 
+            xfade_right 
+        };
+        model.led_colors[led_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Ensure we are connected to a DMX source if enabled.

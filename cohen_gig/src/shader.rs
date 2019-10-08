@@ -2,7 +2,7 @@
 
 use hotlib::BuildError;
 use nannou::prelude::*;
-use shader_shared::{Uniforms, Vertex};
+use shader_shared::{Uniforms, Vertex, MixingInfo};
 use std::sync::mpsc;
 
 /// Describes the result of the last incoming library.
@@ -38,7 +38,7 @@ pub struct Shader {
 }
 
 /// The function signature of the shader function.
-pub type ShaderFnPtr = fn(Vertex, &Uniforms, &String) -> LinSrgb;
+pub type ShaderFnPtr = fn(Vertex, &Uniforms, &MixingInfo) -> LinSrgb;
 
 struct Incoming {
     rx: mpsc::Receiver<Result<hotlib::TempLibrary, BuildError>>,
@@ -164,6 +164,6 @@ pub fn spawn_watch() -> ShaderReceiver {
 
 // A function that matches the `ShaderFnPtr` that can be used as a fallback while the dylib is
 // building and loading for the first time.
-pub fn black(_: Vertex, _: &Uniforms, _: &String) -> LinSrgb {
+pub fn black(_: Vertex, _: &Uniforms, _: &MixingInfo) -> LinSrgb {
     lin_srgb(0.0, 0.0, 0.0)
 }
