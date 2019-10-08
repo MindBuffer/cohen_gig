@@ -19,8 +19,8 @@ const GUI_WINDOW_X: i32 = WINDOW_PAD;
 const GUI_WINDOW_Y: i32 = WINDOW_PAD;
 const LED_STRIP_WINDOW_X: i32 = GUI_WINDOW_X + gui::WINDOW_WIDTH as i32 + WINDOW_PAD;
 const LED_STRIP_WINDOW_Y: i32 = GUI_WINDOW_Y;
-const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3 - gui::WINDOW_WIDTH;
-//const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3;
+//const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3 - gui::WINDOW_WIDTH;
+const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3;
 const LED_STRIP_WINDOW_H: u32 = 480;
 const TOPDOWN_WINDOW_X: i32 = LED_STRIP_WINDOW_X;
 const TOPDOWN_WINDOW_Y: i32 = LED_STRIP_WINDOW_Y + LED_STRIP_WINDOW_H as i32 + WINDOW_PAD;
@@ -87,6 +87,7 @@ struct Model {
     vert_colour_gradient_ids: gui::VertColourGradientIds,
     solid_hsv_colour_ids: gui::SolidHsvColourIds,
     solid_rgb_colour_ids: gui::SolidRgbColourIds,
+    colour_palettes_ids: gui::ColourPalettesIds,
 }
 
 pub struct State {
@@ -181,6 +182,7 @@ fn model(app: &App) -> Model {
     let vert_colour_gradient_ids = gui::VertColourGradientIds::new(ui.widget_id_generator());
     let solid_hsv_colour_ids = gui::SolidHsvColourIds::new(ui.widget_id_generator());
     let solid_rgb_colour_ids = gui::SolidRgbColourIds::new(ui.widget_id_generator());
+    let colour_palettes_ids = gui::ColourPalettesIds::new(ui.widget_id_generator());
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
@@ -231,10 +233,12 @@ fn model(app: &App) -> Model {
 
     shader_names.push("SolidHsvColour".to_string());
     shader_names.push("SolidRgbColour".to_string());
+    shader_names.push("ColourPalettes".to_string());
 
     let mut solid_colour_names = Vec::new();
     solid_colour_names.push("SolidHsvColour".to_string());
     solid_colour_names.push("SolidRgbColour".to_string());
+    solid_colour_names.push("ColourPalettes".to_string());
 
     let mut blend_mode_names = Vec::new();
     blend_mode_names.push("Add".to_string());
@@ -388,6 +392,11 @@ fn model(app: &App) -> Model {
         blue: 0.0,
     };
 
+    let colour_palettes = shader_shared::ColourPalettes {
+        speed: 0.1,
+        interval: 0.05,
+        selected: 0,
+    };
 
     let shader_params = ShaderParams {
         acid_gradient,
@@ -410,6 +419,7 @@ fn model(app: &App) -> Model {
         vert_colour_gradient,
         solid_hsv_colour,
         solid_rgb_colour,
+        colour_palettes,
     };
 
     let state = State {
@@ -512,6 +522,7 @@ fn model(app: &App) -> Model {
         vert_colour_gradient_ids,
         solid_hsv_colour_ids,
         solid_rgb_colour_ids,
+        colour_palettes_ids,
     }
 }
 
@@ -546,6 +557,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         &model.vert_colour_gradient_ids,
         &model.solid_hsv_colour_ids,
         &model.solid_rgb_colour_ids,
+        &model.colour_palettes_ids,
     );
 
     // Check for an update to the shader.

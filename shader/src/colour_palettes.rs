@@ -11,10 +11,11 @@ use crate::helpers::*;
 
 // See http://iquilezles.org/www/articles/palettes/palettes.htm for more information
 
-struct Params {
-    speed: f32,
-    interval: f32,
-}
+// struct Params {
+//     speed: f32,
+//     interval: f32,
+//     selected: usize,
+// }
 
 //iq colour palette
 fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
@@ -25,33 +26,30 @@ fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
 }
 
 pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
-    let mut params = Params {
-        speed: 01.25,
-        interval: 0.05,
-    };
+    let mut params = uniforms.params.colour_palettes;
 
     if uniforms.use_midi {
         params.interval = 0.05 + uniforms.slider5;
     }
-
-    let p = v.position;
     
     let t = uniforms.time * params.speed;
-    let mut uv = vec3(p.x,p.y,p.z);
 
-    let selected = map_range(uniforms.slider6,0.0,1.0,0.0,9.0) as usize;
-    
+    let mut uv = match v.light {
+        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
+        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+    };
+
     // animate
-    uv.z += t;
+    uv.y += t;
 
     let interval = vec3(params.interval,params.interval,params.interval);
 
-    let colz = get_palette(uv.z, selected, interval);
+    let colz = get_palette(uv.y, params.selected, interval);
 
-    uv.x += (t * p.x.signum()).cos() * 0.5 + 0.5;
-    let colx = get_palette(uv.x, selected, interval);
+    uv.x += (t * uv.x.signum()).cos() * 0.5 + 0.5;
+    let colx = get_palette(uv.x, params.selected, interval);
 
-    let col = colz * colx;
+    let col = colz;
     lin_srgb(col.x, col.y, col.z)
 }
 

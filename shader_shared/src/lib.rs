@@ -93,6 +93,7 @@ pub struct ShaderParams {
     pub vert_colour_gradient: VertColourGradient,
     pub solid_hsv_colour: SolidHsvColour,
     pub solid_rgb_colour: SolidRgbColour,
+    pub colour_palettes: ColourPalettes,
 }
 
 #[derive(Copy,Clone)]
@@ -256,4 +257,11 @@ pub struct SolidRgbColour {
     pub red: f32,
     pub green: f32,
     pub blue: f32,
+}
+
+#[derive(Copy,Clone)]
+pub struct ColourPalettes {
+    pub speed: f32,
+    pub interval: f32,
+    pub selected: usize,
 }
