@@ -4,6 +4,7 @@ use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
 use shader_shared::{Light, Uniforms, Vertex, MixingInfo};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc;
 
@@ -74,6 +75,11 @@ struct Model {
     ids: gui::Ids,
 }
 
+struct ButtonState {
+    pub last_pressed: std::time::Instant,
+    pub state: korg::State,
+}
+
 struct Dmx {
     source: Option<sacn::DmxSource>,
     buffer: Vec<u8>,
@@ -95,6 +101,7 @@ struct Controller {
     pot6: f32, // Red / Hue
     pot7: f32, // Green / Saturation
     pot8: f32, // Blue / Value
+    buttons: HashMap<shader_shared::Button, ButtonState>,
 }
 
 fn main() {
@@ -181,7 +188,7 @@ fn model(app: &App) -> Model {
 
     let mut midi_inputs = Vec::new();
 
-    // For each point used by the nano kontrol 2, check for events.
+    // For each port used by the nano kontrol 2, check for events.
     for i in 0..midi_in.port_count() {
         let name = midi_in.port_name(i).unwrap();
         let midi_tx = midi_tx.clone();
@@ -204,6 +211,7 @@ fn model(app: &App) -> Model {
         pot6: 1.0, // Red / Hue
         pot7: 0.0, // Green / Saturation
         pot8: 1.0, // Blue / Value
+        buttons: Default::default(),
     };
 
     Model {
@@ -287,6 +295,20 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                 }
             }
+
+            // Updates for button events.
+            korg::Event::Button(row, strip, state) => {
+                let button = shader_shared::Button::Row(row, strip);
+                let now = std::time::Instant::now();
+                let b_state = model.controller.buttons.entry(button).or_insert_with(|| {
+                    let last_pressed = now;
+                    ButtonState { last_pressed, state }
+                });
+                if state == korg::State::On {
+                    b_state.last_pressed = now;
+                }
+            }
+
             _ => (),
         }
     }
@@ -324,6 +346,16 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();
+    let buttons = model.controller
+        .buttons
+        .iter()
+        .map(|(&b, b_state)| {
+            let secs = b_state.last_pressed.elapsed().secs() as f32;
+            let state = b_state.state;
+            let state = shader_shared::ButtonState { secs, state };
+            (b, state)
+        })
+        .collect();
     let uniforms = Uniforms {
         time: app.time,
         resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
@@ -340,6 +372,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         params: shader_params,
         wash_lerp_amt: preset.wash_lerp_amt,
         mix: mix_info,
+        buttons,
     };
 
     // Apply the shader for the washes.

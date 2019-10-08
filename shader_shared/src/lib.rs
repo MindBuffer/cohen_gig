@@ -2,8 +2,10 @@
 //! important in order to ensure types are laid out the same way between the dynamic library and
 //! the exe.
 
+use korg_nano_kontrol_2::{ButtonRow, MarkerButton, Strip, State, TrackButton, Transport};
 use nannou::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Attributes unique to each vertex.
 #[derive(Copy, Clone)]
@@ -58,6 +60,26 @@ pub struct Uniforms {
     pub params: ShaderParams,
     pub wash_lerp_amt: f32,
     pub mix: MixingInfo,
+    /// Only contains buttons that have been pressed at least once.
+    pub buttons: HashMap<Button, ButtonState>,
+}
+
+/// Describes one of the buttons on the korg.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Button {
+    Row(ButtonRow, Strip),
+    Track(TrackButton),
+    Cycle,
+    Marker(MarkerButton),
+    Transport(Transport),
+}
+
+/// The state of a button that has been interacted with.
+pub struct ButtonState {
+    /// Seconds since the button was pressed.
+    pub secs: f32,
+    /// The current state of the button (on or off).
+    pub state: State,
 }
 
 #[derive(Clone)]

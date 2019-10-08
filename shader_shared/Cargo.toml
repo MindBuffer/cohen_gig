@@ -5,5 +5,6 @@ authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+korg_nano_kontrol_2 = "0.1"
 nannou = "0.11"
 serde = "1"
