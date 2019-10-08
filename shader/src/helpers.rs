@@ -59,7 +59,7 @@ pub fn coord_to_hex(coord: Vector2, scale: f32, angle: f32) -> Vector3 {
     let c = multiply_mat2_with_vec2(m, coord);
     let q = (1.0 / 3.0 * 3.0.sqrt() * c.x - 1.0 / 3.0 * c.y) * scale;
     let r = 2.0 / 3.0 * c.y * scale;
-    vec3(q, r, -q - r) 
+    vec3(q, r, -q - r)
 }
 
 pub fn hex_to_cell(hex: Vector3, m: f32) -> Vector3 {
@@ -84,4 +84,11 @@ pub fn hex_to_float(hex: Vector3, amt: f32) -> f32 {
 
 pub fn rand (uv: Vector2) -> f32{
     (uv.dot(vec2(12.9898,78.233)).sin()*43758.5453123).fract()
+}
+
+pub fn lerp_lin_srgb(a: LinSrgb, b: LinSrgb, amt: f32) -> LinSrgb {
+    let r = a.red + (b.red - a.red) * amt;
+    let g = a.green + (b.green - a.green) * amt;
+    let b = a.blue + (b.blue - a.blue) * amt;
+    lin_srgb(r, g, b)
 }
