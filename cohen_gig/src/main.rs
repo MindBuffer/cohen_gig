@@ -95,8 +95,7 @@ struct Model {
 
 pub struct State {
     osc_addr_textbox_string: String,
-    led_shader_names: Vec<String>,
-    wash_shader_names: Vec<String>,
+    shader_names: Vec<String>,
     solid_colour_names: Vec<String>,
     led_shader_idx_left: Option<usize>,
     led_shader_idx_right: Option<usize>,
@@ -105,7 +104,6 @@ pub struct State {
     wash_fade_to_black: f32,
     spot_light1_fade_to_black: f32,
     spot_light2_fade_to_black: f32,
-    wash_shader_idx: Option<usize>,
     solid_colour_idx: Option<usize>,
     blend_mode_names: Vec<String>,
     blend_mode_idx: Option<usize>,
@@ -213,35 +211,29 @@ fn model(app: &App) -> Model {
     let addr = "127.0.0.1:8000".parse().unwrap();
     let osc = Osc { tx, addr };
 
-    let mut led_shader_names = Vec::new();
-    led_shader_names.push("BwGradient".to_string());
-    led_shader_names.push("EscherTilings".to_string());
-    led_shader_names.push("JustRelax".to_string());
-    led_shader_names.push("LineGradient".to_string());
-    led_shader_names.push("Metafall".to_string());
-    led_shader_names.push("ParticleZoom".to_string());
-    led_shader_names.push("RadialLines".to_string());
-    led_shader_names.push("SquareTunnel".to_string());
+    let mut shader_names = Vec::new();
+    shader_names.push("BwGradient".to_string());
+    shader_names.push("EscherTilings".to_string());
+    shader_names.push("JustRelax".to_string());
+    shader_names.push("LineGradient".to_string());
+    shader_names.push("Metafall".to_string());
+    shader_names.push("ParticleZoom".to_string());
+    shader_names.push("RadialLines".to_string());
+    shader_names.push("SquareTunnel".to_string());
 
-    led_shader_names.push("AcidGradient".to_string());
-    led_shader_names.push("BlinkyCircles".to_string());
-    led_shader_names.push("ColourGrid".to_string());
-    led_shader_names.push("GilmoreAcid".to_string());
-    led_shader_names.push("LifeLedWall".to_string());
-    led_shader_names.push("SatisSpiraling".to_string());
-    led_shader_names.push("SpiralIntersect".to_string());
-    led_shader_names.push("ThePulse".to_string());
-    led_shader_names.push("TunnelProjection".to_string());
-    led_shader_names.push("VertColourGradient".to_string());
+    shader_names.push("AcidGradient".to_string());
+    shader_names.push("BlinkyCircles".to_string());
+    shader_names.push("ColourGrid".to_string());
+    shader_names.push("GilmoreAcid".to_string());
+    shader_names.push("LifeLedWall".to_string());
+    shader_names.push("SatisSpiraling".to_string());
+    shader_names.push("SpiralIntersect".to_string());
+    shader_names.push("ThePulse".to_string());
+    shader_names.push("TunnelProjection".to_string());
+    shader_names.push("VertColourGradient".to_string());
 
-    led_shader_names.push("SolidHsvColour".to_string());
-    led_shader_names.push("SolidRgbColour".to_string());
-
-    let mut wash_shader_names = Vec::new();
-    wash_shader_names.push("ColourPalettes".to_string());
-    wash_shader_names.push("MitchWash".to_string());
-    wash_shader_names.push("SolidHsvColour".to_string());
-    wash_shader_names.push("SolidRgbColour".to_string());
+    shader_names.push("SolidHsvColour".to_string());
+    shader_names.push("SolidRgbColour".to_string());
 
     let mut solid_colour_names = Vec::new();
     solid_colour_names.push("SolidHsvColour".to_string());
@@ -307,7 +299,7 @@ fn model(app: &App) -> Model {
 
     let life_led_wall = shader_shared::LifeLedWall {
         speed: 0.25,
-        size: 1.0,
+        size: 0.73,
         red: 0.5,
         green: 0.2,
         blue: 0.1,
@@ -345,13 +337,13 @@ fn model(app: &App) -> Model {
 
     let satis_spiraling = shader_shared::SatisSpiraling {
         speed: 0.5,
-        loops: 125.0,
+        loops: 0.8,
         mirror: true,
         rotate: true,
     };
 
     let spiral_intersect = shader_shared::SpiralIntersect {
-        speed: 0.2,
+        speed: 0.02,
         g1: 0.4,
         g2: 0.6,
         rot1: 1.0,
@@ -425,20 +417,18 @@ fn model(app: &App) -> Model {
 
     let state = State {
         osc_addr_textbox_string: format!("{}", osc.addr),
-        led_shader_names,
-        wash_shader_names,
+        shader_names,
         solid_colour_names,
-        led_shader_idx_left: Some(0),
-        led_shader_idx_right: Some(3),
+        led_shader_idx_left: Some(15),
+        led_shader_idx_right: Some(0),
         led_left_right_mix: 0.0,
         led_fade_to_black: 1.0,
         wash_fade_to_black: 1.0,
         spot_light1_fade_to_black: 1.0,
         spot_light2_fade_to_black: 1.0,
-        wash_shader_idx: Some(0),
         solid_colour_idx: Some(0),
         blend_mode_names,
-        blend_mode_idx: Some(2),
+        blend_mode_idx: Some(0),
         shader_params,
     };
 
@@ -631,21 +621,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Update the shader params
     model.uniforms.params = model.state.shader_params;
 
-    // Apply the shader for the washes.
-    for wash_ix in 0..model.wash_colors.len() {
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
-        let trg_s = pm_to_ps(trg_m, trg_h);
-        let ftb = model.state.wash_fade_to_black;
-        let light = Light::Wash { index: wash_ix };
-        let vertex = Vertex { position: trg_s, light };
-        model.wash_colors[wash_ix] = shader(
-            vertex,
-            &model.uniforms,
-            &model.state.wash_shader_names[model.state.wash_shader_idx.unwrap()],
-        ) * lin_srgb(ftb,ftb,ftb);
-    }
-
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
     when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
@@ -656,6 +631,33 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
     let xfl = lin_srgb(xfade_left,xfade_left,xfade_left);
     let xfr = lin_srgb(xfade_right,xfade_right,xfade_right);
+
+    let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
+
+    // Apply the shader for the washes.
+    for wash_ix in 0..model.wash_colors.len() {
+        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
+        let trg_s = pm_to_ps(trg_m, trg_h);
+        let ftb = model.state.wash_fade_to_black;
+        let light = Light::Wash { index: wash_ix };
+        let vertex = Vertex { position: trg_s, light };
+
+        let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
+        let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
+        let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
+        
+        model.wash_colors[wash_ix] = match blend_mode.as_str() {
+            "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Multiply" => blend_modes::multiply(left, right) * colour * lin_srgb(ftb,ftb,ftb),
+            "Average" => blend_modes::average(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Difference" => blend_modes::difference(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Negation" => blend_modes::negation(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            "Exclusion" => blend_modes::exclusion(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
+            _ => colour,
+        }
+    }
 
     // Apply the shader for the LEDs.
     for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
@@ -668,11 +670,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let normalised_coords = vec2(n_x, n_y);
         let light = Light::Led { index, col_row, normalised_coords };
         let vertex = Vertex { position: ps, light };
-        let left = shader(vertex, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_left.unwrap()]);
-        let right = shader(vertex, &model.uniforms, &model.state.led_shader_names[model.state.led_shader_idx_right.unwrap()]);
+        let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
+        let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
         let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
         let ftb = model.state.led_fade_to_black;
-        let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
+
         model.led_colors[led_ix] = match blend_mode.as_str() {
             "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
             "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),

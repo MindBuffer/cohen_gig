@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::helpers::*;
 
@@ -24,7 +24,7 @@ fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
         (TWO_PI * (c.z * t + d.z)).cos())
 }
 
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let mut params = Params {
         speed: 01.25,
         interval: 0.05,
@@ -33,6 +33,8 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     if uniforms.use_midi {
         params.interval = 0.05 + uniforms.slider5;
     }
+
+    let p = v.position;
     
     let t = uniforms.time * params.speed;
     let mut uv = vec3(p.x,p.y,p.z);

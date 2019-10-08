@@ -1,5 +1,5 @@
 use nannou::prelude::*;
-use shader_shared::Uniforms;
+use shader_shared::{Uniforms, Vertex, Light};
 
 use crate::helpers::*;
 
@@ -22,7 +22,7 @@ use crate::helpers::*;
 //     rotate: bool,
 // }
 
-pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.satis_spiraling;
 
     //params.speed = map_range((uniforms.time*0.01).sin() * (uniforms.time*0.001 * 10.0).cos(), -1.0, 1.0, 0.05, 0.2);
@@ -34,15 +34,20 @@ pub fn shader(p: Vector3, uniforms: &Uniforms) -> LinSrgb {
     let aspect = uniforms.resolution.x/uniforms.resolution.y;
     let w = 50.0/(uniforms.resolution.x*aspect+uniforms.resolution.y).sqrt();
 
-    let x = map_range(p.x, -0.18, 0.13, -1.0, 1.0);
-    let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
-    let mut uv = vec2(x,y);
+    let mut uv = match v.light {
+        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
+        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+    };
+    // let x = map_range(p.x, -0.18, 0.13, -1.0, 1.0);
+    // let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
+    // let mut uv = vec2(x,y);
     
     uv.x *= aspect;
     
     uv *= vec2(0.5,0.5);
 
-    uv.x -= 0.115;
+    //uv.x += dbg!(uniforms.slider1);
+    uv.x += 0.025;
     
     if params.rotate { 
         uv = multiply_mat2_with_vec2(rotate_2d(t*0.25), uv);
