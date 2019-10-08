@@ -29,6 +29,10 @@ widget_ids! {
         shader_title_text,
         shader_state_text,
 
+        universe_starts_text,
+        wash_spot_universe_dialer,
+        led_start_universe_dialer,
+
         wash_dmx_addrs_text,
         wash_dmx_addrs_list,
 
@@ -370,6 +374,44 @@ pub fn update(
         .color(color)
         .down(PAD)
         .set(ids.shader_state_text, ui);
+
+    text("Universes")
+        .mid_left_of(ids.background)
+        .down(PAD * 1.5)
+        .set(ids.universe_starts_text, ui);
+
+    let min_universe = 1.0;
+    let max_universe = 99.0;
+    let precision = 0;
+    let dialer_w = WIDGET_W * 0.5 - PAD * 0.25;
+    let v = config.wash_spot_universe;
+    for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+        .border(0.0)
+        .label("Wash")
+        .label_color(color::WHITE)
+        .label_font_size(14)
+        .down(PAD)
+        .w(dialer_w)
+        .h(DEFAULT_WIDGET_H)
+        .color(color::DARK_CHARCOAL)
+        .set(ids.wash_spot_universe_dialer, ui)
+    {
+        config.wash_spot_universe = v as u16;
+    }
+
+    let v = config.led_start_universe;
+    for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+        .border(0.0)
+        .label("LEDs")
+        .label_color(color::WHITE)
+        .label_font_size(14)
+        .right(PAD * 0.5)
+        .w(dialer_w)
+        .color(color::DARK_CHARCOAL)
+        .set(ids.led_start_universe_dialer, ui)
+    {
+        config.led_start_universe = v as u16;
+    }
 
     text("Wash and Spot DMX Addrs")
         .mid_left_of(ids.background)

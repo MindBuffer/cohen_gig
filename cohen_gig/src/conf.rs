@@ -23,7 +23,13 @@ pub struct Config {
     pub wash_dmx_addrs: Box<[u8; crate::layout::WASH_COUNT]>,
     /// A map from the index of each spotlight to their starting DMX address.
     #[serde(default = "default::spot_dmx_addrs")]
-    pub spot_dmx_addrs: [u8; crate::SPOT_COUNT]
+    pub spot_dmx_addrs: [u8; crate::SPOT_COUNT],
+    /// The universe on which wash/spot data is sent.
+    #[serde(default = "default::wash_spot_universe")]
+    pub wash_spot_universe: u16,
+    /// The starting universe from which LED data is sent.
+    #[serde(default = "default::led_start_universe")]
+    pub led_start_universe: u16,
 }
 
 /// The path to the configuration file.
@@ -39,6 +45,8 @@ impl Default for Config {
             midi_on: Default::default(),
             wash_dmx_addrs: default::wash_dmx_addrs(),
             spot_dmx_addrs: default::spot_dmx_addrs(),
+            wash_spot_universe: default::wash_spot_universe(),
+            led_start_universe: default::led_start_universe(),
         }
     }
 }
@@ -61,5 +69,15 @@ pub mod default {
             *s = start_addr + i as u8 * crate::DMX_ADDRS_PER_SPOT;
         }
         spot_dmx_addrs
+    }
+
+    /// The default universe to which wash and spot data is sent.
+    pub fn wash_spot_universe() -> u16 {
+        1
+    }
+
+    /// The default universe to which LED data is sent.
+    pub fn led_start_universe() -> u16 {
+        wash_spot_universe() + 1
     }
 }
