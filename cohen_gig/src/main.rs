@@ -46,9 +46,6 @@ pub const DMX_ADDRS_PER_WASH: u8 = 4;
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
-const SPOT_AND_WASH_UNIVERSE: u16 = 1;
-const LED_START_UNIVERSE: u16 = 2;
-
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
@@ -752,12 +749,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
         // Send spot and wash data.
         dmx_source
-            .send(SPOT_AND_WASH_UNIVERSE, &model.dmx.buffer[..])
+            .send(model.config.wash_spot_universe, &model.dmx.buffer[..])
             .expect("failed to send DMX data");
 
         // Collect and send LED data.
         model.dmx.buffer.clear();
-        let mut universe = LED_START_UNIVERSE;
+        let mut universe = model.config.led_start_universe;
         for col in model.led_colors.iter() {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
