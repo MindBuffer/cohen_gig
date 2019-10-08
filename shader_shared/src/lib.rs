@@ -11,6 +11,8 @@ pub struct Vertex {
     pub position: Point3,
     /// Information specific to the light fixture type.
     pub light: Light,
+    /// The last colour produced by the shader for this vertex.
+    pub last_color: LinSrgb,
 }
 
 #[derive(Copy, Clone)]

@@ -613,7 +613,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.uniforms.pot8 = model.uniforms.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
     model.uniforms.use_midi = model.config.midi_on;
-    
+
     // Update dimming control of the 2 house spot lights
     model.spot_lights[0] = model.state.spot_light1_fade_to_black;
     model.spot_lights[1] = model.state.spot_light2_fade_to_black;
@@ -641,12 +641,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let trg_s = pm_to_ps(trg_m, trg_h);
         let ftb = model.state.wash_fade_to_black;
         let light = Light::Wash { index: wash_ix };
-        let vertex = Vertex { position: trg_s, light };
+        let last_color = model.wash_colors[wash_ix];
+        let position = trg_s;
+        let vertex = Vertex { position, light, last_color };
 
         let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
         let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
         let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
-        
+
         model.wash_colors[wash_ix] = match blend_mode.as_str() {
             "Add" => blend_modes::add(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
             "Subtract" => blend_modes::subtract(left*xfl, right*xfr) * colour * lin_srgb(ftb,ftb,ftb),
@@ -669,7 +671,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
         let normalised_coords = vec2(n_x, n_y);
         let light = Light::Led { index, col_row, normalised_coords };
-        let vertex = Vertex { position: ps, light };
+        let last_color = model.led_colors[led_ix];
+        let position = ps;
+        let vertex = Vertex { position, light, last_color };
         let left = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_left.unwrap()]);
         let right = shader(vertex, &model.uniforms, &model.state.shader_names[model.state.led_shader_idx_right.unwrap()]);
         let colour = shader(vertex, &model.uniforms, &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()]);
