@@ -3,6 +3,7 @@ use crate::{shader, Osc, State};
 use nannou::prelude::*;
 use nannou::ui::conrod_core::widget_ids;
 use nannou::ui::prelude::*;
+use nannou::ui::Color;
 use std::f64::consts::PI;
 use std::net::SocketAddr;
 
@@ -10,6 +11,7 @@ pub const NUM_COLUMMNS: u32 = 3;
 pub const COLUMN_W: Scalar = 240.0;
 pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const DEFAULT_SLIDER_H: Scalar = 20.0;
+pub const TEXT_BOX_H: Scalar = DEFAULT_WIDGET_H / 1.5;
 pub const PAD: Scalar = 20.0;
 //pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
 pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32) * NUM_COLUMMNS;
@@ -17,6 +19,11 @@ pub const WINDOW_HEIGHT: u32 = 1080 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
+pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
+pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
+pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
+pub const PRESET_LIST_SELECTED_COLOR: Color = Color::Rgba(0.28, 0.54, 1.0, 1.0); // light blue
+pub const PRESET_ENTRY_COLOR: Color = Color::Rgba(0.05, 0.1, 0.2, 1.0); // dark blue
 
 widget_ids! {
     pub struct Ids {
@@ -33,6 +40,15 @@ widget_ids! {
         osc_address_text_box,
         shader_title_text,
         shader_state_text,
+
+        presets_text,
+        presets_duplicate,
+        presets_new_button,
+        presets_save_button,
+        presets_delete_button,
+        presets_text_box,
+        presets_list,
+        enter_preset_name_text,
 
         universe_starts_text,
         wash_spot_universe_dialer,
@@ -670,6 +686,164 @@ pub fn update(
 
     // A scrollbar for the canvas.
     //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
+}
+
+pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, assets: &Path) {
+    //---------------------- GUI WINDOW CANVAS
+    widget::Canvas::new()
+        .color(COLUMN_COLOR)
+        .w_h(config::GUI_WINDOW_W.into(), config::GUI_WINDOW_H.into())
+        .set(ids.canvas_gui_window_id, ui);
+    //---------------------- COLUMN 1
+    widget::Canvas::new()
+        .color(COLUMN_COLOR)
+        .top_left_with_margin_on(ids.canvas_gui_window_id,PAD)
+        .w_h(COLUMN_W, COLUMN_H)
+        .set(ids.column1_id, ui);
+    //---------------------- PRESETS
+    widget::Canvas::new()
+        .color(CANVAS_COLOR)
+        .top_left_with_margin_on(ids.column1_id,PAD)
+        .w_h(CANVAS_W, COLUMN_H - (PAD * 2.0))
+        .set(ids.canvas_presets_id, ui);
+
+    widget::Text::new("PRESETS")
+        .top_left_with_margin_on(ids.canvas_presets_id, PAD)
+        .color(TEXT_COLOR)
+        .set(ids.presets_text, ui);
+
+    for _click in button()
+        .down(10.0)
+        .label("Save")
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.presets_save_button, ui)
+    {
+        let preset_idx = config.presets.selected_preset_idx.expect("out of bounds preset idx");
+        config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
+        super::save_config(&assets, &config);
+    }
+
+    for _click in button()
+        .down(10.0)
+        .label("Delete")
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.presets_delete_button, ui)
+    {
+        let current_idx = config.presets.selected_preset_idx.expect("preset idx out of bounds");
+        if current_idx != 0 {
+            config.presets.presets.remove(current_idx);
+            let new_preset_idx = current_idx - 1;
+            config.presets.selected_preset_idx = Some(new_preset_idx);
+            config.presets.selected_preset_name = config.presets.presets[new_preset_idx].name.clone();
+            update_layers(layers, config, new_preset_idx);
+        }
+    }
+
+    for _click in button()
+        .down(10.0)
+        .label("New")
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.presets_new_button, ui)
+    {
+        config.presets.presets.push(crate::config::Preset::default());
+        let preset_idx = config.presets.presets.len() - 1;
+        config.presets.selected_preset_idx = Some(preset_idx);
+        config.presets.selected_preset_name = "".to_string();
+        config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
+        update_layers(layers, config, preset_idx);
+    }
+
+    for _click in button()
+        .down(10.0)
+        .label("Duplicate")
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.presets_duplicate, ui)
+    {
+        let current_preset_idx = config.presets.selected_preset_idx.expect("unkown preset idx");
+        let current_preset = config.presets.presets[current_preset_idx].clone();
+        config.presets.presets.push(current_preset);
+        let preset_idx = config.presets.presets.len() - 1;
+        config.presets.selected_preset_idx = Some(preset_idx); 
+        config.presets.selected_preset_name = "".to_string();
+        config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
+        update_layers(layers, config, preset_idx);
+    }
+
+    widget::Text::new("Enter Preset Name")
+        .down(10.0)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .set(ids.enter_preset_name_text, ui);
+
+    for event in widget::TextBox::new(&config.presets.selected_preset_name)
+        .down(10.0)
+        .w_h(WIDGET_W, TEXT_BOX_H)
+        .color(PRESET_ENTRY_COLOR)
+        .text_color(TEXT_COLOR)
+        .font_size(14)
+        .set(ids.presets_text_box, ui)
+    {
+        use nannou::ui::widget::text_box::Event;
+        match event {
+            Event::Update(text) => config.presets.selected_preset_name = text,
+            Event::Enter => {
+                let preset_idx = config.presets.selected_preset_idx.expect("out of bounds preset idx");
+                config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
+                super::save_config(&assets, &config);
+            },
+        }
+    }
+
+    let names: Vec<_> = config.presets.presets.iter().map(|p| p.name.clone()).collect();
+
+    // Instantiate the `ListSelect` widget.
+    let font_size = TEXT_BOX_H as conrod_core::FontSize / 2;
+    let (mut events, presets_scrollbar) = widget::ListSelect::single(names.len())
+        .flow_down()
+        .item_size(TEXT_BOX_H)
+        .scrollbar_next_to()
+        .w_h(WIDGET_W, 500.0)
+        .down_from(ids.presets_text_box, 10.0)
+        .align_left()
+        .set(ids.presets_list, ui);
+
+    // Handle the `ListSelect`s events.
+    while let Some(event) = events.next(ui, |i| i == config.presets.selected_preset_idx.unwrap()) {
+        use nannou::ui::widget::list_select::Event;
+        match event {
+            // For the `Item` events we instantiate the `List`'s items.
+            Event::Item(item) => {
+                let label = &names[item.i];
+                let (color, label_color) = if item.i == config.presets.selected_preset_idx.unwrap() {
+                    (PRESET_LIST_SELECTED_COLOR, nannou::ui::color::BLACK)
+                } else {
+                    (PRESET_LIST_COLOR, TEXT_COLOR)
+                };
+                let button = widget::Button::new()
+                    .border(0.0)
+                    .color(color)
+                    .w_h(WIDGET_W, TEXT_BOX_H)
+                    .label(label)
+                    .label_font_size(font_size)
+                    .label_color(label_color);
+                item.set(button, ui);
+            }
+
+            // The selection has changed.
+            Event::Selection(selection) => {
+                load_preset(selection, layers, config);
+            }
+            _ => (),
+        }
+    }
+
+    if let Some(sb) = presets_scrollbar {
+        sb.set(ui);
+    }
 }
 
 pub fn set_acid_gradient_widgets(ui: &mut UiCell, ids: &AcidGradientIds, state: &mut State) {

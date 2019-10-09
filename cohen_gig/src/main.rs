@@ -56,7 +56,7 @@ struct Model {
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
     config: Config,
-    state: State,
+    state: conf::State,
     uniforms: Uniforms,
     target_slider_values: Vec<f32>,
     target_pot_values: Vec<f32>,
@@ -88,24 +88,6 @@ struct Model {
     solid_hsv_colour_ids: gui::SolidHsvColourIds,
     solid_rgb_colour_ids: gui::SolidRgbColourIds,
     colour_palettes_ids: gui::ColourPalettesIds,
-}
-
-pub struct State {
-    osc_addr_textbox_string: String,
-    shader_names: Vec<String>,
-    solid_colour_names: Vec<String>,
-    led_shader_idx_left: Option<usize>,
-    led_shader_idx_right: Option<usize>,
-    led_left_right_mix: f32,
-    led_fade_to_black: f32,
-    wash_fade_to_black: f32,
-    spot_light1_fade_to_black: f32,
-    spot_light2_fade_to_black: f32,
-    lerp_amt: f32,
-    solid_colour_idx: Option<usize>,
-    blend_mode_names: Vec<String>,
-    blend_mode_idx: Option<usize>,
-    shader_params: ShaderParams,
 }
 
 struct Dmx {
@@ -209,45 +191,6 @@ fn model(app: &App) -> Model {
     let tx = None;
     let addr = "127.0.0.1:8000".parse().unwrap();
     let osc = Osc { tx, addr };
-
-    let mut shader_names = Vec::new();
-    shader_names.push("BwGradient".to_string());
-    shader_names.push("EscherTilings".to_string());
-    shader_names.push("JustRelax".to_string());
-    shader_names.push("LineGradient".to_string());
-    shader_names.push("Metafall".to_string());
-    shader_names.push("ParticleZoom".to_string());
-    shader_names.push("RadialLines".to_string());
-    shader_names.push("SquareTunnel".to_string());
-
-    shader_names.push("AcidGradient".to_string());
-    shader_names.push("BlinkyCircles".to_string());
-    shader_names.push("ColourGrid".to_string());
-    shader_names.push("GilmoreAcid".to_string());
-    shader_names.push("LifeLedWall".to_string());
-    shader_names.push("SatisSpiraling".to_string());
-    shader_names.push("SpiralIntersect".to_string());
-    shader_names.push("ThePulse".to_string());
-    shader_names.push("TunnelProjection".to_string());
-    shader_names.push("VertColourGradient".to_string());
-
-    shader_names.push("SolidHsvColour".to_string());
-    shader_names.push("SolidRgbColour".to_string());
-    shader_names.push("ColourPalettes".to_string());
-
-    let mut solid_colour_names = Vec::new();
-    solid_colour_names.push("SolidHsvColour".to_string());
-    solid_colour_names.push("SolidRgbColour".to_string());
-    solid_colour_names.push("ColourPalettes".to_string());
-
-    let mut blend_mode_names = Vec::new();
-    blend_mode_names.push("Add".to_string());
-    blend_mode_names.push("Subtract".to_string());
-    blend_mode_names.push("Multiply".to_string());
-    blend_mode_names.push("Average".to_string());
-    blend_mode_names.push("Difference".to_string());
-    blend_mode_names.push("Negation".to_string());
-    blend_mode_names.push("Exclusion".to_string());
 
     let acid_gradient = shader_shared::AcidGradient {
         speed: 0.5125,
@@ -422,10 +365,7 @@ fn model(app: &App) -> Model {
         colour_palettes,
     };
 
-    let state = State {
-        osc_addr_textbox_string: format!("{}", osc.addr),
-        shader_names,
-        solid_colour_names,
+    let state = conf::State {
         led_shader_idx_left: Some(15),
         led_shader_idx_right: Some(0),
         led_left_right_mix: 0.0,
@@ -435,7 +375,6 @@ fn model(app: &App) -> Model {
         spot_light2_fade_to_black: 1.0,
         lerp_amt: 0.5,
         solid_colour_idx: Some(0),
-        blend_mode_names,
         blend_mode_idx: Some(0),
         shader_params,
     };
