@@ -13,16 +13,17 @@ pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const PAD: Scalar = 20.0;
 //pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32);
 pub const WINDOW_WIDTH: u32 = ((COLUMN_W + PAD * 2.0) as u32) * NUM_COLUMMNS;
-pub const WINDOW_HEIGHT: u32 = 1080 - (2.0 * PAD) as u32;
+pub const WINDOW_HEIGHT: u32 = 720 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
 
 widget_ids! {
     pub struct Ids {
+        background,
         column_1_id,
         column_2_id,
-        column_3_id, 
+        column_3_id,
 
         scrollbar,
         title_text,
@@ -286,10 +287,10 @@ pub fn update(
     widget::Canvas::new()
         .border(0.0)
         .rgb(0.1, 0.1, 0.1)
-        .pad(PAD)
-        .x(-(WINDOW_WIDTH as f64 / 2.0) + COLUMN_W / 2.0 + PAD)
-        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
-        .scroll_kids_vertically()
+        .set(ids.background, ui);
+
+    column_canvas(ids.background)
+        .top_left_of(ids.background)
         .set(ids.column_1_id, ui);
 
     text("COHEN GIG")
@@ -480,14 +481,9 @@ pub fn update(
 
 
     //---------------------- LED SHADER LEFT
-    widget::Canvas::new()
-        .border(0.0)
-        .rgb(0.1, 0.1, 0.1)
-        .pad(PAD)
+    column_canvas(ids.background)
         .align_top_of(ids.column_1_id)
         .right_from(ids.column_1_id, 0.0)
-        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
-        .scroll_kids_vertically()
         .set(ids.column_2_id, ui);
 
     text("LED Shader Left")
@@ -562,14 +558,9 @@ pub fn update(
     }
 
     //---------------------- LED SHADER RIGHT
-    widget::Canvas::new()
-        .border(0.0)
-        .rgb(0.1, 0.1, 0.1)
-        .pad(PAD)
-        .align_top_of(ids.column_2_id)
+    column_canvas(ids.background)
+        .align_top_of(ids.column_1_id)
         .right_from(ids.column_2_id, 0.0)
-        .w_h(COLUMN_W + (PAD * 2.0), WINDOW_HEIGHT as f64)
-        .scroll_kids_vertically()
         .set(ids.column_3_id, ui);
 
     text("LED Shader Right")
@@ -1378,4 +1369,15 @@ fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
         .rgb(0.176, 0.513, 0.639)
         .label_rgb(1.0, 1.0, 1.0)
         .border(0.0)
+}
+
+fn column_canvas(background: widget::Id) -> widget::Canvas<'static> {
+    widget::Canvas::new()
+        .border(0.0)
+        .rgb(0.1, 0.1, 0.1)
+        .pad(PAD)
+        .parent(background)
+        .w(COLUMN_W + PAD * 2.0)
+        .h_of(background)
+        .scroll_kids_vertically()
 }
