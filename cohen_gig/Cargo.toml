@@ -16,3 +16,4 @@ serde = "1"
 shader_shared = { path = "../shader_shared" }
 korg_nano_kontrol_2 = "0.1.1"
 midir = "0.5"
+conrod_core = "0.65"

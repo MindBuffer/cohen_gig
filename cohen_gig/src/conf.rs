@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use shader_shared::ShaderParams;
 
 /// Runtime configuration parameters.
 ///
@@ -30,6 +31,44 @@ pub struct Config {
     /// The starting universe from which LED data is sent.
     #[serde(default = "default::led_start_universe")]
     pub led_start_universe: u16,
+    
+    #[serde(default = "default::osc_addr_textbox_string")]
+    pub osc_addr_textbox_string: String,
+    #[serde(default = "default::shader_names")]
+    pub shader_names: Vec<String>,
+    #[serde(default = "default::solid_colour_names")]
+    pub solid_colour_names: Vec<String>,
+    #[serde(default = "default::blend_mode_names")]
+    pub blend_mode_names: Vec<String>,
+
+    //-----------------PRESETS
+    #[serde(default)]
+    pub presets: Presets,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Presets {
+    #[serde(default = "default::presets::selected_preset_name")]
+    pub selected_preset_name: String,
+    #[serde(default = "default::presets::selected_preset_idx")]
+    pub selected_preset_idx: Option<usize>,
+    #[serde(default = "default::presets::presets")]
+    pub presets: Vec<State>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct State {
+    led_shader_idx_left: Option<usize>,
+    led_shader_idx_right: Option<usize>,
+    led_left_right_mix: f32,
+    led_fade_to_black: f32,
+    wash_fade_to_black: f32,
+    spot_light1_fade_to_black: f32,
+    spot_light2_fade_to_black: f32,
+    lerp_amt: f32,
+    solid_colour_idx: Option<usize>,
+    blend_mode_idx: Option<usize>,
+    shader_params: ShaderParams,
 }
 
 /// The path to the configuration file.
@@ -47,6 +86,31 @@ impl Default for Config {
             spot_dmx_addrs: default::spot_dmx_addrs(),
             wash_spot_universe: default::wash_spot_universe(),
             led_start_universe: default::led_start_universe(),
+            osc_addr_textbox_string: default::osc_addr_textbox_string(),
+            shader_names: default::shader_names(),
+            solid_colour_names: default::solid_colour_names(),
+            blend_mode_names: default::blend_mode_names(),
+            presets: Default::default(),
+        }
+    }
+}
+
+impl Default for Presets {
+    fn default() -> Self {
+        Presets {
+            selected_preset_name: default::presets::selected_preset_name(),
+            selected_preset_idx: default::presets::selected_preset_idx(),
+            presets: default::presets::presets(),
+        }
+    }
+}
+
+impl Default for Preset {
+    fn default() -> Self {
+        Preset {
+            layer_select: Default::default(),
+            layers: vec![Default::default()],
+            name: "init".to_string(),
         }
     }
 }
@@ -79,5 +143,70 @@ pub mod default {
     /// The default universe to which LED data is sent.
     pub fn led_start_universe() -> u16 {
         wash_spot_universe() + 1
+    }
+
+    pub fn osc_addr_textbox_string() -> String {
+        let addr = "127.0.0.1:8000".parse().unwrap();
+        format!("{}", addr)
+    }
+
+    pub fn shader_names() -> Vec<String> {
+        let mut shader_names = Vec::new();
+        shader_names.push("BwGradient".to_string());
+        shader_names.push("EscherTilings".to_string());
+        shader_names.push("JustRelax".to_string());
+        shader_names.push("LineGradient".to_string());
+        shader_names.push("Metafall".to_string());
+        shader_names.push("ParticleZoom".to_string());
+        shader_names.push("RadialLines".to_string());
+        shader_names.push("SquareTunnel".to_string());
+
+        shader_names.push("AcidGradient".to_string());
+        shader_names.push("BlinkyCircles".to_string());
+        shader_names.push("ColourGrid".to_string());
+        shader_names.push("GilmoreAcid".to_string());
+        shader_names.push("LifeLedWall".to_string());
+        shader_names.push("SatisSpiraling".to_string());
+        shader_names.push("SpiralIntersect".to_string());
+        shader_names.push("ThePulse".to_string());
+        shader_names.push("TunnelProjection".to_string());
+        shader_names.push("VertColourGradient".to_string());
+
+        shader_names.push("SolidHsvColour".to_string());
+        shader_names.push("SolidRgbColour".to_string());
+        shader_names.push("ColourPalettes".to_string());
+        shader_names
+    }
+
+    pub fn solid_colour_names() -> Vec<String> {
+        let mut solid_colour_names = Vec::new();
+        solid_colour_names.push("SolidHsvColour".to_string());
+        solid_colour_names.push("SolidRgbColour".to_string());
+        solid_colour_names.push("ColourPalettes".to_string());
+        solid_colour_names
+    }
+
+    pub fn blend_mode_names() -> Vec<String> {
+        let mut blend_mode_names = Vec::new();
+        blend_mode_names.push("Add".to_string());
+        blend_mode_names.push("Subtract".to_string());
+        blend_mode_names.push("Multiply".to_string());
+        blend_mode_names.push("Average".to_string());
+        blend_mode_names.push("Difference".to_string());
+        blend_mode_names.push("Negation".to_string());
+        blend_mode_names.push("Exclusion".to_string());
+        blend_mode_names
+    }
+
+    pub mod presets {
+        pub fn selected_preset_name() -> String {
+            "Empty".to_string()
+        }
+        pub fn selected_preset_idx() -> Option<usize> {
+            Some(0)
+        }
+        pub fn presets() -> Vec<crate::config::Preset> {
+            vec![crate::config::Preset::default()]
+        }
     }
 }
