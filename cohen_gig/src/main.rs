@@ -592,7 +592,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::F => model.target_slider_values[5] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.state.led_left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
                     korg::Strip::H => model.smoothing_speed = map_range(value as f32 ,0.0,127.0,0.002,0.08),
-                    _ => (),
                 }
             }
             korg::Event::RotarySlider(strip, value) => {
@@ -605,7 +604,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    _ => (),
                 }
             }
             _ => (),
@@ -641,30 +639,29 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
     let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
+    let ftb = model.state.wash_fade_to_black;
+    let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
+    let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
+    let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+    let mix_info = MixingInfo {
+        left_name: left_name.to_string(),
+        right_name: right_name.to_string(),
+        colour_name: colour_name.to_string(),
+        blend_mode: blend_mode.to_string(),
+        xfade_left,
+        xfade_right
+    };
 
     // Apply the shader for the washes.
     for wash_ix in 0..model.wash_colors.len() {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
         let trg_s = pm_to_ps(trg_m, trg_h);
-        let ftb = model.state.wash_fade_to_black;
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
         let lerp_amt = model.state.lerp_amt;
         let vertex = Vertex { position, light, last_color, lerp_amt };
-
-        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
-        let mix_info = MixingInfo { 
-            left_name: left_name.to_string(), 
-            right_name: right_name.to_string(), 
-            colour_name: colour_name.to_string(), 
-            blend_mode: blend_mode.to_string(), 
-            xfade_left, 
-            xfade_right 
-        };
         model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
@@ -682,19 +679,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let position = ps;
         let lerp_amt = model.state.lerp_amt;
         let vertex = Vertex { position, light, last_color, lerp_amt };
-        let ftb = model.state.led_fade_to_black;
-
-        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
-        let mix_info = MixingInfo { 
-            left_name: left_name.to_string(), 
-            right_name: right_name.to_string(), 
-            colour_name: colour_name.to_string(), 
-            blend_mode: blend_mode.to_string(), 
-            xfade_left, 
-            xfade_right 
-        };
         model.led_colors[led_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
