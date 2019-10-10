@@ -268,6 +268,19 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Topdown metres to shader coords.
     let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
 
+    // A function for updating the controller's button states based on a button event.
+    fn update_korg_button(controller: &mut Controller, button: shader_shared::Button, state: korg::State) {
+        let now = std::time::Instant::now();
+        let b_state = controller.buttons.entry(button).or_insert_with(|| {
+            let last_pressed = now;
+            ButtonState { last_pressed, state }
+        });
+        b_state.state = state;
+        if state == korg::State::On {
+            b_state.last_pressed = now;
+        }
+    }
+
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
         match event {
@@ -299,17 +312,24 @@ fn update(app: &App, model: &mut Model, update: Update) {
             // Updates for button events.
             korg::Event::Button(row, strip, state) => {
                 let button = shader_shared::Button::Row(row, strip);
-                let now = std::time::Instant::now();
-                let b_state = model.controller.buttons.entry(button).or_insert_with(|| {
-                    let last_pressed = now;
-                    ButtonState { last_pressed, state }
-                });
-                if state == korg::State::On {
-                    b_state.last_pressed = now;
-                }
+                update_korg_button(&mut model.controller, button, state);
             }
-
-            _ => (),
+            korg::Event::TrackButton(tb, state) => {
+                let button = shader_shared::Button::Track(tb);
+                update_korg_button(&mut model.controller, button, state);
+            }
+            korg::Event::CycleButton(state) => {
+                let button = shader_shared::Button::Cycle;
+                update_korg_button(&mut model.controller, button, state);
+            }
+            korg::Event::MarkerButton(mb, state) => {
+                let button = shader_shared::Button::Marker(mb);
+                update_korg_button(&mut model.controller, button, state);
+            }
+            korg::Event::TransportButton(t, state) => {
+                let button = shader_shared::Button::Transport(t);
+                update_korg_button(&mut model.controller, button, state);
+            }
         }
     }
 
