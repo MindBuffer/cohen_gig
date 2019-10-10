@@ -18,10 +18,10 @@ pub struct Vertex {
 
 #[derive(Clone)]
 pub struct MixingInfo {
-    pub left_name: String,
-    pub right_name: String,
-    pub colour_name: String,
-    pub blend_mode: String,
+    pub left: Shader,
+    pub right: Shader,
+    pub colourise: Shader,
+    pub blend_mode: BlendMode,
     /// x fade left amount
     pub xfade_left: f32,
     /// x fade right amount
@@ -115,6 +115,44 @@ pub struct ShaderParams {
     pub solid_rgb_colour: SolidRgbColour,
     #[serde(default)]
     pub colour_palettes: ColourPalettes,
+}
+
+/// Refers to the selected blend mode type for a preset.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BlendMode {
+    Add,
+    Subtract,
+    Multiply,
+    Average,
+    Difference,
+    Negation,
+    Exclusion,
+}
+
+/// For selecting between each of the available shaders at runtime.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Shader {
+    SolidHsvColour,
+    SolidRgbColour,
+    ColourPalettes,
+    AcidGradient,
+    BlinkyCircles,
+    BwGradient,
+    ColourGrid,
+    EscherTilings,
+    GilmoreAcid,
+    JustRelax,
+    LifeLedWall,
+    LineGradient,
+    Metafall,
+    ParticleZoom,
+    RadialLines,
+    SatisSpiraling,
+    SpiralIntersect,
+    SquareTunnel,
+    ThePulse,
+    TunnelProjection,
+    VertColourGradient,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -371,6 +409,170 @@ pub struct ColourPalettes {
     pub interval: f32,
     #[serde(default = "default::colour_palettes::selected")]
     pub selected: usize,
+}
+
+pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
+    BlendMode::Add,
+    BlendMode::Subtract,
+    BlendMode::Multiply,
+    BlendMode::Average,
+    BlendMode::Difference,
+    BlendMode::Negation,
+    BlendMode::Exclusion,
+];
+
+pub const ALL_SHADERS: &'static [Shader] = &[
+    Shader::SolidHsvColour,
+    Shader::SolidRgbColour,
+    Shader::ColourPalettes,
+    Shader::AcidGradient,
+    Shader::BlinkyCircles,
+    Shader::BwGradient,
+    Shader::ColourGrid,
+    Shader::EscherTilings,
+    Shader::GilmoreAcid,
+    Shader::JustRelax,
+    Shader::LifeLedWall,
+    Shader::LineGradient,
+    Shader::Metafall,
+    Shader::ParticleZoom,
+    Shader::RadialLines,
+    Shader::SatisSpiraling,
+    Shader::SpiralIntersect,
+    Shader::SquareTunnel,
+    Shader::ThePulse,
+    Shader::TunnelProjection,
+    Shader::VertColourGradient,
+];
+
+pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
+    Shader::SolidHsvColour,
+    Shader::SolidRgbColour,
+    Shader::ColourPalettes,
+];
+
+impl BlendMode {
+    /// The name of the variant in the form of a string for GUI presentation.
+    pub fn name(&self) -> &str {
+        match *self {
+            BlendMode::Add => "Add",
+            BlendMode::Subtract => "Subtract",
+            BlendMode::Multiply => "Multiply",
+            BlendMode::Average => "Average",
+            BlendMode::Difference => "Difference",
+            BlendMode::Negation => "Negation",
+            BlendMode::Exclusion => "Exclusion",
+        }
+    }
+
+    pub fn to_index(&self) -> usize {
+        match *self {
+            BlendMode::Add => 0,
+            BlendMode::Subtract => 1,
+            BlendMode::Multiply => 2,
+            BlendMode::Average => 3,
+            BlendMode::Difference => 4,
+            BlendMode::Negation => 5,
+            BlendMode::Exclusion => 6,
+        }
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        let mode = match index {
+            0 => BlendMode::Add,
+            1 => BlendMode::Subtract,
+            2 => BlendMode::Multiply,
+            3 => BlendMode::Average,
+            4 => BlendMode::Difference,
+            5 => BlendMode::Negation,
+            6 => BlendMode::Exclusion,
+            _ => return None,
+        };
+        Some(mode)
+    }
+}
+
+impl Shader {
+    /// The name of the variant in the form of a string for GUI presentation.
+    pub fn name(&self) -> &str {
+        match *self {
+            Shader::SolidHsvColour => "SolidHsvColour",
+            Shader::SolidRgbColour => "SolidRgbColour",
+            Shader::ColourPalettes => "ColourPalettes",
+            Shader::AcidGradient => "AcidGradient",
+            Shader::BlinkyCircles => "BlinkyCircles",
+            Shader::BwGradient => "BwGradient",
+            Shader::ColourGrid => "ColourGrid",
+            Shader::EscherTilings => "EscherTilings",
+            Shader::GilmoreAcid => "GilmoreAcid",
+            Shader::JustRelax => "JustRelax",
+            Shader::LifeLedWall => "LifeLedWall",
+            Shader::LineGradient => "LineGradient",
+            Shader::Metafall => "Metafall",
+            Shader::ParticleZoom => "ParticleZoom",
+            Shader::RadialLines => "RadialLines",
+            Shader::SatisSpiraling => "SatisSpiraling",
+            Shader::SpiralIntersect => "SpiralIntersect",
+            Shader::SquareTunnel => "SquareTunnel",
+            Shader::ThePulse => "ThePulse",
+            Shader::TunnelProjection => "TunnelProjection",
+            Shader::VertColourGradient => "VertColourGradient",
+        }
+    }
+
+    pub fn to_index(&self) -> usize {
+        match *self {
+            Shader::SolidHsvColour => 0,
+            Shader::SolidRgbColour => 1,
+            Shader::ColourPalettes => 2,
+            Shader::AcidGradient => 3,
+            Shader::BlinkyCircles => 4,
+            Shader::BwGradient => 5,
+            Shader::ColourGrid => 6,
+            Shader::EscherTilings => 7,
+            Shader::GilmoreAcid => 8,
+            Shader::JustRelax => 9,
+            Shader::LifeLedWall => 10,
+            Shader::LineGradient => 11,
+            Shader::Metafall => 12,
+            Shader::ParticleZoom => 13,
+            Shader::RadialLines => 14,
+            Shader::SatisSpiraling => 15,
+            Shader::SpiralIntersect => 16,
+            Shader::SquareTunnel => 17,
+            Shader::ThePulse => 18,
+            Shader::TunnelProjection => 19,
+            Shader::VertColourGradient => 20,
+        }
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        let shader = match index {
+            0 => Shader::SolidHsvColour,
+            1 => Shader::SolidRgbColour,
+            2 => Shader::ColourPalettes,
+            3 => Shader::AcidGradient,
+            4 => Shader::BlinkyCircles,
+            5 => Shader::BwGradient,
+            6 => Shader::ColourGrid,
+            7 => Shader::EscherTilings,
+            8 => Shader::GilmoreAcid,
+            9 => Shader::JustRelax,
+            10 => Shader::LifeLedWall,
+            11 => Shader::LineGradient,
+            12 => Shader::Metafall,
+            13 => Shader::ParticleZoom,
+            14 => Shader::RadialLines,
+            15 => Shader::SatisSpiraling,
+            16 => Shader::SpiralIntersect,
+            17 => Shader::SquareTunnel,
+            18 => Shader::ThePulse,
+            19 => Shader::TunnelProjection,
+            20 => Shader::VertColourGradient,
+            _ => return None,
+        };
+        Some(shader)
+    }
 }
 
 impl Default for AcidGradient {

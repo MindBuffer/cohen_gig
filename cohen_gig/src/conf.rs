@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use shader_shared::ShaderParams;
+use shader_shared::{BlendMode, Shader, ShaderParams};
 
 /// Runtime configuration parameters.
 ///
@@ -33,16 +33,8 @@ pub struct Config {
     pub led_start_universe: u16,
     #[serde(default)]
     pub fade_to_black: FadeToBlack,
-
     #[serde(default = "default::osc_addr_textbox_string")]
     pub osc_addr_textbox_string: String,
-    #[serde(default = "default::shader_names")]
-    pub shader_names: Vec<String>,
-    #[serde(default = "default::solid_colour_names")]
-    pub solid_colour_names: Vec<String>,
-    #[serde(default = "default::blend_mode_names")]
-    pub blend_mode_names: Vec<String>,
-
     #[serde(default)]
     pub presets: Presets,
 }
@@ -61,18 +53,18 @@ pub struct Presets {
 pub struct Preset {
     #[serde(default)]
     pub name: String,
-    #[serde(default = "default::preset::shader_idx_left")]
-    pub shader_idx_left: usize,
-    #[serde(default = "default::preset::shader_idx_right")]
-    pub shader_idx_right: usize,
+    #[serde(default = "default::preset::shader_left")]
+    pub shader_left: Shader,
+    #[serde(default = "default::preset::shader_right")]
+    pub shader_right: Shader,
+    #[serde(default = "default::preset::colourise")]
+    pub colourise: Shader,
     #[serde(default = "default::preset::left_right_mix")]
     pub left_right_mix: f32,
     #[serde(default = "default::preset::wash_lerp_amt")]
     pub wash_lerp_amt: f32,
-    #[serde(default = "default::preset::solid_colour_idx")]
-    pub solid_colour_idx: usize,
-    #[serde(default = "default::preset::blend_mode_idx")]
-    pub blend_mode_idx: usize,
+    #[serde(default = "default::preset::blend_mode")]
+    pub blend_mode: BlendMode,
     #[serde(default)]
     pub shader_params: ShaderParams,
 }
@@ -119,9 +111,6 @@ impl Default for Config {
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
             osc_addr_textbox_string: default::osc_addr_textbox_string(),
-            shader_names: default::shader_names(),
-            solid_colour_names: default::solid_colour_names(),
-            blend_mode_names: default::blend_mode_names(),
             presets: Default::default(),
         }
     }
@@ -152,12 +141,12 @@ impl Default for Preset {
     fn default() -> Self {
         Preset {
             name: default::presets::selected_preset_name(),
-            shader_idx_left: default::preset::shader_idx_left(),
-            shader_idx_right: default::preset::shader_idx_right(),
+            shader_left: default::preset::shader_left(),
+            shader_right: default::preset::shader_right(),
             left_right_mix: default::preset::left_right_mix(),
             wash_lerp_amt: default::preset::wash_lerp_amt(),
-            solid_colour_idx: default::preset::solid_colour_idx(),
-            blend_mode_idx: default::preset::blend_mode_idx(),
+            colourise: default::preset::colourise(),
+            blend_mode: default::preset::blend_mode(),
             shader_params: shader_shared::ShaderParams::default(),
         }
     }
@@ -197,54 +186,6 @@ pub mod default {
         "127.0.0.1:8000".to_string()
     }
 
-    pub fn shader_names() -> Vec<String> {
-        let mut shader_names = Vec::new();
-        shader_names.push("BwGradient".to_string());
-        shader_names.push("EscherTilings".to_string());
-        shader_names.push("JustRelax".to_string());
-        shader_names.push("LineGradient".to_string());
-        shader_names.push("Metafall".to_string());
-        shader_names.push("ParticleZoom".to_string());
-        shader_names.push("RadialLines".to_string());
-        shader_names.push("SquareTunnel".to_string());
-
-        shader_names.push("AcidGradient".to_string());
-        shader_names.push("BlinkyCircles".to_string());
-        shader_names.push("ColourGrid".to_string());
-        shader_names.push("GilmoreAcid".to_string());
-        shader_names.push("LifeLedWall".to_string());
-        shader_names.push("SatisSpiraling".to_string());
-        shader_names.push("SpiralIntersect".to_string());
-        shader_names.push("ThePulse".to_string());
-        shader_names.push("TunnelProjection".to_string());
-        shader_names.push("VertColourGradient".to_string());
-
-        shader_names.push("SolidHsvColour".to_string());
-        shader_names.push("SolidRgbColour".to_string());
-        shader_names.push("ColourPalettes".to_string());
-        shader_names
-    }
-
-    pub fn solid_colour_names() -> Vec<String> {
-        let mut solid_colour_names = Vec::new();
-        solid_colour_names.push("SolidHsvColour".to_string());
-        solid_colour_names.push("SolidRgbColour".to_string());
-        solid_colour_names.push("ColourPalettes".to_string());
-        solid_colour_names
-    }
-
-    pub fn blend_mode_names() -> Vec<String> {
-        let mut blend_mode_names = Vec::new();
-        blend_mode_names.push("Add".to_string());
-        blend_mode_names.push("Subtract".to_string());
-        blend_mode_names.push("Multiply".to_string());
-        blend_mode_names.push("Average".to_string());
-        blend_mode_names.push("Difference".to_string());
-        blend_mode_names.push("Negation".to_string());
-        blend_mode_names.push("Exclusion".to_string());
-        blend_mode_names
-    }
-
     pub mod presets {
         pub fn selected_preset_name() -> String {
             "Empty".to_string()
@@ -258,11 +199,15 @@ pub mod default {
     }
 
     pub mod preset {
-        pub fn shader_idx_left() -> usize {
-            15
+        use shader_shared::{BlendMode, Shader};
+        pub fn shader_left() -> Shader {
+            Shader::SatisSpiraling
         }
-        pub fn shader_idx_right() -> usize {
-            0
+        pub fn shader_right() -> Shader {
+            Shader::SolidHsvColour
+        }
+        pub fn colourise() -> Shader {
+            Shader::SolidHsvColour
         }
         pub fn left_right_mix() -> f32 {
             0.0
@@ -270,11 +215,8 @@ pub mod default {
         pub fn wash_lerp_amt() -> f32 {
             0.5
         }
-        pub fn solid_colour_idx() -> usize {
-            0
-        }
-        pub fn blend_mode_idx() -> usize {
-            0
+        pub fn blend_mode() -> BlendMode {
+            BlendMode::Add
         }
     }
 
