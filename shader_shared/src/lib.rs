@@ -138,6 +138,8 @@ pub struct ShaderParams {
     pub solid_rgb_colour: SolidRgbColour,
     #[serde(default)]
     pub colour_palettes: ColourPalettes,
+    #[serde(default)]
+    pub mitch_wash: MitchWash,
 }
 
 /// Refers to the selected blend mode type for a preset.
@@ -176,6 +178,7 @@ pub enum Shader {
     ThePulse,
     TunnelProjection,
     VertColourGradient,
+    MitchWash,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -405,6 +408,11 @@ pub struct VertColourGradient {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MitchWash {
+    pub speed: f32,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SolidHsvColour {
     #[serde(default = "default::solid_hsv_colour::hue")]
     pub hue: f32,
@@ -466,6 +474,7 @@ pub const ALL_SHADERS: &'static [Shader] = &[
     Shader::ThePulse,
     Shader::TunnelProjection,
     Shader::VertColourGradient,
+    Shader::MitchWash,
 ];
 
 pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
@@ -540,6 +549,7 @@ impl Shader {
             Shader::ThePulse => "ThePulse",
             Shader::TunnelProjection => "TunnelProjection",
             Shader::VertColourGradient => "VertColourGradient",
+            Shader::MitchWash => "MitchWash",
         }
     }
 
@@ -566,6 +576,7 @@ impl Shader {
             Shader::ThePulse => 18,
             Shader::TunnelProjection => 19,
             Shader::VertColourGradient => 20,
+            Shader::MitchWash => 21,
         }
     }
 
@@ -592,6 +603,7 @@ impl Shader {
             18 => Shader::ThePulse,
             19 => Shader::TunnelProjection,
             20 => Shader::VertColourGradient,
+            21 => Shader::MitchWash,
             _ => return None,
         };
         Some(shader)
@@ -797,6 +809,14 @@ impl Default for VertColourGradient {
             line_amp: default::vert_colour_gradient::line_amp(),
             diag_amp: default::vert_colour_gradient::diag_amp(),
             boarder_amp: default::vert_colour_gradient::boarder_amp(),
+        }
+    }
+}
+
+impl Default for MitchWash {
+    fn default() -> Self {
+        MitchWash {
+            speed: default::mitch_wash::speed(),
         }
     }
 }
@@ -1115,6 +1135,12 @@ pub mod default {
         }
         pub fn boarder_amp() -> f32 {
             0.65
+        }
+    }
+
+    pub mod mitch_wash {
+        pub fn speed() -> f32 {
+            1.0
         }
     }
 

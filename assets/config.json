@@ -1,0 +1,1048 @@
+{
+  "osc_on": false,
+  "dmx_on": false,
+  "midi_on": false,
+  "wash_dmx_addrs": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48,
+    52,
+    56,
+    60,
+    64,
+    68,
+    72,
+    76,
+    80,
+    84,
+    88,
+    92,
+    96,
+    100,
+    104,
+    108
+  ],
+  "spot_dmx_addrs": [
+    112,
+    113
+  ],
+  "wash_spot_universe": 1,
+  "led_start_universe": 2,
+  "fade_to_black": {
+    "led": 1.0,
+    "wash": 1.0,
+    "spot1": 1.0,
+    "spot2": 1.0
+  },
+  "osc_addr_textbox_string": "127.0.0.1:8000",
+  "presets": {
+    "selected_preset_name": "Spatial Wash (Press space / cycle)",
+    "selected_preset_idx": 6,
+    "list": [
+      {
+        "name": "Pulse Gradient",
+        "shader_left": "ThePulse",
+        "shader_right": "AcidGradient",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 0.07344514,
+        "wash_lerp_amt": 0.056288775,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Satis Relaxation",
+        "shader_left": "SatisSpiraling",
+        "shader_right": "JustRelax",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 0.0,
+        "wash_lerp_amt": 0.07228645,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Gilmore Spiraling",
+        "shader_left": "GilmoreAcid",
+        "shader_right": "SatisSpiraling",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 0.06780499,
+        "wash_lerp_amt": 0.056473553,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.013354747,
+            "density": 0.01,
+            "shape": 0.14589004,
+            "tau": 0.4180888
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Magenta Mirror Gradient",
+        "shader_left": "BwGradient",
+        "shader_right": "BwGradient",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 0.0,
+        "wash_lerp_amt": 1.0,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.04589564,
+            "dc": 0.05,
+            "amp": 0.5048485,
+            "freq": 0.5,
+            "mirror": true
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 0.9473315,
+            "saturation": 0.6780581,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Monochrome Escher Shifts",
+        "shader_left": "EscherTilings",
+        "shader_right": "SolidHsvColour",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.040208198,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.14051183,
+            "scale": 0.118715666,
+            "shape_iter": 0.21841711
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Slow Tunnel Projection",
+        "shader_left": "TunnelProjection",
+        "shader_right": "SolidHsvColour",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.09935735,
+            "res": 0.40345585
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.026027171,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      },
+      {
+        "name": "Spatial Wash (Press space / cycle)",
+        "shader_left": "MitchWash",
+        "shader_right": "SolidHsvColour",
+        "colourise": "SolidHsvColour",
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
+        "blend_mode": "Add",
+        "shader_params": {
+          "acid_gradient": {
+            "speed": 0.5125,
+            "zoom": 0.0,
+            "offset": 0.75
+          },
+          "blinky_circles": {
+            "speed": 0.5125,
+            "zoom": 0.05,
+            "offset": 0.25
+          },
+          "bw_gradient": {
+            "speed": 0.5125,
+            "dc": 0.05,
+            "amp": 0.5,
+            "freq": 0.5,
+            "mirror": false
+          },
+          "colour_grid": {
+            "speed": 0.5,
+            "zoom_amount": 0.1
+          },
+          "escher_tilings": {
+            "speed": 0.2,
+            "scale": 0.2,
+            "shape_iter": 0.2
+          },
+          "gilmore_acid": {
+            "speed": 0.025,
+            "displace": 0.01,
+            "colour_offset": 0.85,
+            "grid_size": 0.345,
+            "wave": 0.088,
+            "zoom_amount": 0.0,
+            "rotation_amount": 0.0,
+            "brightness": 1.0,
+            "saturation": 0.15
+          },
+          "just_relax": {
+            "speed": 0.6,
+            "shape_offset": 0.728,
+            "iter": 1.0
+          },
+          "life_led_wall": {
+            "speed": 0.25,
+            "size": 0.73,
+            "red": 0.5,
+            "green": 0.2,
+            "blue": 0.1,
+            "saturation": 1.0,
+            "colour_offset": 0.01
+          },
+          "line_gradient": {
+            "speed": 0.03,
+            "num_stripes": 1.0,
+            "stripe_width": 0.9,
+            "angle": 0.5,
+            "smooth_width": 0.155
+          },
+          "metafall": {
+            "speed": 0.47,
+            "scale": 0.0,
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "particle_zoom": {
+            "speed": 0.01,
+            "density": 0.01,
+            "shape": 0.35,
+            "tau": 1.0
+          },
+          "radial_lines": {
+            "speed": 0.05,
+            "zoom_amount": 0.8
+          },
+          "satis_spiraling": {
+            "speed": 0.5,
+            "loops": 0.8,
+            "mirror": true,
+            "rotate": true
+          },
+          "spiral_intersect": {
+            "speed": 0.02,
+            "g1": 0.4,
+            "g2": 0.6,
+            "rot1": 1.0,
+            "rot2": 0.5,
+            "colours": 1.0
+          },
+          "square_tunnel": {
+            "speed": 0.6,
+            "rotation_speed": 0.025,
+            "rotation_offset": 0.0,
+            "zoom": 0.8
+          },
+          "the_pulse": {
+            "speed": 0.08,
+            "scale": 0.1,
+            "colour_iter": 0.25,
+            "thickness": 0.0
+          },
+          "tunnel_projection": {
+            "speed": 0.5,
+            "res": 0.5
+          },
+          "vert_colour_gradient": {
+            "speed": 0.5,
+            "scale": 0.83,
+            "colour_iter": 0.015,
+            "line_amp": 0.0,
+            "diag_amp": 0.0,
+            "boarder_amp": 0.65
+          },
+          "solid_hsv_colour": {
+            "hue": 1.0,
+            "saturation": 0.0,
+            "value": 1.0
+          },
+          "solid_rgb_colour": {
+            "red": 1.0,
+            "green": 1.0,
+            "blue": 1.0
+          },
+          "colour_palettes": {
+            "speed": 0.1,
+            "interval": 0.05,
+            "selected": 0
+          },
+          "mitch_wash": {
+            "speed": 1.0
+          }
+        }
+      }
+    ]
+  }
+}

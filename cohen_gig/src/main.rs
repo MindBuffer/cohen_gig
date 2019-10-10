@@ -122,6 +122,7 @@ fn model(app: &App) -> Model {
         .new_window()
         .with_title("COHEN GIG - GUI")
         .with_dimensions(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .key_pressed(key_pressed)
         .view(gui_view)
         .build()
         .expect("failed to build GUI window");
@@ -130,6 +131,7 @@ fn model(app: &App) -> Model {
         .new_window()
         .with_title("COHEN GIG - PREVIS")
         .with_dimensions(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
+        .key_pressed(key_pressed)
         .view(led_strip_view)
         .build()
         .unwrap();
@@ -138,6 +140,7 @@ fn model(app: &App) -> Model {
         .new_window()
         .with_title("COHEN GIG - TOPDOWN")
         .with_dimensions(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
+        .key_pressed(key_pressed)
         .view(topdown_view)
         .build()
         .unwrap();
@@ -238,6 +241,16 @@ fn model(app: &App) -> Model {
     }
 }
 
+fn key_pressed(app: &App, model: &mut Model, key: Key) {
+    match key {
+        Key::Space => {
+            let button = shader_shared::Button::Cycle;
+            update_korg_button(&mut model.controller, button, korg::State::On);
+        }
+        _ => ()
+    }
+}
+
 fn update(app: &App, model: &mut Model, update: Update) {
     // Apply the GUI update.
     let ui = model.ui.set_widgets();
@@ -267,19 +280,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Topdown metres to shader coords.
     let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
-
-    // A function for updating the controller's button states based on a button event.
-    fn update_korg_button(controller: &mut Controller, button: shader_shared::Button, state: korg::State) {
-        let now = std::time::Instant::now();
-        let b_state = controller.buttons.entry(button).or_insert_with(|| {
-            let last_pressed = now;
-            ButtonState { last_pressed, state }
-        });
-        b_state.state = state;
-        if state == korg::State::On {
-            b_state.last_pressed = now;
-        }
-    }
 
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
@@ -751,4 +751,17 @@ fn exit(app: &App, model: Model) {
         .assets_path()
         .expect("failed to find project `assets` directory");
     save_config(&assets, &model.config);
+}
+
+// A function for updating the controller's button states based on a button event.
+fn update_korg_button(controller: &mut Controller, button: shader_shared::Button, state: korg::State) {
+    let now = std::time::Instant::now();
+    let b_state = controller.buttons.entry(button).or_insert_with(|| {
+        let last_pressed = now;
+        ButtonState { last_pressed, state }
+    });
+    b_state.state = state;
+    if state == korg::State::On {
+        b_state.last_pressed = now;
+    }
 }

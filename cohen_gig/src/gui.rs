@@ -382,6 +382,18 @@ impl Params for shader_shared::VertColourGradient {
     }
 }
 
+impl Params for shader_shared::MitchWash {
+    fn param_count(&self) -> usize {
+        1
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::SolidHsvColour {
     fn param_count(&self) -> usize {
         3
@@ -1083,5 +1095,6 @@ fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
         Shader::SolidHsvColour => &mut params.solid_hsv_colour,
         Shader::SolidRgbColour => &mut params.solid_rgb_colour,
         Shader::ColourPalettes => &mut params.colour_palettes,
+        Shader::MitchWash => &mut params.mitch_wash,
     }
 }
