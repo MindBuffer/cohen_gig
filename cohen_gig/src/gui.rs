@@ -4,7 +4,7 @@ use nannou::prelude::*;
 use nannou::ui::conrod_core::widget_ids;
 use nannou::ui::prelude::*;
 use nannou::ui::Color;
-use shader_shared::ShaderParams;
+use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::f64::consts::PI;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -527,7 +527,10 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&config.shader_names, Some(preset.shader_idx_left))
+    let shader_names: Vec<_> = shader_shared::ALL_SHADERS.iter().map(|s| s.name()).collect();
+    let shader_idx = preset.shader_left.to_index();
+
+    for selected_idx in widget::DropDownList::new(&shader_names, Some(shader_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -538,33 +541,32 @@ pub fn update(
         .scrollbar_on_top()
         .set(ids.led_shader_left_ddl, ui)
     {
-        preset.shader_idx_left = selected_idx;
+        preset.shader_left = Shader::from_index(selected_idx).unwrap();
     }
 
     let params = &mut preset.shader_params;
-    match config.shader_names[preset.shader_idx_left].as_str() {
-        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
-        "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
-        "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
-        "ColourGrid" => set_colour_grid_widgets(ui, &colour_grid_ids, params),
-        "EscherTilings" => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
-        "GilmoreAcid" => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
-        "JustRelax" => set_just_relax_widgets(ui, &just_relax_ids, params),
-        "LifeLedWall" => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
-        "LineGradient" => set_line_gradient_widgets(ui, &line_gradient_ids, params),
-        "Metafall" => set_metafall_widgets(ui, &metafall_ids, params),
-        "ParticleZoom" => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
-        "RadialLines" => set_radial_lines_widgets(ui, &radial_lines_ids, params),
-        "SatisSpiraling" => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
-        "SpiralIntersect" => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
-        "SquareTunnel" => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
-        "ThePulse" => set_the_pulse_widgets(ui, &the_pulse_ids, params),
-        "TunnelProjection" => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
-        "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
-        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
-        _ => (),
+    match preset.shader_left {
+        Shader::AcidGradient => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
+        Shader::BlinkyCircles => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
+        Shader::BwGradient => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
+        Shader::ColourGrid => set_colour_grid_widgets(ui, &colour_grid_ids, params),
+        Shader::EscherTilings => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
+        Shader::GilmoreAcid => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
+        Shader::JustRelax => set_just_relax_widgets(ui, &just_relax_ids, params),
+        Shader::LifeLedWall => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
+        Shader::LineGradient => set_line_gradient_widgets(ui, &line_gradient_ids, params),
+        Shader::Metafall => set_metafall_widgets(ui, &metafall_ids, params),
+        Shader::ParticleZoom => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
+        Shader::RadialLines => set_radial_lines_widgets(ui, &radial_lines_ids, params),
+        Shader::SatisSpiraling => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
+        Shader::SpiralIntersect => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
+        Shader::SquareTunnel => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
+        Shader::ThePulse => set_the_pulse_widgets(ui, &the_pulse_ids, params),
+        Shader::TunnelProjection => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
+        Shader::VertColourGradient => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
+        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
+        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
+        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -573,7 +575,10 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.colour_post_process_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&config.solid_colour_names, Some(preset.solid_colour_idx))
+    let colour_names: Vec<_> = shader_shared::SOLID_COLOUR_SHADERS.iter().map(|s| s.name()).collect();
+    let colourise_idx = preset.colourise.to_index();
+
+    for selected_idx in widget::DropDownList::new(&colour_names, Some(colourise_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -584,14 +589,14 @@ pub fn update(
         .scrollbar_on_top()
         .set(ids.colour_post_process_ddl, ui)
     {
-        preset.solid_colour_idx = selected_idx;
+        preset.colourise = Shader::from_index(selected_idx).unwrap();
     }
 
-    match config.solid_colour_names[preset.solid_colour_idx].as_str() {
-        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
-        _ => (),
+    match preset.colourise {
+        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
+        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
+        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
+        _ => panic!("unexpected non-colourise shader"),
     }
 
     //---------------------- LED SHADER RIGHT
@@ -601,7 +606,8 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_right_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&config.shader_names, Some(preset.shader_idx_right))
+    let shader_idx = preset.shader_right.to_index();
+    for selected_idx in widget::DropDownList::new(&shader_names, Some(shader_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -612,32 +618,31 @@ pub fn update(
         .scrollbar_on_top()
         .set(ids.led_shader_right_ddl, ui)
     {
-        preset.shader_idx_right = selected_idx;
+        preset.shader_right = Shader::from_index(selected_idx).unwrap();
     }
 
-    match config.shader_names[preset.shader_idx_right].as_str() {
-        "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
-        "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
-        "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
-        "ColourGrid" => set_colour_grid_widgets(ui, &colour_grid_ids, params),
-        "EscherTilings" => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
-        "GilmoreAcid" => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
-        "JustRelax" => set_just_relax_widgets(ui, &just_relax_ids, params),
-        "LifeLedWall" => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
-        "LineGradient" => set_line_gradient_widgets(ui, &line_gradient_ids, params),
-        "Metafall" => set_metafall_widgets(ui, &metafall_ids, params),
-        "ParticleZoom" => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
-        "RadialLines" => set_radial_lines_widgets(ui, &radial_lines_ids, params),
-        "SatisSpiraling" => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
-        "SpiralIntersect" => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
-        "SquareTunnel" => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
-        "ThePulse" => set_the_pulse_widgets(ui, &the_pulse_ids, params),
-        "TunnelProjection" => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
-        "VertColourGradient" => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
-        "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
-        _ => (),
+    match preset.shader_right {
+        Shader::AcidGradient => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
+        Shader::BlinkyCircles => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
+        Shader::BwGradient => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
+        Shader::ColourGrid => set_colour_grid_widgets(ui, &colour_grid_ids, params),
+        Shader::EscherTilings => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
+        Shader::GilmoreAcid => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
+        Shader::JustRelax => set_just_relax_widgets(ui, &just_relax_ids, params),
+        Shader::LifeLedWall => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
+        Shader::LineGradient => set_line_gradient_widgets(ui, &line_gradient_ids, params),
+        Shader::Metafall => set_metafall_widgets(ui, &metafall_ids, params),
+        Shader::ParticleZoom => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
+        Shader::RadialLines => set_radial_lines_widgets(ui, &radial_lines_ids, params),
+        Shader::SatisSpiraling => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
+        Shader::SpiralIntersect => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
+        Shader::SquareTunnel => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
+        Shader::ThePulse => set_the_pulse_widgets(ui, &the_pulse_ids, params),
+        Shader::TunnelProjection => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
+        Shader::VertColourGradient => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
+        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
+        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
+        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
     }
 
     //---------------------- BLEND MODES
@@ -646,7 +651,12 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.blend_mode_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&config.blend_mode_names, Some(preset.blend_mode_idx))
+    let blend_mode_names: Vec<_> = shader_shared::ALL_BLEND_MODES
+        .iter()
+        .map(|blend_mode| blend_mode.name())
+        .collect();
+    let blend_mode_idx = preset.blend_mode as usize;
+    for selected_idx in widget::DropDownList::new(&blend_mode_names, Some(blend_mode_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -657,7 +667,7 @@ pub fn update(
         .scrollbar_on_top()
         .set(ids.blend_mode_ddl, ui)
     {
-        preset.blend_mode_idx = selected_idx;
+        preset.blend_mode = BlendMode::from_index(selected_idx).unwrap();
     }
 
     for value in slider(preset.left_right_mix, 1.0, -1.0)

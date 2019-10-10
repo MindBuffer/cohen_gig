@@ -408,16 +408,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let lr_mix = model.config.presets.selected().left_right_mix;
     let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
-    let blend_mode = &model.config.blend_mode_names[model.config.presets.selected().blend_mode_idx];
     let preset = model.config.presets.selected();
-    let left_name = &model.config.shader_names[preset.shader_idx_left];
-    let right_name = &model.config.shader_names[preset.shader_idx_right];
-    let colour_name = &model.config.solid_colour_names[preset.solid_colour_idx];
     let mix_info = MixingInfo {
-        left_name: left_name.to_string(),
-        right_name: right_name.to_string(),
-        colour_name: colour_name.to_string(),
-        blend_mode: blend_mode.to_string(),
+        left: preset.shader_left,
+        right: preset.shader_right,
+        colourise: preset.colourise,
+        blend_mode: preset.blend_mode,
         xfade_left,
         xfade_right
     };
