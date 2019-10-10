@@ -66,6 +66,9 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
+        shader_sliders[],
+        shader_buttons[],
+
         colour_post_process_text,
         colour_post_process_ddl,
 
@@ -79,195 +82,345 @@ widget_ids! {
     }
 }
 
+/// Implemented for all sets of shader parameters to allow for generic GUI layout.
+trait Params {
+    /// The total number of parameters.
+    fn param_count(&self) -> usize;
+    /// The parameter at the given index.
+    fn param_mut(&mut self, ix: usize) -> ParamMut;
+}
 
-widget_ids! {
-    pub struct AcidGradientIds {
-        speed,
-        zoom,
-        offset,
+struct ParamMut<'a> {
+    name: &'static str,
+    kind: ParamKindMut<'a>,
+}
+
+enum ParamKindMut<'a> {
+    F32 {
+        value: &'a mut f32,
+        max: f32,
+    },
+    Bool(&'a mut bool),
+    Usize {
+        value: &'a mut usize,
+        max: usize,
+    },
+}
+
+impl Params for shader_shared::AcidGradient {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
+            2 => ParamMut { name: "offset", kind: ParamKindMut::F32 { value: &mut self.offset, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct BlinkyCirclesIds {
-        speed,
-        zoom,
-        offset,
+impl Params for shader_shared::BlinkyCircles {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
+            2 => ParamMut { name: "offset", kind: ParamKindMut::F32 { value: &mut self.offset, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct BwGradientIds {
-        speed,
-        dc,
-        amp,
-        freq,
-        mirror,
+impl Params for shader_shared::BwGradient {
+    fn param_count(&self) -> usize {
+        5
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "dc", kind: ParamKindMut::F32 { value: &mut self.dc, max: 1.0 } },
+            2 => ParamMut { name: "amp", kind: ParamKindMut::F32 { value: &mut self.amp, max: 1.0 } },
+            3 => ParamMut { name: "freq", kind: ParamKindMut::F32 { value: &mut self.freq, max: 1.0 } },
+            4 => ParamMut { name: "mirror", kind: ParamKindMut::Bool(&mut self.mirror) },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct ColourGridIds {
-        speed,
-        zoom_amount,
+impl Params for shader_shared::ColourGrid {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct EscherTilingsIds {
-        speed,
-        scale,
-        shape_iter,
+impl Params for shader_shared::EscherTilings {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
+            2 => ParamMut { name: "shape_iter", kind: ParamKindMut::F32 { value: &mut self.shape_iter, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct GilmoreAcidIds {
-        speed,
-        displace,
-        colour_offset,
-        grid_size,
-        wave,
-        zoom_amount,
-        rotation_amount,
-        brightness,
-        saturation,
+impl Params for shader_shared::GilmoreAcid {
+    fn param_count(&self) -> usize {
+        9
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "displace", kind: ParamKindMut::F32 { value: &mut self.displace, max: 1.0 } },
+            2 => ParamMut { name: "colour_offset", kind: ParamKindMut::F32 { value: &mut self.colour_offset, max: 1.0 } },
+            3 => ParamMut { name: "grid_size", kind: ParamKindMut::F32 { value: &mut self.grid_size, max: 1.0 } },
+            4 => ParamMut { name: "wave", kind: ParamKindMut::F32 { value: &mut self.wave, max: 1.0 } },
+            5 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
+            6 => ParamMut { name: "rotation_amount", kind: ParamKindMut::F32 { value: &mut self.rotation_amount, max: 1.0 } },
+            7 => ParamMut { name: "brightness", kind: ParamKindMut::F32 { value: &mut self.brightness, max: 1.0 } },
+            8 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct JustRelaxIds {
-        speed,
-        shape_offset,
-        iter,
+impl Params for shader_shared::JustRelax {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "shape_offset", kind: ParamKindMut::F32 { value: &mut self.shape_offset, max: 1.0 } },
+            2 => ParamMut { name: "iter", kind: ParamKindMut::F32 { value: &mut self.iter, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct LifeLedWallIds {
-        speed,
-        size,
-        red,
-        green,
-        blue,
-        saturation,
-        colour_offset,
+impl Params for shader_shared::LifeLedWall {
+    fn param_count(&self) -> usize {
+        7
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "size", kind: ParamKindMut::F32 { value: &mut self.size, max: 1.0 } },
+            2 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
+            3 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
+            4 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
+            5 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
+            6 => ParamMut { name: "colour_offset", kind: ParamKindMut::F32 { value: &mut self.colour_offset, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct LineGradientIds {
-        speed,
-        num_stripes,
-        stripe_width,
-        angle,
-        smooth_width,
+impl Params for shader_shared::LineGradient {
+    fn param_count(&self) -> usize {
+        5
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "num_stripes", kind: ParamKindMut::F32 { value: &mut self.num_stripes, max: 1.0 } },
+            2 => ParamMut { name: "stripe_width", kind: ParamKindMut::F32 { value: &mut self.stripe_width, max: 1.0 } },
+            3 => ParamMut { name: "angle", kind: ParamKindMut::F32 { value: &mut self.angle, max: 1.0 } },
+            4 => ParamMut { name: "smooth_width", kind: ParamKindMut::F32 { value: &mut self.smooth_width, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct MetafallIds {
-        speed,
-        scale,
-        red,
-        green,
-        blue,
+impl Params for shader_shared::Metafall {
+    fn param_count(&self) -> usize {
+        5
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
+            2 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
+            3 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
+            4 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct ParticleZoomIds {
-        speed,
-        density,
-        shape,
-        tau,
+impl Params for shader_shared::ParticleZoom {
+    fn param_count(&self) -> usize {
+        4
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "density", kind: ParamKindMut::F32 { value: &mut self.density, max: 1.0 } },
+            2 => ParamMut { name: "shape", kind: ParamKindMut::F32 { value: &mut self.shape, max: 1.0 } },
+            3 => ParamMut { name: "tau", kind: ParamKindMut::F32 { value: &mut self.tau, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct RadialLinesIds {
-        speed,
-        zoom_amount,
+impl Params for shader_shared::RadialLines {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct SatisSpiralingIds {
-        speed,
-        loops,
-        mirror,
-        rotate,
+impl Params for shader_shared::SatisSpiraling {
+    fn param_count(&self) -> usize {
+        4
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "loops", kind: ParamKindMut::F32 { value: &mut self.loops, max: 1.0 } },
+            2 => ParamMut { name: "mirror", kind: ParamKindMut::Bool(&mut self.mirror) },
+            3 => ParamMut { name: "rotate", kind: ParamKindMut::Bool(&mut self.rotate) },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct SpiralIntersectIds {
-        speed,
-        g1,
-        g2,
-        rot1,
-        rot2,
-        colours,
+impl Params for shader_shared::SpiralIntersect {
+    fn param_count(&self) -> usize {
+        6
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "g1", kind: ParamKindMut::F32 { value: &mut self.g1, max: 1.0 } },
+            2 => ParamMut { name: "g2", kind: ParamKindMut::F32 { value: &mut self.g2, max: 1.0 } },
+            3 => ParamMut { name: "rot1", kind: ParamKindMut::F32 { value: &mut self.rot1, max: 1.0 } },
+            4 => ParamMut { name: "rot2", kind: ParamKindMut::F32 { value: &mut self.rot2, max: 1.0 } },
+            5 => ParamMut { name: "colours", kind: ParamKindMut::F32 { value: &mut self.colours, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct SquareTunnelIds {
-        speed,
-        rotation_speed,
-        rotation_offset,
-        zoom,
+impl Params for shader_shared::SquareTunnel {
+    fn param_count(&self) -> usize {
+        4
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "rotation_speed", kind: ParamKindMut::F32 { value: &mut self.rotation_speed, max: 1.0 } },
+            2 => ParamMut { name: "rotation_offset", kind: ParamKindMut::F32 { value: &mut self.rotation_offset, max: 1.0 } },
+            3 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct ThePulseIds {
-        speed,
-        scale,
-        colour_iter,
-        thickness,
+impl Params for shader_shared::ThePulse {
+    fn param_count(&self) -> usize {
+        4
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
+            2 => ParamMut { name: "colour_iter", kind: ParamKindMut::F32 { value: &mut self.colour_iter, max: 1.0 } },
+            3 => ParamMut { name: "thickness", kind: ParamKindMut::F32 { value: &mut self.thickness, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct TunnelProjectionIds {
-        speed,
-        res,
+impl Params for shader_shared::TunnelProjection {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "res", kind: ParamKindMut::F32 { value: &mut self.res, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct VertColourGradientIds {
-        speed,
-        scale,
-        colour_iter,
-        line_amp,
-        diag_amp,
-        boarder_amp,
+impl Params for shader_shared::VertColourGradient {
+    fn param_count(&self) -> usize {
+        6
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
+            2 => ParamMut { name: "colour_iter", kind: ParamKindMut::F32 { value: &mut self.colour_iter, max: 1.0 } },
+            3 => ParamMut { name: "line_amp", kind: ParamKindMut::F32 { value: &mut self.line_amp, max: 1.0 } },
+            4 => ParamMut { name: "diag_amp", kind: ParamKindMut::F32 { value: &mut self.diag_amp, max: 1.0 } },
+            5 => ParamMut { name: "border_amp", kind: ParamKindMut::F32 { value: &mut self.boarder_amp, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct SolidHsvColourIds {
-        hue,
-        saturation,
-        value,
+impl Params for shader_shared::SolidHsvColour {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "hue", kind: ParamKindMut::F32 { value: &mut self.hue, max: 1.0 } },
+            1 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
+            2 => ParamMut { name: "value", kind: ParamKindMut::F32 { value: &mut self.value, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct SolidRgbColourIds {
-        red,
-        green,
-        blue,
+impl Params for shader_shared::SolidRgbColour {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
+            1 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
+            2 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
-widget_ids! {
-    pub struct ColourPalettesIds {
-        speed,
-        interval,
-        selected,
+impl Params for shader_shared::ColourPalettes {
+    fn param_count(&self) -> usize {
+        3
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "interval", kind: ParamKindMut::F32 { value: &mut self.interval, max: 1.0 } },
+            2 => ParamMut { name: "selected", kind: ParamKindMut::Usize { value: &mut self.selected, max: 9 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
     }
 }
 
@@ -279,28 +432,7 @@ pub fn update(
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
     assets: &Path,
-    ids: &Ids,
-    acid_gradient_ids: &AcidGradientIds,
-    blinky_circles_ids: &BlinkyCirclesIds,
-    bw_gradient_ids: &BwGradientIds,
-    colour_grid_ids: &ColourGridIds,
-    escher_tilings_ids: &EscherTilingsIds,
-    gilmore_acid_ids: &GilmoreAcidIds,
-    just_relax_ids: &JustRelaxIds,
-    life_led_wall_ids: &LifeLedWallIds,
-    line_gradient_ids: &LineGradientIds,
-    metafall_ids: &MetafallIds,
-    particle_zoom_ids: &ParticleZoomIds,
-    radial_lines_ids: &RadialLinesIds,
-    satis_spiraling_ids: &SatisSpiralingIds,
-    spiral_intersect_ids: &SpiralIntersectIds,
-    square_tunnel_ids: &SquareTunnelIds,
-    the_pulse_ids: &ThePulseIds,
-    tunnel_projection_ids: &TunnelProjectionIds,
-    vert_colour_gradient_ids: &VertColourGradientIds,
-    solid_hsv_colour_ids: &SolidHsvColourIds,
-    solid_rgb_colour_ids: &SolidRgbColourIds,
-    colour_palettes_ids: &ColourPalettesIds,
+    ids: &mut Ids,
 ) {
     widget::Canvas::new()
         .pad(PAD)
@@ -544,29 +676,12 @@ pub fn update(
         preset.shader_left = Shader::from_index(selected_idx).unwrap();
     }
 
-    let params = &mut preset.shader_params;
-    match preset.shader_left {
-        Shader::AcidGradient => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
-        Shader::BlinkyCircles => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
-        Shader::BwGradient => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
-        Shader::ColourGrid => set_colour_grid_widgets(ui, &colour_grid_ids, params),
-        Shader::EscherTilings => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
-        Shader::GilmoreAcid => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
-        Shader::JustRelax => set_just_relax_widgets(ui, &just_relax_ids, params),
-        Shader::LifeLedWall => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
-        Shader::LineGradient => set_line_gradient_widgets(ui, &line_gradient_ids, params),
-        Shader::Metafall => set_metafall_widgets(ui, &metafall_ids, params),
-        Shader::ParticleZoom => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
-        Shader::RadialLines => set_radial_lines_widgets(ui, &radial_lines_ids, params),
-        Shader::SatisSpiraling => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
-        Shader::SpiralIntersect => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
-        Shader::SquareTunnel => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
-        Shader::ThePulse => set_the_pulse_widgets(ui, &the_pulse_ids, params),
-        Shader::TunnelProjection => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
-        Shader::VertColourGradient => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
-        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
+    let mut slider_ix = 0;
+    let mut button_ix = 0;
+
+    {
+        let params = shader_params(preset.shader_left, &mut preset.shader_params);
+        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -592,11 +707,9 @@ pub fn update(
         preset.colourise = Shader::from_index(selected_idx).unwrap();
     }
 
-    match preset.colourise {
-        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
-        _ => panic!("unexpected non-colourise shader"),
+    {
+        let params = shader_params(preset.colourise, &mut preset.shader_params);
+        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
     }
 
     //---------------------- LED SHADER RIGHT
@@ -621,28 +734,9 @@ pub fn update(
         preset.shader_right = Shader::from_index(selected_idx).unwrap();
     }
 
-    match preset.shader_right {
-        Shader::AcidGradient => set_acid_gradient_widgets(ui, &acid_gradient_ids, params),
-        Shader::BlinkyCircles => set_blinky_circles_widgets(ui, &blinky_circles_ids, params),
-        Shader::BwGradient => set_bw_gradient_widgets(ui, &bw_gradient_ids, params),
-        Shader::ColourGrid => set_colour_grid_widgets(ui, &colour_grid_ids, params),
-        Shader::EscherTilings => set_escher_tilings_widgets(ui, &escher_tilings_ids, params),
-        Shader::GilmoreAcid => set_gilmore_acid_widgets(ui, &gilmore_acid_ids, params),
-        Shader::JustRelax => set_just_relax_widgets(ui, &just_relax_ids, params),
-        Shader::LifeLedWall => set_life_led_wall_widgets(ui, &life_led_wall_ids, params),
-        Shader::LineGradient => set_line_gradient_widgets(ui, &line_gradient_ids, params),
-        Shader::Metafall => set_metafall_widgets(ui, &metafall_ids, params),
-        Shader::ParticleZoom => set_particle_zoom_widgets(ui, &particle_zoom_ids, params),
-        Shader::RadialLines => set_radial_lines_widgets(ui, &radial_lines_ids, params),
-        Shader::SatisSpiraling => set_satis_spiraling_widgets(ui, &satis_spiraling_ids, params),
-        Shader::SpiralIntersect => set_spiral_intersect_widgets(ui, &spiral_intersect_ids, params),
-        Shader::SquareTunnel => set_square_tunnel_widgets(ui, &square_tunnel_ids, params),
-        Shader::ThePulse => set_the_pulse_widgets(ui, &the_pulse_ids, params),
-        Shader::TunnelProjection => set_tunnel_projection_widgets(ui, &tunnel_projection_ids, params),
-        Shader::VertColourGradient => set_vert_colour_gradient_widgets(ui, &vert_colour_gradient_ids, params),
-        Shader::SolidHsvColour => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, params),
-        Shader::SolidRgbColour => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, params),
-        Shader::ColourPalettes => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, params),
+    {
+        let params = shader_params(preset.shader_right, &mut preset.shader_params);
+        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
     }
 
     //---------------------- BLEND MODES
@@ -849,671 +943,69 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
     }
 }
 
-pub fn set_acid_gradient_widgets(ui: &mut UiCell, ids: &AcidGradientIds, params: &mut ShaderParams) {
-    for value in slider(params.acid_gradient.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.acid_gradient.speed = value;
-    }
-    for value in slider(params.acid_gradient.zoom, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom")
-        .set(ids.zoom, ui)
-    {
-        params.acid_gradient.zoom = value;
-    }
-    for value in slider(params.acid_gradient.offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Offset")
-        .set(ids.offset, ui)
-    {
-        params.acid_gradient.offset = value;
-    }
-}
+fn set_shader_widgets(
+    ui: &mut UiCell,
+    ids: &mut Ids,
+    params: &mut dyn Params,
+    slider_ix: &mut usize,
+    button_ix: &mut usize,
+) {
+    for ix in 0..params.param_count() {
+        let ParamMut { name, kind } = params.param_mut(ix);
 
-pub fn set_blinky_circles_widgets(ui: &mut UiCell, ids: &BlinkyCirclesIds, params: &mut ShaderParams) {
-    for value in slider(params.blinky_circles.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.blinky_circles.speed = value;
-    }
-    for value in slider(params.blinky_circles.zoom, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom")
-        .set(ids.zoom, ui)
-    {
-        params.blinky_circles.zoom = value;
-    }
-    for value in slider(params.blinky_circles.offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Offset")
-        .set(ids.offset, ui)
-    {
-        params.blinky_circles.offset = value;
-    }
-}
+        match kind {
+            ParamKindMut::F32 { value, max } => {
+                if ids.shader_sliders.len() <= *slider_ix {
+                    ids.shader_sliders.resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                }
+                let id = ids.shader_sliders[*slider_ix];
 
-pub fn set_bw_gradient_widgets(ui: &mut UiCell, ids: &BwGradientIds, params: &mut ShaderParams) {
-    for value in slider(params.bw_gradient.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.bw_gradient.speed = value;
-    }
-    for value in slider(params.bw_gradient.dc, 0.0, 1.0)
-        .down(10.0)
-        .label("Dc")
-        .set(ids.dc, ui)
-    {
-        params.bw_gradient.dc = value;
-    }
-    for value in slider(params.bw_gradient.amp, 0.0, 1.0)
-        .down(10.0)
-        .label("Amp")
-        .set(ids.amp, ui)
-    {
-        params.bw_gradient.amp = value;
-    }
-    for value in slider(params.bw_gradient.freq, 0.0, 1.0)
-        .down(10.0)
-        .label("Freq")
-        .set(ids.freq, ui)
-    {
-        params.bw_gradient.freq = value;
-    }
-    for value in toggle(params.bw_gradient.mirror)
-        .down(10.0)
-        .w_h(COLUMN_W, PAD)
-        .label("Mirror")
-        .set(ids.mirror, ui)
-    {
-        params.bw_gradient.mirror = value;
-    }
-}
+                for v in slider(*value, 0.0, max)
+                    .down(10.0)
+                    .label(name)
+                    .set(id, ui)
+                {
+                    *value = v;
+                }
 
-pub fn set_colour_grid_widgets(ui: &mut UiCell, ids: &ColourGridIds, params: &mut ShaderParams) {
-    for value in slider(params.colour_grid.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.colour_grid.speed = value;
-    }
-    for value in slider(params.colour_grid.zoom_amount, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom Amount")
-        .set(ids.zoom_amount, ui)
-    {
-        params.colour_grid.zoom_amount = value;
-    }
-}
+                *slider_ix += 1;
+            }
 
-pub fn set_escher_tilings_widgets(ui: &mut UiCell, ids: &EscherTilingsIds, params: &mut ShaderParams) {
-    for value in slider(params.escher_tilings.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.escher_tilings.speed = value;
-    }
-    for value in slider(params.escher_tilings.scale, 0.0, 1.0)
-        .down(10.0)
-        .label("Scale")
-        .set(ids.scale, ui)
-    {
-        params.escher_tilings.scale = value;
-    }
-    for value in slider(params.escher_tilings.shape_iter, 0.0, 1.0)
-        .down(10.0)
-        .label("Shape Iter")
-        .set(ids.shape_iter, ui)
-    {
-        params.escher_tilings.shape_iter = value;
-    }
-}
+            ParamKindMut::Usize { value, max } => {
+                if ids.shader_sliders.len() <= *slider_ix {
+                    ids.shader_sliders.resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                }
+                let id = ids.shader_sliders[*slider_ix];
 
-pub fn set_gilmore_acid_widgets(ui: &mut UiCell, ids: &GilmoreAcidIds, params: &mut ShaderParams) {
-    for value in slider(params.gilmore_acid.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.gilmore_acid.speed = value;
-    }
-    for value in slider(params.gilmore_acid.displace, 0.0, 1.0)
-        .down(10.0)
-        .label("Displace")
-        .set(ids.displace, ui)
-    {
-        params.gilmore_acid.displace = value;
-    }
-    for value in slider(params.gilmore_acid.colour_offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Colour Offset")
-        .set(ids.colour_offset, ui)
-    {
-        params.gilmore_acid.colour_offset = value;
-    }
-    for value in slider(params.gilmore_acid.grid_size, 0.0, 1.0)
-        .down(10.0)
-        .label("Grid Size")
-        .set(ids.grid_size, ui)
-    {
-        params.gilmore_acid.grid_size = value;
-    }
-    for value in slider(params.gilmore_acid.wave, 0.0, 1.0)
-        .down(10.0)
-        .label("Wave")
-        .set(ids.wave, ui)
-    {
-        params.gilmore_acid.wave = value;
-    }
-    for value in slider(params.gilmore_acid.zoom_amount, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom Amount")
-        .set(ids.zoom_amount, ui)
-    {
-        params.gilmore_acid.zoom_amount = value;
-    }
-    for value in slider(params.gilmore_acid.rotation_amount, 0.0, 1.0)
-        .down(10.0)
-        .label("Rotation Amount")
-        .set(ids.rotation_amount, ui)
-    {
-        params.gilmore_acid.rotation_amount = value;
-    }
-    for value in slider(params.gilmore_acid.brightness, 0.0, 1.0)
-        .down(10.0)
-        .label("Brightness")
-        .set(ids.brightness, ui)
-    {
-        params.gilmore_acid.brightness = value;
-    }
-    for value in slider(params.gilmore_acid.saturation, 0.0, 1.0)
-        .down(10.0)
-        .label("Saturation")
-        .set(ids.saturation, ui)
-    {
-        params.gilmore_acid.saturation = value;
-    }
-}
+                for v in slider(*value as f32, 0.0, max as f32)
+                    .down(10.0)
+                    .label(name)
+                    .set(id, ui)
+                {
+                    *value = v as usize;
+                }
 
-pub fn set_just_relax_widgets(ui: &mut UiCell, ids: &JustRelaxIds, params: &mut ShaderParams) {
-    for value in slider(params.just_relax.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.just_relax.speed = value;
-    }
-    for value in slider(params.just_relax.shape_offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Shape Offset")
-        .set(ids.shape_offset, ui)
-    {
-        params.just_relax.shape_offset = value;
-    }
-    for value in slider(params.just_relax.iter, 0.0, 1.0)
-        .down(10.0)
-        .label("Iter")
-        .set(ids.iter, ui)
-    {
-        params.just_relax.iter = value;
-    }
-}
+                *slider_ix += 1;
+            }
 
-pub fn set_life_led_wall_widgets(ui: &mut UiCell, ids: &LifeLedWallIds, params: &mut ShaderParams) {
-    for value in slider(params.life_led_wall.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.life_led_wall.speed = value;
-    }
-    for value in slider(params.life_led_wall.size, 0.0, 1.0)
-        .down(10.0)
-        .label("Size")
-        .set(ids.size, ui)
-    {
-        params.life_led_wall.size = value;
-    }
-    for value in slider(params.life_led_wall.red, 0.0, 1.0)
-        .down(10.0)
-        .label("Red")
-        .set(ids.red, ui)
-    {
-        params.life_led_wall.red = value;
-    }
-    for value in slider(params.life_led_wall.green, 0.0, 1.0)
-        .down(10.0)
-        .label("Green")
-        .set(ids.green, ui)
-    {
-        params.life_led_wall.green = value;
-    }
-    for value in slider(params.life_led_wall.blue, 0.0, 1.0)
-        .down(10.0)
-        .label("Blue")
-        .set(ids.blue, ui)
-    {
-        params.life_led_wall.blue = value;
-    }
-    for value in slider(params.life_led_wall.saturation, 0.0, 1.0)
-        .down(10.0)
-        .label("Saturation")
-        .set(ids.saturation, ui)
-    {
-        params.life_led_wall.saturation = value;
-    }
-    for value in slider(params.life_led_wall.colour_offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Colour Offset")
-        .set(ids.colour_offset, ui)
-    {
-        params.life_led_wall.colour_offset = value;
-    }
-}
+            ParamKindMut::Bool(value) => {
+                if ids.shader_buttons.len() <= *button_ix {
+                    ids.shader_buttons.resize(*button_ix + 1, &mut ui.widget_id_generator());
+                }
+                let id = ids.shader_buttons[*button_ix];
 
-pub fn set_line_gradient_widgets(ui: &mut UiCell, ids: &LineGradientIds, params: &mut ShaderParams) {
-    for value in slider(params.line_gradient.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.line_gradient.speed = value;
-    }
-    for value in slider(params.line_gradient.num_stripes, 0.0, 1.0)
-        .down(10.0)
-        .label("Num Stripes")
-        .set(ids.num_stripes, ui)
-    {
-        params.line_gradient.num_stripes = value;
-    }
-    for value in slider(params.line_gradient.stripe_width, 0.0, 1.0)
-        .down(10.0)
-        .label("Stripe Width")
-        .set(ids.stripe_width, ui)
-    {
-        params.line_gradient.stripe_width = value;
-    }
-    for value in slider(params.line_gradient.angle, 0.0, 1.0)
-        .down(10.0)
-        .label("Angle")
-        .set(ids.angle, ui)
-    {
-        params.line_gradient.angle = value;
-    }
-    for value in slider(params.line_gradient.smooth_width, 0.0, 1.0)
-        .down(10.0)
-        .label("Smooth Width")
-        .set(ids.smooth_width, ui)
-    {
-        params.line_gradient.smooth_width = value;
-    }
-}
+                for v in toggle(*value)
+                    .down(10.0)
+                    .label(name)
+                    .w_h(COLUMN_W, PAD)
+                    .set(id, ui)
+                {
+                    *value = v;
+                }
 
-pub fn set_metafall_widgets(ui: &mut UiCell, ids: &MetafallIds, params: &mut ShaderParams) {
-    for value in slider(params.metafall.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.metafall.speed = value;
-    }
-    for value in slider(params.metafall.scale, 0.0, 1.0)
-        .down(10.0)
-        .label("Scale")
-        .set(ids.scale, ui)
-    {
-        params.metafall.scale = value;
-    }
-    for value in slider(params.metafall.red, 0.0, 1.0)
-        .down(10.0)
-        .label("Red")
-        .set(ids.red, ui)
-    {
-        params.metafall.red = value;
-    }
-    for value in slider(params.metafall.green, 0.0, 1.0)
-        .down(10.0)
-        .label("Green")
-        .set(ids.green, ui)
-    {
-        params.metafall.green = value;
-    }
-    for value in slider(params.metafall.blue, 0.0, 1.0)
-        .down(10.0)
-        .label("Blue")
-        .set(ids.blue, ui)
-    {
-        params.metafall.blue = value;
-    }
-}
-
-pub fn set_particle_zoom_widgets(ui: &mut UiCell, ids: &ParticleZoomIds, params: &mut ShaderParams) {
-    for value in slider(params.particle_zoom.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.particle_zoom.speed = value;
-    }
-    for value in slider(params.particle_zoom.density, 0.0, 1.0)
-        .down(10.0)
-        .label("Density")
-        .set(ids.density, ui)
-    {
-        params.particle_zoom.density = value;
-    }
-    for value in slider(params.particle_zoom.shape, 0.0, 1.0)
-        .down(10.0)
-        .label("Shape")
-        .set(ids.shape, ui)
-    {
-        params.particle_zoom.shape = value;
-    }
-    for value in slider(params.particle_zoom.tau, 0.0, 1.0)
-        .down(10.0)
-        .label("Tau")
-        .set(ids.tau, ui)
-    {
-        params.particle_zoom.tau = value;
-    }
-}
-
-pub fn set_radial_lines_widgets(ui: &mut UiCell, ids: &RadialLinesIds, params: &mut ShaderParams) {
-    for value in slider(params.radial_lines.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.radial_lines.speed = value;
-    }
-    for value in slider(params.radial_lines.zoom_amount, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom Amount")
-        .set(ids.zoom_amount, ui)
-    {
-        params.radial_lines.zoom_amount = value;
-    }
-}
-
-pub fn set_satis_spiraling_widgets(ui: &mut UiCell, ids: &SatisSpiralingIds, params: &mut ShaderParams) {
-    for value in slider(params.satis_spiraling.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.satis_spiraling.speed = value;
-    }
-    for value in slider(params.satis_spiraling.loops, 0.0, 1.0)
-        .down(10.0)
-        .label("Loops")
-        .set(ids.loops, ui)
-    {
-        params.satis_spiraling.loops = value;
-    }
-    for value in toggle(params.satis_spiraling.mirror)
-        .down(10.0)
-        .w_h(COLUMN_W, PAD)
-        .label("Mirror")
-        .set(ids.mirror, ui)
-    {
-        params.satis_spiraling.mirror = value;
-    }
-    for value in toggle(params.satis_spiraling.rotate)
-        .down(10.0)
-        .w_h(COLUMN_W, PAD)
-        .label("Rotate")
-        .set(ids.rotate, ui)
-    {
-        params.satis_spiraling.rotate = value;
-    }
-}
-
-pub fn set_spiral_intersect_widgets(ui: &mut UiCell, ids: &SpiralIntersectIds, params: &mut ShaderParams) {
-    for value in slider(params.spiral_intersect.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.spiral_intersect.speed = value;
-    }
-    for value in slider(params.spiral_intersect.g1, 0.0, 1.0)
-        .down(10.0)
-        .label("G1")
-        .set(ids.g1, ui)
-    {
-        params.spiral_intersect.g1 = value;
-    }
-    for value in slider(params.spiral_intersect.g2, 0.0, 1.0)
-        .down(10.0)
-        .label("G2")
-        .set(ids.g2, ui)
-    {
-        params.spiral_intersect.g2 = value;
-    }
-    for value in slider(params.spiral_intersect.rot1, 0.0, 1.0)
-        .down(10.0)
-        .label("Rot1")
-        .set(ids.rot1, ui)
-    {
-        params.spiral_intersect.rot1 = value;
-    }
-    for value in slider(params.spiral_intersect.rot2, 0.0, 1.0)
-        .down(10.0)
-        .label("Rot2")
-        .set(ids.rot2, ui)
-    {
-        params.spiral_intersect.rot2 = value;
-    }
-    for value in slider(params.spiral_intersect.colours, 0.0, 1.0)
-        .down(10.0)
-        .label("Colours")
-        .set(ids.colours, ui)
-    {
-        params.spiral_intersect.colours = value;
-    }
-}
-
-pub fn set_square_tunnel_widgets(ui: &mut UiCell, ids: &SquareTunnelIds, params: &mut ShaderParams) {
-    for value in slider(params.square_tunnel.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.square_tunnel.speed = value;
-    }
-    for value in slider(params.square_tunnel.rotation_speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Rotation Speed")
-        .set(ids.rotation_speed, ui)
-    {
-        params.square_tunnel.rotation_speed = value;
-    }
-    for value in slider(params.square_tunnel.rotation_offset, 0.0, 1.0)
-        .down(10.0)
-        .label("Rotation Offset")
-        .set(ids.rotation_offset, ui)
-    {
-        params.square_tunnel.rotation_offset = value;
-    }
-    for value in slider(params.square_tunnel.zoom, 0.0, 1.0)
-        .down(10.0)
-        .label("Zoom")
-        .set(ids.zoom, ui)
-    {
-        params.square_tunnel.zoom = value;
-    }
-}
-
-pub fn set_the_pulse_widgets(ui: &mut UiCell, ids: &ThePulseIds, params: &mut ShaderParams) {
-    for value in slider(params.the_pulse.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.the_pulse.speed = value;
-    }
-    for value in slider(params.the_pulse.scale, 0.0, 1.0)
-        .down(10.0)
-        .label("Scale")
-        .set(ids.scale, ui)
-    {
-        params.the_pulse.scale = value;
-    }
-    for value in slider(params.the_pulse.colour_iter, 0.0, 1.0)
-        .down(10.0)
-        .label("Colour Iter")
-        .set(ids.colour_iter, ui)
-    {
-        params.the_pulse.colour_iter = value;
-    }
-    for value in slider(params.the_pulse.thickness, 0.0, 1.0)
-        .down(10.0)
-        .label("Thickness")
-        .set(ids.thickness, ui)
-    {
-        params.the_pulse.thickness = value;
-    }
-}
-
-pub fn set_tunnel_projection_widgets(ui: &mut UiCell, ids: &TunnelProjectionIds, params: &mut ShaderParams) {
-    for value in slider(params.tunnel_projection.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.tunnel_projection.speed = value;
-    }
-    for value in slider(params.tunnel_projection.res, 0.0, 1.0)
-        .down(10.0)
-        .label("Resolution")
-        .set(ids.res, ui)
-    {
-        params.tunnel_projection.res = value;
-    }
-}
-
-pub fn set_vert_colour_gradient_widgets(ui: &mut UiCell, ids: &VertColourGradientIds, params: &mut ShaderParams) {
-    for value in slider(params.vert_colour_gradient.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.vert_colour_gradient.speed = value;
-    }
-    for value in slider(params.vert_colour_gradient.scale, 0.0, 1.0)
-        .down(10.0)
-        .label("Scale")
-        .set(ids.scale, ui)
-    {
-        params.vert_colour_gradient.scale = value;
-    }
-    for value in slider(params.vert_colour_gradient.colour_iter, 0.0, 1.0)
-        .down(10.0)
-        .label("Colour Iter")
-        .set(ids.colour_iter, ui)
-    {
-        params.vert_colour_gradient.colour_iter = value;
-    }
-    for value in slider(params.vert_colour_gradient.line_amp, 0.0, 1.0)
-        .down(10.0)
-        .label("Line Amp")
-        .set(ids.line_amp, ui)
-    {
-        params.vert_colour_gradient.line_amp = value;
-    }
-    for value in slider(params.vert_colour_gradient.diag_amp, 0.0, 1.0)
-        .down(10.0)
-        .label("Diag Amp")
-        .set(ids.diag_amp, ui)
-    {
-        params.vert_colour_gradient.diag_amp = value;
-    }
-    for value in slider(params.vert_colour_gradient.boarder_amp, 0.0, 1.0)
-        .down(10.0)
-        .label("Boarder Amp")
-        .set(ids.boarder_amp, ui)
-    {
-        params.vert_colour_gradient.boarder_amp = value;
-    }
-}
-
-pub fn set_solid_hsv_colour_widgets(ui: &mut UiCell, ids: &SolidHsvColourIds, params: &mut ShaderParams) {
-    for value in slider(params.solid_hsv_colour.hue, 0.0, 1.0)
-        .down(10.0)
-        .label("Hue")
-        .set(ids.hue, ui)
-    {
-        params.solid_hsv_colour.hue = value;
-    }
-    for value in slider(params.solid_hsv_colour.saturation, 0.0, 1.0)
-        .down(10.0)
-        .label("Saturation")
-        .set(ids.saturation, ui)
-    {
-        params.solid_hsv_colour.saturation = value;
-    }
-    for value in slider(params.solid_hsv_colour.value, 0.0, 1.0)
-        .down(10.0)
-        .label("Value")
-        .set(ids.value, ui)
-    {
-        params.solid_hsv_colour.value = value;
-    }
-}
-
-pub fn set_solid_rgb_colour_widgets(ui: &mut UiCell, ids: &SolidRgbColourIds, params: &mut ShaderParams) {
-    for value in slider(params.solid_rgb_colour.red, 0.0, 1.0)
-        .down(10.0)
-        .label("Red")
-        .set(ids.red, ui)
-    {
-        params.solid_rgb_colour.red = value;
-    }
-    for value in slider(params.solid_rgb_colour.green, 0.0, 1.0)
-        .down(10.0)
-        .label("Green")
-        .set(ids.green, ui)
-    {
-        params.solid_rgb_colour.green = value;
-    }
-    for value in slider(params.solid_rgb_colour.blue, 0.0, 1.0)
-        .down(10.0)
-        .label("Blue")
-        .set(ids.blue, ui)
-    {
-        params.solid_rgb_colour.blue = value;
-    }
-}
-
-pub fn set_colour_palettes_ids_widgets(ui: &mut UiCell, ids: &ColourPalettesIds, params: &mut ShaderParams) {
-    for value in slider(params.colour_palettes.speed, 0.0, 1.0)
-        .down(10.0)
-        .label("Speed")
-        .set(ids.speed, ui)
-    {
-        params.colour_palettes.speed = value;
-    }
-    for value in slider(params.colour_palettes.interval, 0.0, 1.0)
-        .down(10.0)
-        .label("Interval")
-        .set(ids.interval, ui)
-    {
-        params.colour_palettes.interval = value;
-    }
-    for value in slider(params.colour_palettes.selected as f32, 0.0, 9.0)
-        .down(10.0)
-        .label("Selected")
-        .set(ids.selected, ui)
-    {
-        params.colour_palettes.selected = value as usize;
+                *button_ix += 1;
+            }
+        }
     }
 }
 
@@ -1566,4 +1058,30 @@ fn column_canvas(background: widget::Id) -> widget::Canvas<'static> {
         .w(COLUMN_W)
         .h_of(background)
         .scroll_kids_vertically()
+}
+
+fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
+    match shader {
+        Shader::AcidGradient => &mut params.acid_gradient,
+        Shader::BlinkyCircles => &mut params.blinky_circles,
+        Shader::BwGradient => &mut params.bw_gradient,
+        Shader::ColourGrid => &mut params.colour_grid,
+        Shader::EscherTilings => &mut params.escher_tilings,
+        Shader::GilmoreAcid => &mut params.gilmore_acid,
+        Shader::JustRelax => &mut params.just_relax,
+        Shader::LifeLedWall => &mut params.life_led_wall,
+        Shader::LineGradient => &mut params.line_gradient,
+        Shader::Metafall => &mut params.metafall,
+        Shader::ParticleZoom => &mut params.particle_zoom,
+        Shader::RadialLines => &mut params.radial_lines,
+        Shader::SatisSpiraling => &mut params.satis_spiraling,
+        Shader::SpiralIntersect => &mut params.spiral_intersect,
+        Shader::SquareTunnel => &mut params.square_tunnel,
+        Shader::ThePulse => &mut params.the_pulse,
+        Shader::TunnelProjection => &mut params.tunnel_projection,
+        Shader::VertColourGradient => &mut params.vert_colour_gradient,
+        Shader::SolidHsvColour => &mut params.solid_hsv_colour,
+        Shader::SolidRgbColour => &mut params.solid_rgb_colour,
+        Shader::ColourPalettes => &mut params.colour_palettes,
+    }
 }

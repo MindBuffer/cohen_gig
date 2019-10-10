@@ -72,27 +72,6 @@ struct Model {
     led_outputs: Box<[LinSrgb; layout::LED_COUNT]>,
     ui: Ui,
     ids: gui::Ids,
-    acid_gradient_ids: gui::AcidGradientIds,
-    blinky_circles_ids: gui::BlinkyCirclesIds,
-    bw_gradient_ids: gui::BwGradientIds,
-    colour_grid_ids: gui::ColourGridIds,
-    escher_tilings_ids: gui::EscherTilingsIds,
-    gilmore_acid_ids: gui::GilmoreAcidIds,
-    just_relax_ids: gui::JustRelaxIds,
-    life_led_wall_ids: gui::LifeLedWallIds,
-    line_gradient_ids: gui::LineGradientIds,
-    metafall_ids: gui::MetafallIds,
-    particle_zoom_ids: gui::ParticleZoomIds,
-    radial_lines_ids: gui::RadialLinesIds,
-    satis_spiraling_ids: gui::SatisSpiralingIds,
-    spiral_intersect_ids: gui::SpiralIntersectIds,
-    square_tunnel_ids: gui::SquareTunnelIds,
-    the_pulse_ids: gui::ThePulseIds,
-    tunnel_projection_ids: gui::TunnelProjectionIds,
-    vert_colour_gradient_ids: gui::VertColourGradientIds,
-    solid_hsv_colour_ids: gui::SolidHsvColourIds,
-    solid_rgb_colour_ids: gui::SolidRgbColourIds,
-    colour_palettes_ids: gui::ColourPalettesIds,
 }
 
 struct Dmx {
@@ -162,27 +141,6 @@ fn model(app: &App) -> Model {
         .build()
         .expect("failed to build `Ui` for GUI window");
     let ids = gui::Ids::new(ui.widget_id_generator());
-    let acid_gradient_ids = gui::AcidGradientIds::new(ui.widget_id_generator());
-    let blinky_circles_ids = gui::BlinkyCirclesIds::new(ui.widget_id_generator());
-    let bw_gradient_ids = gui::BwGradientIds::new(ui.widget_id_generator());
-    let colour_grid_ids = gui::ColourGridIds::new(ui.widget_id_generator());
-    let escher_tilings_ids = gui::EscherTilingsIds::new(ui.widget_id_generator());
-    let gilmore_acid_ids = gui::GilmoreAcidIds::new(ui.widget_id_generator());
-    let just_relax_ids = gui::JustRelaxIds::new(ui.widget_id_generator());
-    let life_led_wall_ids = gui::LifeLedWallIds::new(ui.widget_id_generator());
-    let line_gradient_ids = gui::LineGradientIds::new(ui.widget_id_generator());
-    let metafall_ids = gui::MetafallIds::new(ui.widget_id_generator());
-    let particle_zoom_ids = gui::ParticleZoomIds::new(ui.widget_id_generator());
-    let radial_lines_ids = gui::RadialLinesIds::new(ui.widget_id_generator());
-    let satis_spiraling_ids = gui::SatisSpiralingIds::new(ui.widget_id_generator());
-    let spiral_intersect_ids = gui::SpiralIntersectIds::new(ui.widget_id_generator());
-    let square_tunnel_ids = gui::SquareTunnelIds::new(ui.widget_id_generator());
-    let the_pulse_ids = gui::ThePulseIds::new(ui.widget_id_generator());
-    let tunnel_projection_ids = gui::TunnelProjectionIds::new(ui.widget_id_generator());
-    let vert_colour_gradient_ids = gui::VertColourGradientIds::new(ui.widget_id_generator());
-    let solid_hsv_colour_ids = gui::SolidHsvColourIds::new(ui.widget_id_generator());
-    let solid_rgb_colour_ids = gui::SolidRgbColourIds::new(ui.widget_id_generator());
-    let colour_palettes_ids = gui::ColourPalettesIds::new(ui.widget_id_generator());
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
@@ -269,27 +227,6 @@ fn model(app: &App) -> Model {
         led_outputs,
         ui,
         ids,
-        acid_gradient_ids,
-        blinky_circles_ids,
-        bw_gradient_ids,
-        colour_grid_ids,
-        escher_tilings_ids,
-        gilmore_acid_ids,
-        just_relax_ids,
-        life_led_wall_ids,
-        line_gradient_ids,
-        metafall_ids,
-        particle_zoom_ids,
-        radial_lines_ids,
-        satis_spiraling_ids,
-        spiral_intersect_ids,
-        square_tunnel_ids,
-        the_pulse_ids,
-        tunnel_projection_ids,
-        vert_colour_gradient_ids,
-        solid_hsv_colour_ids,
-        solid_rgb_colour_ids,
-        colour_palettes_ids,
     }
 }
 
@@ -304,28 +241,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         update.since_start,
         model.shader_rx.activity(),
         &assets,
-        &model.ids,
-        &model.acid_gradient_ids,
-        &model.blinky_circles_ids,
-        &model.bw_gradient_ids,
-        &model.colour_grid_ids,
-        &model.escher_tilings_ids,
-        &model.gilmore_acid_ids,
-        &model.just_relax_ids,
-        &model.life_led_wall_ids,
-        &model.line_gradient_ids,
-        &model.metafall_ids,
-        &model.particle_zoom_ids,
-        &model.radial_lines_ids,
-        &model.satis_spiraling_ids,
-        &model.spiral_intersect_ids,
-        &model.square_tunnel_ids,
-        &model.the_pulse_ids,
-        &model.tunnel_projection_ids,
-        &model.vert_colour_gradient_ids,
-        &model.solid_hsv_colour_ids,
-        &model.solid_rgb_colour_ids,
-        &model.colour_palettes_ids,
+        &mut model.ids,
     );
 
     // Check for an update to the shader.
