@@ -793,7 +793,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
     let names: Vec<_> = config.presets.list.iter().map(|p| p.name.clone()).collect();
 
     // Instantiate the `ListSelect` widget.
-    let font_size = TEXT_BOX_H as conrod_core::FontSize / 2;
+    let font_size = TEXT_BOX_H as ui::FontSize / 2;
     let (mut events, presets_scrollbar) = widget::ListSelect::single(names.len())
         .flow_down()
         .item_size(TEXT_BOX_H)
