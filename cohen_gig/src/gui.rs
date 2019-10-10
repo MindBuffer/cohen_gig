@@ -1,11 +1,12 @@
-use crate::conf::Config;
-use crate::{shader, Osc, State};
+use crate::conf::{Config, State};
+use crate::{shader, Osc};
 use nannou::prelude::*;
 use nannou::ui::conrod_core::widget_ids;
 use nannou::ui::prelude::*;
 use nannou::ui::Color;
 use std::f64::consts::PI;
 use std::net::SocketAddr;
+use std::path::Path;
 
 pub const NUM_COLUMMNS: u32 = 3;
 pub const COLUMN_W: Scalar = 240.0;
@@ -351,7 +352,7 @@ pub fn update(
         .down(PAD * 1.5)
         .set(ids.osc_address_text, ui);
 
-    let color = match state.osc_addr_textbox_string.parse::<SocketAddr>() {
+    let color = match config.osc_addr_textbox_string.parse::<SocketAddr>() {
         Ok(socket) => {
             match osc.addr == socket {
                 true => color::BLACK,
@@ -360,7 +361,7 @@ pub fn update(
         }
         Err(_) => color::DARK_RED.with_luminance(0.1),
     };
-    for event in widget::TextBox::new(&state.osc_addr_textbox_string)
+    for event in widget::TextBox::new(&config.osc_addr_textbox_string)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .border(0.0)
         .color(color)
@@ -369,9 +370,9 @@ pub fn update(
         .set(ids.osc_address_text_box, ui)
     {
         match event {
-            widget::text_box::Event::Update(string) => state.osc_addr_textbox_string = string,
+            widget::text_box::Event::Update(string) => config.osc_addr_textbox_string = string,
             widget::text_box::Event::Enter => {
-                if let Ok(socket) = state.osc_addr_textbox_string.parse() {
+                if let Ok(socket) = config.osc_addr_textbox_string.parse() {
                     osc.addr = socket;
                 }
             },
@@ -494,6 +495,7 @@ pub fn update(
 
     if let Some(s) = scrollbar { s.set(ui) }
 
+    set_presets_widgets(ui, &ids, config, &assets);
 
     //---------------------- LED SHADER LEFT
     widget::Canvas::new()
@@ -511,7 +513,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.shader_names, state.led_shader_idx_left)
+    for selected_idx in widget::DropDownList::new(&config.shader_names, state.led_shader_idx_left)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -525,7 +527,7 @@ pub fn update(
         state.led_shader_idx_left = Some(selected_idx);
     }
 
-    match state.shader_names[state.led_shader_idx_left.unwrap()].as_str() {
+    match config.shader_names[state.led_shader_idx_left.unwrap()].as_str() {
         "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
@@ -556,7 +558,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.colour_post_process_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.solid_colour_names, state.solid_colour_idx)
+    for selected_idx in widget::DropDownList::new(&config.solid_colour_names, state.solid_colour_idx)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -570,7 +572,7 @@ pub fn update(
         state.solid_colour_idx = Some(selected_idx);
     }
 
-    match state.solid_colour_names[state.solid_colour_idx.unwrap()].as_str() {
+    match config.solid_colour_names[state.solid_colour_idx.unwrap()].as_str() {
         "SolidHsvColour" => set_solid_hsv_colour_widgets(ui, &solid_hsv_colour_ids, state),
         "SolidRgbColour" => set_solid_rgb_colour_widgets(ui, &solid_rgb_colour_ids, state),
         "ColourPalettes" => set_colour_palettes_ids_widgets(ui, &colour_palettes_ids, state),
@@ -593,7 +595,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_right_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.shader_names, state.led_shader_idx_right)
+    for selected_idx in widget::DropDownList::new(&config.shader_names, state.led_shader_idx_right)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -607,7 +609,7 @@ pub fn update(
         state.led_shader_idx_right = Some(selected_idx);
     }
 
-    match state.shader_names[state.led_shader_idx_right.unwrap()].as_str() {
+    match config.shader_names[state.led_shader_idx_right.unwrap()].as_str() {
         "AcidGradient" => set_acid_gradient_widgets(ui, &acid_gradient_ids, state),
         "BlinkyCircles" => set_blinky_circles_widgets(ui, &blinky_circles_ids, state),
         "BwGradient" => set_bw_gradient_widgets(ui, &bw_gradient_ids, state),
@@ -638,7 +640,7 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.blend_mode_text, ui);
 
-    for selected_idx in widget::DropDownList::new(&state.blend_mode_names, state.blend_mode_idx)
+    for selected_idx in widget::DropDownList::new(&config.blend_mode_names, state.blend_mode_idx)
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -688,27 +690,10 @@ pub fn update(
     //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
 }
 
-pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, assets: &Path) {
-    //---------------------- GUI WINDOW CANVAS
-    widget::Canvas::new()
-        .color(COLUMN_COLOR)
-        .w_h(config::GUI_WINDOW_W.into(), config::GUI_WINDOW_H.into())
-        .set(ids.canvas_gui_window_id, ui);
-    //---------------------- COLUMN 1
-    widget::Canvas::new()
-        .color(COLUMN_COLOR)
-        .top_left_with_margin_on(ids.canvas_gui_window_id,PAD)
-        .w_h(COLUMN_W, COLUMN_H)
-        .set(ids.column1_id, ui);
-    //---------------------- PRESETS
-    widget::Canvas::new()
-        .color(CANVAS_COLOR)
-        .top_left_with_margin_on(ids.column1_id,PAD)
-        .w_h(CANVAS_W, COLUMN_H - (PAD * 2.0))
-        .set(ids.canvas_presets_id, ui);
-
+pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, state: &mut State, config: &mut Config, assets: &Path) {
     widget::Text::new("PRESETS")
-        .top_left_with_margin_on(ids.canvas_presets_id, PAD)
+        .mid_left_of(ids.column_1_id)
+        .down(PAD)
         .color(TEXT_COLOR)
         .set(ids.presets_text, ui);
 
@@ -721,7 +706,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
     {
         let preset_idx = config.presets.selected_preset_idx.expect("out of bounds preset idx");
         config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
-        super::save_config(&assets, &config);
+        super::save_state(&assets, &state);
     }
 
     for _click in button()
@@ -748,7 +733,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
         .color(BUTTON_COLOR)
         .set(ids.presets_new_button, ui)
     {
-        config.presets.presets.push(crate::config::Preset::default());
+        config.presets.presets.push(crate::conf::Preset::default());
         let preset_idx = config.presets.presets.len() - 1;
         config.presets.selected_preset_idx = Some(preset_idx);
         config.presets.selected_preset_name = "".to_string();
@@ -843,6 +828,22 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
 
     if let Some(sb) = presets_scrollbar {
         sb.set(ui);
+    }
+}
+
+fn update_state(state: &mut State, config: &mut Config, preset_idx: usize) {
+    let config_layers_len = config.presets.presets[preset_idx].layers.len();
+    layers.clear();
+    for _ in 0..config_layers_len {
+        layers.push(Layer::new());
+    }
+}
+
+pub fn load_preset(preset_idx: usize, layers: &mut State, config: &mut Config) {
+    if preset_idx < config.presets.presets.len() {
+        config.presets.selected_preset_idx = Some(preset_idx);
+        config.presets.selected_preset_name = config.presets.presets[preset_idx].name.clone();
+        update_layers(layers, config, preset_idx);
     }
 }
 

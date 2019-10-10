@@ -41,7 +41,7 @@ pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
 
 pub const SPOT_COUNT: usize = 2;
 pub const DMX_ADDRS_PER_SPOT: u8 = 1;
-pub const DMX_ADDRS_PER_WASH: u8 = 4;
+pub const DMX_ADDRS_PER_WASH: u8 = 7;
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
@@ -365,19 +365,19 @@ fn model(app: &App) -> Model {
         colour_palettes,
     };
 
-    let state = conf::State {
-        led_shader_idx_left: Some(15),
-        led_shader_idx_right: Some(0),
-        led_left_right_mix: 0.0,
-        led_fade_to_black: 1.0,
-        wash_fade_to_black: 1.0,
-        spot_light1_fade_to_black: 1.0,
-        spot_light2_fade_to_black: 1.0,
-        lerp_amt: 0.5,
-        solid_colour_idx: Some(0),
-        blend_mode_idx: Some(0),
-        shader_params,
-    };
+    // let state = conf::State {
+    //     led_shader_idx_left: Some(15),
+    //     led_shader_idx_right: Some(0),
+    //     led_left_right_mix: 0.0,
+    //     led_fade_to_black: 1.0,
+    //     wash_fade_to_black: 1.0,
+    //     spot_light1_fade_to_black: 1.0,
+    //     spot_light2_fade_to_black: 1.0,
+    //     lerp_amt: 0.5,
+    //     solid_colour_idx: Some(0),
+    //     blend_mode_idx: Some(0),
+    //     shader_params,
+    // };
 
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
@@ -579,7 +579,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     */
     let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
-    let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
+    let blend_mode = &model.config.blend_mode_names[model.state.blend_mode_idx.unwrap()];
 
     // Apply the shader for the washes.
     for wash_ix in 0..model.wash_colors.len() {
@@ -593,9 +593,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let lerp_amt = model.state.lerp_amt;
         let vertex = Vertex { position, light, last_color, lerp_amt };
 
-        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+        let left_name = &model.config.shader_names[model.state.led_shader_idx_left.unwrap()];
+        let right_name = &model.config.shader_names[model.state.led_shader_idx_right.unwrap()];
+        let colour_name = &model.config.solid_colour_names[model.state.solid_colour_idx.unwrap()];
         let mix_info = MixingInfo { 
             left_name: left_name.to_string(), 
             right_name: right_name.to_string(), 
@@ -623,9 +623,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let vertex = Vertex { position, light, last_color, lerp_amt };
         let ftb = model.state.led_fade_to_black;
 
-        let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-        let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-        let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+        let left_name = &model.config.shader_names[model.state.led_shader_idx_left.unwrap()];
+        let right_name = &model.config.shader_names[model.state.led_shader_idx_right.unwrap()];
+        let colour_name = &model.config.solid_colour_names[model.state.solid_colour_idx.unwrap()];
         let mix_info = MixingInfo { 
             left_name: left_name.to_string(), 
             right_name: right_name.to_string(), 
@@ -687,8 +687,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Collect wash light color data.
         for (wash_ix, col) in model.wash_colors.iter().enumerate() {
             let [r, g, b] = lin_srgb_f32_to_bytes(col);
-            let amber = 0;
-            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [r, g, b, amber];
+            let intensity = 255; // should this be 255?
+            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
             let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
             let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
             let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
