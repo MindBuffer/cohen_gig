@@ -14,8 +14,6 @@ pub struct Vertex {
     pub light: Light,
     /// The last colour produced by the shader for this vertex.
     pub last_color: LinSrgb,
-    /// Amount of interpolation 
-    pub lerp_amt: f32,
 }
 
 #[derive(Clone)]
@@ -70,9 +68,10 @@ pub struct Uniforms {
     pub pot7: f32,
     pub pot8: f32,
     pub params: ShaderParams,
+    pub wash_lerp_amt: f32,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ShaderParams {
     #[serde(default)]
     pub acid_gradient: AcidGradient,
@@ -648,7 +647,7 @@ pub mod default {
         }
         pub fn mirror() -> bool {
             false
-        }  
+        }
     }
 
     pub mod colour_grid {

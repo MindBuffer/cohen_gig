@@ -1,4 +1,4 @@
-use crate::conf::{Config, State};
+use crate::conf::Config;
 use crate::{shader, Osc};
 use nannou::prelude::*;
 use nannou::ui::conrod_core::widget_ids;
@@ -273,7 +273,6 @@ widget_ids! {
 /// Update the user interface.
 pub fn update(
     ref mut ui: UiCell,
-    state: &mut State,
     config: &mut Config,
     osc: &mut Osc,
     since_start: std::time::Duration,
@@ -743,7 +742,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, state: &mut State, config
         let current_preset = config.presets.presets[current_preset_idx].clone();
         config.presets.presets.push(current_preset);
         let preset_idx = config.presets.presets.len() - 1;
-        config.presets.selected_preset_idx = Some(preset_idx); 
+        config.presets.selected_preset_idx = Some(preset_idx);
         config.presets.selected_preset_name = "".to_string();
         config.presets.presets[preset_idx].name = config.presets.selected_preset_name.clone();
         update_layers(layers, config, preset_idx);

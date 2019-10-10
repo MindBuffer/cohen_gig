@@ -56,15 +56,13 @@ struct Model {
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
     config: Config,
-    state: conf::State,
-    uniforms: Uniforms,
+    controller: Controller,
     target_slider_values: Vec<f32>,
     target_pot_values: Vec<f32>,
     smoothing_speed: f32,
     wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
     // Starts from top left, one row at a time.
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
-    spot_lights: Box<[f32; layout::SPOT_LIGHT_COUNT]>,
     ui: Ui,
     ids: gui::Ids,
     acid_gradient_ids: gui::AcidGradientIds,
@@ -98,6 +96,19 @@ struct Dmx {
 pub struct Osc {
     tx: Option<osc::Sender>,
     addr: std::net::SocketAddr,
+}
+
+// The known state of the Korg at any point in time.
+struct Controller {
+    slider1: f32, // BW param 1
+    slider2: f32, // BW param 2
+    slider3: f32, // Colour param 1
+    slider4: f32, // Colour param 2
+    slider5: f32, // Wash param 1
+    slider6: f32, // Wash param 2
+    pot6: f32, // Red / Hue
+    pot7: f32, // Green / Saturation
+    pot8: f32, // Blue / Value
 }
 
 fn main() {
@@ -365,23 +376,8 @@ fn model(app: &App) -> Model {
         colour_palettes,
     };
 
-    // let state = conf::State {
-    //     led_shader_idx_left: Some(15),
-    //     led_shader_idx_right: Some(0),
-    //     led_left_right_mix: 0.0,
-    //     led_fade_to_black: 1.0,
-    //     wash_fade_to_black: 1.0,
-    //     spot_light1_fade_to_black: 1.0,
-    //     spot_light2_fade_to_black: 1.0,
-    //     lerp_amt: 0.5,
-    //     solid_colour_idx: Some(0),
-    //     blend_mode_idx: Some(0),
-    //     shader_params,
-    // };
-
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
-    let spot_lights = Box::new([1.0; layout::SPOT_LIGHT_COUNT]);
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -404,10 +400,7 @@ fn model(app: &App) -> Model {
         midi_inputs.push(input);
     }
 
-    let uniforms = Uniforms {
-        time: 0.0,
-        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
-        use_midi: true,
+    let controller = Controller {
         slider1: 0.0, // BW param 1
         slider2: 0.0, // BW param 2
         slider3: 0.0, // Colour param 1
@@ -417,7 +410,6 @@ fn model(app: &App) -> Model {
         pot6: 1.0, // Red / Hue
         pot7: 0.0, // Green / Saturation
         pot8: 1.0, // Blue / Value
-        params: state.shader_params.clone(),
     };
 
     Model {
@@ -432,13 +424,12 @@ fn model(app: &App) -> Model {
         shader,
         state,
         config,
-        uniforms,
+        controller,
         target_slider_values: vec![0.5; 6], // First 6 Sliders
         target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
         led_colors,
-        spot_lights,
         ui,
         ids,
         acid_gradient_ids,
@@ -470,7 +461,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let ui = model.ui.set_widgets();
     gui::update(
         ui,
-        &mut model.state,
         &mut model.config,
         &mut model.osc,
         update.since_start,
@@ -529,17 +519,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::D => model.target_slider_values[3] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::E => model.target_slider_values[4] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::F => model.target_slider_values[5] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::G => model.state.led_left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
+                    korg::Strip::G => model.config.presets.selected_mut().left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
                     korg::Strip::H => model.smoothing_speed = map_range(value as f32 ,0.0,127.0,0.002,0.08),
                 }
             }
             korg::Event::RotarySlider(strip, value) => {
                 match strip {
-                    korg::Strip::A => model.state.led_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::B => model.state.wash_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::C => model.state.spot_light1_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::D => model.state.spot_light2_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::E => model.state.lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
+                    korg::Strip::A => model.config.fade_to_black.led = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::B => model.config.fade_to_black.wash = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::C => model.config.fade_to_black.spot1 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::D => model.config.fade_to_black.spot2 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::E => model.config.presets.selected_mut().lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
                     korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
@@ -549,25 +539,40 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
     }
 
-    model.uniforms.slider1 = model.uniforms.slider1 * (1.0-model.smoothing_speed) + model.target_slider_values[0] * model.smoothing_speed;
-    model.uniforms.slider2 = model.uniforms.slider2 * (1.0-model.smoothing_speed) + model.target_slider_values[1] * model.smoothing_speed;
-    model.uniforms.slider3 = model.uniforms.slider3 * (1.0-model.smoothing_speed) + model.target_slider_values[2] * model.smoothing_speed;
-    model.uniforms.slider4 = model.uniforms.slider4 * (1.0-model.smoothing_speed) + model.target_slider_values[3] * model.smoothing_speed;
-    model.uniforms.slider5 = model.uniforms.slider5 * (1.0-model.smoothing_speed) + model.target_slider_values[4] * model.smoothing_speed;
-    model.uniforms.slider6 = model.uniforms.slider6 * (1.0-model.smoothing_speed) + model.target_slider_values[5] * model.smoothing_speed;
+    model.controller.slider1 = model.controller.slider1 * (1.0-model.smoothing_speed) + model.target_slider_values[0] * model.smoothing_speed;
+    model.controller.slider2 = model.controller.slider2 * (1.0-model.smoothing_speed) + model.target_slider_values[1] * model.smoothing_speed;
+    model.controller.slider3 = model.controller.slider3 * (1.0-model.smoothing_speed) + model.target_slider_values[2] * model.smoothing_speed;
+    model.controller.slider4 = model.controller.slider4 * (1.0-model.smoothing_speed) + model.target_slider_values[3] * model.smoothing_speed;
+    model.controller.slider5 = model.controller.slider5 * (1.0-model.smoothing_speed) + model.target_slider_values[4] * model.smoothing_speed;
+    model.controller.slider6 = model.controller.slider6 * (1.0-model.smoothing_speed) + model.target_slider_values[5] * model.smoothing_speed;
 
-    model.uniforms.pot6 = model.uniforms.pot6 * (1.0-model.smoothing_speed) + model.target_pot_values[0] * model.smoothing_speed;
-    model.uniforms.pot7 = model.uniforms.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
-    model.uniforms.pot8 = model.uniforms.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
+    model.controller.pot6 = model.controller.pot6 * (1.0-model.smoothing_speed) + model.target_pot_values[0] * model.smoothing_speed;
+    model.controller.pot7 = model.controller.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
+    model.controller.pot8 = model.controller.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
     model.uniforms.use_midi = model.config.midi_on;
 
     // Update dimming control of the 2 house spot lights
-    model.spot_lights[0] = model.state.spot_light1_fade_to_black;
-    model.spot_lights[1] = model.state.spot_light2_fade_to_black;
+    let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
 
-    // Update the shader params
-    model.uniforms.params = model.state.shader_params;
+    // Collect the data that is uniform across all lights that will be passed into the shaders.
+    let shader_params = model.conifg.presets.list[model.config.presets.selected_preset_idx].shader_params.clone();
+    let uniforms = Uniforms {
+        time: model.app.time,
+        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
+        use_midi: model.config.midi_on,
+        slider1: model.controller.slider1, // BW param 1
+        slider2: model.controller.slider2, // BW param 2
+        slider3: model.controller.slider3, // Colour param 1
+        slider4: model.controller.slider4, // Colour param 2
+        slider5: model.controller.slider5, // Wash param 1
+        slider6: model.controller.slider6, // Wash param 2
+        pot6: model.controller.pot6, // Red / Hue
+        pot7: model.controller.pot7, // Green / Saturation
+        pot8: model.controller.pot8, // Blue / Value
+        params: shader_params,
+        wash_lerp_amt: model.config.presets.selected().lerp_amt,
+    };
 
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
@@ -575,13 +580,16 @@ fn update(app: &App, model: &mut Model, update: Update) {
     when t = 1, volumes[0] = 1, volumes[1] = 0
     // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
     */
-    let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
-    let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
-    let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
-    let ftb = model.state.wash_fade_to_black;
-    let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-    let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-    let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+
+    let lr_mix = model.config.presets.selected().left_right_mix;
+    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
+    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
+    let blend_mode = &model.config.blend_mode_names[model.config.presets.selected().blend_mode_idx];
+    let lerp_amt = model.config.presets.selected().lerp_amt;
+    let preset = model.config.presets.selected();
+    let left_name = &model.config.shader_names[preset.shader_idx_left];
+    let right_name = &model.config.shader_names[preset.shader_idx_right];
+    let colour_name = &model.config.solid_colour_names[preset.solid_colour_idx];
     let mix_info = MixingInfo {
         left_name: left_name.to_string(),
         right_name: right_name.to_string(),
@@ -596,11 +604,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
         let trg_s = pm_to_ps(trg_m, trg_h);
+        let ftb = model.config.fade_to_black.wash;
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
-        let lerp_amt = model.state.lerp_amt;
-        let vertex = Vertex { position, light, last_color, lerp_amt };
+        let vertex = Vertex { position, light, last_color };
         model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
@@ -616,9 +624,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let light = Light::Led { index, col_row, normalised_coords };
         let last_color = model.led_colors[led_ix];
         let position = ps;
-        let lerp_amt = model.state.lerp_amt;
-        let vertex = Vertex { position, light, last_color, lerp_amt };
-        let ftb = model.state.led_fade_to_black;
+        let vertex = Vertex { position, light, last_color };
+        let ftb = model.config.fade_to_black.led;
         model.led_colors[led_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
@@ -659,7 +666,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.dmx.buffer.extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
 
         // Collect spot light dimming data.
-        for (spot_ix, dim) in model.spot_lights.iter().enumerate() {
+        for (spot_ix, dim) in spot_lights.iter().enumerate() {
             let dimmer = convert_channel(*dim);
             let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
             let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
@@ -737,12 +744,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Send Spot light dimmers.
         let addr = "/cohen/spot_light1/";
         let mut args = Vec::new();
-        args.push(osc::Type::Float(model.spot_lights[0]));
+        args.push(osc::Type::Float(spot_lights[0]));
         osc_tx.send((addr, args), &model.osc.addr).ok();
 
         let addr = "/cohen/spot_light2/";
         let mut args = Vec::new();
-        args.push(osc::Type::Float(model.spot_lights[1]));
+        args.push(osc::Type::Float(spot_lights[1]));
         osc_tx.send((addr, args), &model.osc.addr).ok();
     }
 }

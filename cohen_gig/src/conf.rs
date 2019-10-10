@@ -31,7 +31,9 @@ pub struct Config {
     /// The starting universe from which LED data is sent.
     #[serde(default = "default::led_start_universe")]
     pub led_start_universe: u16,
-    
+    #[serde(default)]
+    pub fade_to_black: FadeToBlack,
+
     #[serde(default = "default::osc_addr_textbox_string")]
     pub osc_addr_textbox_string: String,
     #[serde(default = "default::shader_names")]
@@ -41,7 +43,6 @@ pub struct Config {
     #[serde(default = "default::blend_mode_names")]
     pub blend_mode_names: Vec<String>,
 
-    //-----------------PRESETS
     #[serde(default)]
     pub presets: Presets,
 }
@@ -51,51 +52,59 @@ pub struct Presets {
     #[serde(default = "default::presets::selected_preset_name")]
     pub selected_preset_name: String,
     #[serde(default = "default::presets::selected_preset_idx")]
-    pub selected_preset_idx: Option<usize>,
+    pub selected_preset_idx: usize,
     #[serde(default = "default::presets::presets")]
-    pub presets: Vec<Preset>,
+    pub list: Vec<Preset>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Preset {
-    //-----------------LAYER SELECT
-    #[serde(default)]
-    pub state: State,
     #[serde(default)]
     pub name: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct State {
-    #[serde(default = "default::state::led_shader_idx_left")]
-    pub led_shader_idx_left: Option<usize>,
-    #[serde(default = "default::state::led_shader_idx_right")]
-    pub led_shader_idx_right: Option<usize>,
-    #[serde(default = "default::state::led_left_right_mix")]
-    pub led_left_right_mix: f32,
-    #[serde(default = "default::state::led_fade_to_black")]
-    pub led_fade_to_black: f32,
-    #[serde(default = "default::state::wash_fade_to_black")]
-    pub wash_fade_to_black: f32,
-    #[serde(default = "default::state::spot_light1_fade_to_black")]
-    pub spot_light1_fade_to_black: f32,
-    #[serde(default = "default::state::spot_light2_fade_to_black")]
-    pub spot_light2_fade_to_black: f32,
-    #[serde(default = "default::state::lerp_amt")]
+    #[serde(default = "default::preset::shader_idx_left")]
+    pub shader_idx_left: usize,
+    #[serde(default = "default::preset::shader_idx_right")]
+    pub shader_idx_right: usize,
+    #[serde(default = "default::preset::left_right_mix")]
+    pub left_right_mix: f32,
+    #[serde(default = "default::preset::lerp_amt")]
     pub lerp_amt: f32,
-    #[serde(default = "default::state::solid_colour_idx")]
-    pub solid_colour_idx: Option<usize>,
-    #[serde(default = "default::state::blend_mode_idx")]
-    pub blend_mode_idx: Option<usize>,
-    #[serde(default)]  
+    #[serde(default = "default::preset::solid_colour_idx")]
+    pub solid_colour_idx: usize,
+    #[serde(default = "default::preset::blend_mode_idx")]
+    pub blend_mode_idx: usize,
+    #[serde(default)]
     pub shader_params: ShaderParams,
 }
 
-
+/// Fade to black parameters for each kind of fixture.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FadeToBlack {
+    #[serde(default = "default::fade_to_black::led")]
+    pub led: f32,
+    #[serde(default = "default::fade_to_black::wash")]
+    pub wash: f32,
+    #[serde(default = "default::fade_to_black::spot1")]
+    pub spot1: f32,
+    #[serde(default = "default::fade_to_black::spot2")]
+    pub spot2: f32,
+}
 
 /// The path to the configuration file.
 pub fn path(assets: &Path) -> PathBuf {
     assets.join("config.json")
+}
+
+impl Presets {
+    /// Produces a reference to the selected preset.
+    pub fn selected(&self) -> &Preset {
+        &self.list[self.selected_preset_idx]
+    }
+
+    /// Mutable access to the selected preset.
+    pub fn selected_mut(&mut self) -> &mut Preset {
+        &mut self.list[self.selected_preset_idx]
+    }
 }
 
 impl Default for Config {
@@ -108,6 +117,7 @@ impl Default for Config {
             spot_dmx_addrs: default::spot_dmx_addrs(),
             wash_spot_universe: default::wash_spot_universe(),
             led_start_universe: default::led_start_universe(),
+            fade_to_black: Default::default(),
             osc_addr_textbox_string: default::osc_addr_textbox_string(),
             shader_names: default::shader_names(),
             solid_colour_names: default::solid_colour_names(),
@@ -117,20 +127,13 @@ impl Default for Config {
     }
 }
 
-impl Default for State {
+impl Default for FadeToBlack {
     fn default() -> Self {
-        State {
-            led_shader_idx_left: default::state::led_shader_idx_left(),
-            led_shader_idx_right: default::state::led_shader_idx_right(),
-            led_left_right_mix: default::state::led_left_right_mix(),
-            led_fade_to_black: default::state::led_fade_to_black(),
-            wash_fade_to_black: default::state::wash_fade_to_black(),
-            spot_light1_fade_to_black: default::state::spot_light1_fade_to_black(),
-            spot_light2_fade_to_black: default::state::spot_light2_fade_to_black(),
-            lerp_amt: default::state::lerp_amt(),
-            solid_colour_idx: default::state::solid_colour_idx(),
-            blend_mode_idx: default::state::blend_mode_idx(),
-            shader_params: shader_shared::ShaderParams::default(),
+        FadeToBlack {
+            led: default::fade_to_black::led(),
+            wash: default::fade_to_black::wash(),
+            spot1: default::fade_to_black::spot1(),
+            spot2: default::fade_to_black::spot2(),
         }
     }
 }
@@ -148,8 +151,14 @@ impl Default for Presets {
 impl Default for Preset {
     fn default() -> Self {
         Preset {
-            state: Default::default(),
-            name: "init".to_string(),
+            name: default::presets::selected_preset_name(),
+            shader_idx_left: default::preset::shader_idx_left(),
+            shader_idx_right: default::preset::shader_idx_right(),
+            left_right_mix: default::preset::left_right_mix(),
+            lerp_amt: default::preset::lerp_amt(),
+            solid_colour_idx: default::preset::solid_colour_idx(),
+            blend_mode_idx: default::preset::blend_mode_idx(),
+            shader_params: shader_shared::ShaderParams::default(),
         }
     }
 }
@@ -241,44 +250,47 @@ pub mod default {
         pub fn selected_preset_name() -> String {
             "Empty".to_string()
         }
-        pub fn selected_preset_idx() -> Option<usize> {
-            Some(0)
+        pub fn selected_preset_idx() -> usize {
+            0
         }
         pub fn presets() -> Vec<crate::conf::Preset> {
             vec![crate::conf::Preset::default()]
         }
     }
 
-    pub mod state {
-        pub fn led_shader_idx_left() -> Option<usize> {
-            Some(15)
+    pub mod preset {
+        pub fn shader_idx_left() -> usize {
+            15
         }
-        pub fn led_shader_idx_right() -> Option<usize> {
-            Some(0)
+        pub fn shader_idx_right() -> usize {
+            0
         }
-        pub fn led_left_right_mix() -> f32 {
+        pub fn left_right_mix() -> f32 {
             0.0
-        }
-        pub fn led_fade_to_black() -> f32 { 
-            1.0
-        }
-        pub fn wash_fade_to_black() -> f32 { 
-            1.0
-        }
-        pub fn spot_light1_fade_to_black() -> f32 { 
-            1.0
-        }
-        pub fn spot_light2_fade_to_black() -> f32 { 
-            1.0
         }
         pub fn lerp_amt() -> f32 {
             0.5
         }
-        pub fn solid_colour_idx() -> Option<usize> {
-            Some(0)
+        pub fn solid_colour_idx() -> usize {
+            0
         }
-        pub fn blend_mode_idx() -> Option<usize> { 
-            Some(0)
+        pub fn blend_mode_idx() -> usize {
+            0
+        }
+    }
+
+    pub mod fade_to_black {
+        pub fn led() -> f32 {
+            1.0
+        }
+        pub fn wash() -> f32 {
+            1.0
+        }
+        pub fn spot1() -> f32 {
+            1.0
+        }
+        pub fn spot2() -> f32 {
+            1.0
         }
     }
 }
