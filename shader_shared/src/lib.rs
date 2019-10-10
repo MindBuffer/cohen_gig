@@ -16,18 +16,6 @@ pub struct Vertex {
     pub last_color: LinSrgb,
 }
 
-#[derive(Clone)]
-pub struct MixingInfo {
-    pub left: Shader,
-    pub right: Shader,
-    pub colourise: Shader,
-    pub blend_mode: BlendMode,
-    /// x fade left amount
-    pub xfade_left: f32,
-    /// x fade right amount
-    pub xfade_right: f32,
-}
-
 #[derive(Copy, Clone)]
 pub enum Light {
     /// Wash light info.
@@ -69,6 +57,19 @@ pub struct Uniforms {
     pub pot8: f32,
     pub params: ShaderParams,
     pub wash_lerp_amt: f32,
+    pub mix: MixingInfo,
+}
+
+#[derive(Clone)]
+pub struct MixingInfo {
+    pub left: Shader,
+    pub right: Shader,
+    pub colourise: Shader,
+    pub blend_mode: BlendMode,
+    /// x fade left amount
+    pub xfade_left: f32,
+    /// x fade right amount
+    pub xfade_right: f32,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
