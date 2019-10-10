@@ -53,23 +53,45 @@ pub struct Presets {
     #[serde(default = "default::presets::selected_preset_idx")]
     pub selected_preset_idx: Option<usize>,
     #[serde(default = "default::presets::presets")]
-    pub presets: Vec<State>,
+    pub presets: Vec<Preset>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Preset {
+    //-----------------LAYER SELECT
+    #[serde(default)]
+    pub state: State,
+    #[serde(default)]
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
-    led_shader_idx_left: Option<usize>,
-    led_shader_idx_right: Option<usize>,
-    led_left_right_mix: f32,
-    led_fade_to_black: f32,
-    wash_fade_to_black: f32,
-    spot_light1_fade_to_black: f32,
-    spot_light2_fade_to_black: f32,
-    lerp_amt: f32,
-    solid_colour_idx: Option<usize>,
-    blend_mode_idx: Option<usize>,
-    shader_params: ShaderParams,
+    #[serde(default = "default::state::led_shader_idx_left")]
+    pub led_shader_idx_left: Option<usize>,
+    #[serde(default = "default::state::led_shader_idx_right")]
+    pub led_shader_idx_right: Option<usize>,
+    #[serde(default = "default::state::led_left_right_mix")]
+    pub led_left_right_mix: f32,
+    #[serde(default = "default::state::led_fade_to_black")]
+    pub led_fade_to_black: f32,
+    #[serde(default = "default::state::wash_fade_to_black")]
+    pub wash_fade_to_black: f32,
+    #[serde(default = "default::state::spot_light1_fade_to_black")]
+    pub spot_light1_fade_to_black: f32,
+    #[serde(default = "default::state::spot_light2_fade_to_black")]
+    pub spot_light2_fade_to_black: f32,
+    #[serde(default = "default::state::lerp_amt")]
+    pub lerp_amt: f32,
+    #[serde(default = "default::state::solid_colour_idx")]
+    pub solid_colour_idx: Option<usize>,
+    #[serde(default = "default::state::blend_mode_idx")]
+    pub blend_mode_idx: Option<usize>,
+    #[serde(default)]  
+    pub shader_params: ShaderParams,
 }
+
+
 
 /// The path to the configuration file.
 pub fn path(assets: &Path) -> PathBuf {
@@ -95,6 +117,24 @@ impl Default for Config {
     }
 }
 
+impl Default for State {
+    fn default() -> Self {
+        State {
+            led_shader_idx_left: default::state::led_shader_idx_left(),
+            led_shader_idx_right: default::state::led_shader_idx_right(),
+            led_left_right_mix: default::state::led_left_right_mix(),
+            led_fade_to_black: default::state::led_fade_to_black(),
+            wash_fade_to_black: default::state::wash_fade_to_black(),
+            spot_light1_fade_to_black: default::state::spot_light1_fade_to_black(),
+            spot_light2_fade_to_black: default::state::spot_light2_fade_to_black(),
+            lerp_amt: default::state::lerp_amt(),
+            solid_colour_idx: default::state::solid_colour_idx(),
+            blend_mode_idx: default::state::blend_mode_idx(),
+            shader_params: shader_shared::ShaderParams::default(),
+        }
+    }
+}
+
 impl Default for Presets {
     fn default() -> Self {
         Presets {
@@ -108,8 +148,7 @@ impl Default for Presets {
 impl Default for Preset {
     fn default() -> Self {
         Preset {
-            layer_select: Default::default(),
-            layers: vec![Default::default()],
+            state: Default::default(),
             name: "init".to_string(),
         }
     }
@@ -205,8 +244,42 @@ pub mod default {
         pub fn selected_preset_idx() -> Option<usize> {
             Some(0)
         }
-        pub fn presets() -> Vec<crate::config::Preset> {
-            vec![crate::config::Preset::default()]
+        pub fn presets() -> Vec<crate::conf::Preset> {
+            vec![crate::conf::Preset::default()]
+        }
+    }
+
+    pub mod state {
+        pub fn led_shader_idx_left() -> Option<usize> {
+            Some(15)
+        }
+        pub fn led_shader_idx_right() -> Option<usize> {
+            Some(0)
+        }
+        pub fn led_left_right_mix() -> f32 {
+            0.0
+        }
+        pub fn led_fade_to_black() -> f32 { 
+            1.0
+        }
+        pub fn wash_fade_to_black() -> f32 { 
+            1.0
+        }
+        pub fn spot_light1_fade_to_black() -> f32 { 
+            1.0
+        }
+        pub fn spot_light2_fade_to_black() -> f32 { 
+            1.0
+        }
+        pub fn lerp_amt() -> f32 {
+            0.5
+        }
+        pub fn solid_colour_idx() -> Option<usize> {
+            Some(0)
+        }
+        pub fn blend_mode_idx() -> Option<usize> { 
+            Some(0)
         }
     }
 }
+
