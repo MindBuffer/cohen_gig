@@ -37,7 +37,7 @@ fn shader(v: Vertex, uniforms: &Uniforms, mix: &MixingInfo) -> LinSrgb {
     };
 
     if let Light::Wash { .. } = v.light {
-        col = crate::helpers::lerp_lin_srgb(v.last_color, col, v.lerp_amt);
+        col = crate::helpers::lerp_lin_srgb(v.last_color, col, uniforms.wash_lerp_amt);
     }
 
     col

@@ -3,8 +3,9 @@ use nannou::Ui;
 use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
+use shader_shared::{Light, Uniforms, Vertex, MixingInfo};
+use std::path::Path;
 use std::sync::mpsc;
-use shader_shared::{Light, ShaderParams, Uniforms, Vertex, MixingInfo};
 
 mod conf;
 mod gui;
@@ -41,7 +42,7 @@ pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
 
 pub const SPOT_COUNT: usize = 2;
 pub const DMX_ADDRS_PER_SPOT: u8 = 1;
-pub const DMX_ADDRS_PER_WASH: u8 = 4;
+pub const DMX_ADDRS_PER_WASH: u8 = 7;
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
@@ -56,15 +57,13 @@ struct Model {
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
     config: Config,
-    state: State,
-    uniforms: Uniforms,
+    controller: Controller,
     target_slider_values: Vec<f32>,
     target_pot_values: Vec<f32>,
     smoothing_speed: f32,
     wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
     // Starts from top left, one row at a time.
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
-    spot_lights: Box<[f32; layout::SPOT_LIGHT_COUNT]>,
     ui: Ui,
     ids: gui::Ids,
     acid_gradient_ids: gui::AcidGradientIds,
@@ -90,24 +89,6 @@ struct Model {
     colour_palettes_ids: gui::ColourPalettesIds,
 }
 
-pub struct State {
-    osc_addr_textbox_string: String,
-    shader_names: Vec<String>,
-    solid_colour_names: Vec<String>,
-    led_shader_idx_left: Option<usize>,
-    led_shader_idx_right: Option<usize>,
-    led_left_right_mix: f32,
-    led_fade_to_black: f32,
-    wash_fade_to_black: f32,
-    spot_light1_fade_to_black: f32,
-    spot_light2_fade_to_black: f32,
-    lerp_amt: f32,
-    solid_colour_idx: Option<usize>,
-    blend_mode_names: Vec<String>,
-    blend_mode_idx: Option<usize>,
-    shader_params: ShaderParams,
-}
-
 struct Dmx {
     source: Option<sacn::DmxSource>,
     buffer: Vec<u8>,
@@ -116,6 +97,19 @@ struct Dmx {
 pub struct Osc {
     tx: Option<osc::Sender>,
     addr: std::net::SocketAddr,
+}
+
+// The known state of the Korg at any point in time.
+struct Controller {
+    slider1: f32, // BW param 1
+    slider2: f32, // BW param 2
+    slider3: f32, // Colour param 1
+    slider4: f32, // Colour param 2
+    slider5: f32, // Wash param 1
+    slider6: f32, // Wash param 2
+    pot6: f32, // Red / Hue
+    pot7: f32, // Green / Saturation
+    pot8: f32, // Blue / Value
 }
 
 fn main() {
@@ -207,242 +201,11 @@ fn model(app: &App) -> Model {
 
     // Bind an `osc::Sender` and connect it to the target address.
     let tx = None;
-    let addr = "127.0.0.1:8000".parse().unwrap();
+    let addr = conf::default::osc_addr_textbox_string().parse().unwrap();
     let osc = Osc { tx, addr };
-
-    let mut shader_names = Vec::new();
-    shader_names.push("BwGradient".to_string());
-    shader_names.push("EscherTilings".to_string());
-    shader_names.push("JustRelax".to_string());
-    shader_names.push("LineGradient".to_string());
-    shader_names.push("Metafall".to_string());
-    shader_names.push("ParticleZoom".to_string());
-    shader_names.push("RadialLines".to_string());
-    shader_names.push("SquareTunnel".to_string());
-
-    shader_names.push("AcidGradient".to_string());
-    shader_names.push("BlinkyCircles".to_string());
-    shader_names.push("ColourGrid".to_string());
-    shader_names.push("GilmoreAcid".to_string());
-    shader_names.push("LifeLedWall".to_string());
-    shader_names.push("SatisSpiraling".to_string());
-    shader_names.push("SpiralIntersect".to_string());
-    shader_names.push("ThePulse".to_string());
-    shader_names.push("TunnelProjection".to_string());
-    shader_names.push("VertColourGradient".to_string());
-
-    shader_names.push("SolidHsvColour".to_string());
-    shader_names.push("SolidRgbColour".to_string());
-    shader_names.push("ColourPalettes".to_string());
-
-    let mut solid_colour_names = Vec::new();
-    solid_colour_names.push("SolidHsvColour".to_string());
-    solid_colour_names.push("SolidRgbColour".to_string());
-    solid_colour_names.push("ColourPalettes".to_string());
-
-    let mut blend_mode_names = Vec::new();
-    blend_mode_names.push("Add".to_string());
-    blend_mode_names.push("Subtract".to_string());
-    blend_mode_names.push("Multiply".to_string());
-    blend_mode_names.push("Average".to_string());
-    blend_mode_names.push("Difference".to_string());
-    blend_mode_names.push("Negation".to_string());
-    blend_mode_names.push("Exclusion".to_string());
-
-    let acid_gradient = shader_shared::AcidGradient {
-        speed: 0.5125,
-        zoom: 0.0,
-        offset: 0.75,
-    };
-
-    let blinky_circles = shader_shared::BlinkyCircles {
-        speed: 0.5125,
-        zoom: 0.05,
-        offset: 0.25,
-    };
-
-    let bw_gradient = shader_shared::BwGradient {
-        speed: 0.03,
-        dc: 0.05,
-        amp: 0.5,
-        freq: 0.5,
-        mirror: false,
-    };
-
-    let colour_grid = shader_shared::ColourGrid {
-        speed: 0.5,
-        zoom_amount: 0.1,
-    };
-
-    let escher_tilings = shader_shared::EscherTilings {
-        speed: 0.2,
-        scale: 0.20,
-        shape_iter: 0.2,
-    };
-
-    let gilmore_acid = shader_shared::GilmoreAcid {
-        speed: 0.025,
-        displace: 0.01,
-        colour_offset: 0.85,
-        grid_size: 0.345,
-        wave: 0.088,
-        zoom_amount: 0.0,
-        rotation_amount: 0.0,
-        brightness: 1.0,
-        saturation: 0.15,
-    };
-
-    let just_relax = shader_shared::JustRelax {
-        speed: 0.6,
-        shape_offset: 0.728,
-        iter: 1.0,
-    };
-
-    let life_led_wall = shader_shared::LifeLedWall {
-        speed: 0.25,
-        size: 0.73,
-        red: 0.5,
-        green: 0.2,
-        blue: 0.1,
-        saturation: 1.0,
-        colour_offset: 0.01,
-    };
-
-    let line_gradient = shader_shared::LineGradient {
-        speed: 0.03,
-        num_stripes: 1.0,
-        stripe_width: 0.9,
-        angle: 0.5,
-        smooth_width: 0.155,
-    };
-
-    let metafall = shader_shared::Metafall {
-        speed: 0.47,
-        scale: 0.0,
-        red: 1.0,
-        green: 1.0,
-        blue: 1.0,
-    };
-
-    let particle_zoom = shader_shared::ParticleZoom {
-        speed: 0.01,
-        density: 0.01,
-        shape: 0.35,
-        tau: 1.0,
-    };
-
-    let radial_lines = shader_shared::RadialLines {
-        speed: 0.05,
-        zoom_amount: 0.8,
-    };
-
-    let satis_spiraling = shader_shared::SatisSpiraling {
-        speed: 0.5,
-        loops: 0.8,
-        mirror: true,
-        rotate: true,
-    };
-
-    let spiral_intersect = shader_shared::SpiralIntersect {
-        speed: 0.02,
-        g1: 0.4,
-        g2: 0.6,
-        rot1: 1.0,
-        rot2: 0.5,
-        colours: 1.0,
-    };
-
-    let square_tunnel = shader_shared::SquareTunnel {
-        speed: 0.6,
-        rotation_speed: 0.025,
-        rotation_offset: 0.0,
-        zoom: 0.8,
-    };
-
-    let the_pulse = shader_shared::ThePulse {
-        speed: 0.08,
-        scale: 0.1,
-        colour_iter: 0.25,
-        thickness: 0.0,
-    };
-
-    let tunnel_projection = shader_shared::TunnelProjection {
-        speed: 0.5,
-        res: 0.5,
-    };
-
-    let vert_colour_gradient = shader_shared::VertColourGradient {
-        speed: 0.5,
-        scale: 0.83,
-        colour_iter: 0.015,
-        line_amp: 0.0,
-        diag_amp: 0.0,
-        boarder_amp: 0.65,
-    };
-
-    let solid_hsv_colour = shader_shared::SolidHsvColour {
-        hue: 1.0,
-        saturation: 0.0,
-        value: 1.0,
-    };
-
-    let solid_rgb_colour = shader_shared::SolidRgbColour {
-        red: 0.0,
-        green: 0.0,
-        blue: 0.0,
-    };
-
-    let colour_palettes = shader_shared::ColourPalettes {
-        speed: 0.1,
-        interval: 0.05,
-        selected: 0,
-    };
-
-    let shader_params = ShaderParams {
-        acid_gradient,
-        blinky_circles,
-        bw_gradient,
-        colour_grid,
-        escher_tilings,
-        gilmore_acid,
-        just_relax,
-        life_led_wall,
-        line_gradient,
-        metafall,
-        particle_zoom,
-        radial_lines,
-        satis_spiraling,
-        spiral_intersect,
-        square_tunnel,
-        the_pulse,
-        tunnel_projection,
-        vert_colour_gradient,
-        solid_hsv_colour,
-        solid_rgb_colour,
-        colour_palettes,
-    };
-
-    let state = State {
-        osc_addr_textbox_string: format!("{}", osc.addr),
-        shader_names,
-        solid_colour_names,
-        led_shader_idx_left: Some(15),
-        led_shader_idx_right: Some(0),
-        led_left_right_mix: 0.0,
-        led_fade_to_black: 1.0,
-        wash_fade_to_black: 1.0,
-        spot_light1_fade_to_black: 1.0,
-        spot_light2_fade_to_black: 1.0,
-        lerp_amt: 0.5,
-        solid_colour_idx: Some(0),
-        blend_mode_names,
-        blend_mode_idx: Some(0),
-        shader_params,
-    };
 
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
-    let spot_lights = Box::new([1.0; layout::SPOT_LIGHT_COUNT]);
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -465,10 +228,7 @@ fn model(app: &App) -> Model {
         midi_inputs.push(input);
     }
 
-    let uniforms = Uniforms {
-        time: 0.0,
-        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
-        use_midi: true,
+    let controller = Controller {
         slider1: 0.0, // BW param 1
         slider2: 0.0, // BW param 2
         slider3: 0.0, // Colour param 1
@@ -478,7 +238,6 @@ fn model(app: &App) -> Model {
         pot6: 1.0, // Red / Hue
         pot7: 0.0, // Green / Saturation
         pot8: 1.0, // Blue / Value
-        params: state.shader_params.clone(),
     };
 
     Model {
@@ -491,15 +250,13 @@ fn model(app: &App) -> Model {
         midi_rx,
         shader_rx,
         shader,
-        state,
         config,
-        uniforms,
+        controller,
         target_slider_values: vec![0.5; 6], // First 6 Sliders
         target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
         led_colors,
-        spot_lights,
         ui,
         ids,
         acid_gradient_ids,
@@ -529,13 +286,14 @@ fn model(app: &App) -> Model {
 fn update(app: &App, model: &mut Model, update: Update) {
     // Apply the GUI update.
     let ui = model.ui.set_widgets();
+    let assets = app.assets_path().expect("failed to find assets directory");
     gui::update(
         ui,
-        &mut model.state,
         &mut model.config,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
+        &assets,
         &model.ids,
         &model.acid_gradient_ids,
         &model.blinky_circles_ids,
@@ -576,9 +334,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Topdown metres to shader coords.
     let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
 
-     // Update the uniforms.
-    model.uniforms.time = app.time;
-
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
         match event {
@@ -590,17 +345,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::D => model.target_slider_values[3] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::E => model.target_slider_values[4] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::F => model.target_slider_values[5] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::G => model.state.led_left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
+                    korg::Strip::G => model.config.presets.selected_mut().left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
                     korg::Strip::H => model.smoothing_speed = map_range(value as f32 ,0.0,127.0,0.002,0.08),
                 }
             }
             korg::Event::RotarySlider(strip, value) => {
                 match strip {
-                    korg::Strip::A => model.state.led_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::B => model.state.wash_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::C => model.state.spot_light1_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::D => model.state.spot_light2_fade_to_black = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::E => model.state.lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
+                    korg::Strip::A => model.config.fade_to_black.led = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::B => model.config.fade_to_black.wash = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::C => model.config.fade_to_black.spot1 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::D => model.config.fade_to_black.spot2 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                    korg::Strip::E => model.config.presets.selected_mut().wash_lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
                     korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
@@ -610,25 +365,38 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
     }
 
-    model.uniforms.slider1 = model.uniforms.slider1 * (1.0-model.smoothing_speed) + model.target_slider_values[0] * model.smoothing_speed;
-    model.uniforms.slider2 = model.uniforms.slider2 * (1.0-model.smoothing_speed) + model.target_slider_values[1] * model.smoothing_speed;
-    model.uniforms.slider3 = model.uniforms.slider3 * (1.0-model.smoothing_speed) + model.target_slider_values[2] * model.smoothing_speed;
-    model.uniforms.slider4 = model.uniforms.slider4 * (1.0-model.smoothing_speed) + model.target_slider_values[3] * model.smoothing_speed;
-    model.uniforms.slider5 = model.uniforms.slider5 * (1.0-model.smoothing_speed) + model.target_slider_values[4] * model.smoothing_speed;
-    model.uniforms.slider6 = model.uniforms.slider6 * (1.0-model.smoothing_speed) + model.target_slider_values[5] * model.smoothing_speed;
+    model.controller.slider1 = model.controller.slider1 * (1.0-model.smoothing_speed) + model.target_slider_values[0] * model.smoothing_speed;
+    model.controller.slider2 = model.controller.slider2 * (1.0-model.smoothing_speed) + model.target_slider_values[1] * model.smoothing_speed;
+    model.controller.slider3 = model.controller.slider3 * (1.0-model.smoothing_speed) + model.target_slider_values[2] * model.smoothing_speed;
+    model.controller.slider4 = model.controller.slider4 * (1.0-model.smoothing_speed) + model.target_slider_values[3] * model.smoothing_speed;
+    model.controller.slider5 = model.controller.slider5 * (1.0-model.smoothing_speed) + model.target_slider_values[4] * model.smoothing_speed;
+    model.controller.slider6 = model.controller.slider6 * (1.0-model.smoothing_speed) + model.target_slider_values[5] * model.smoothing_speed;
 
-    model.uniforms.pot6 = model.uniforms.pot6 * (1.0-model.smoothing_speed) + model.target_pot_values[0] * model.smoothing_speed;
-    model.uniforms.pot7 = model.uniforms.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
-    model.uniforms.pot8 = model.uniforms.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
-
-    model.uniforms.use_midi = model.config.midi_on;
+    model.controller.pot6 = model.controller.pot6 * (1.0-model.smoothing_speed) + model.target_pot_values[0] * model.smoothing_speed;
+    model.controller.pot7 = model.controller.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
+    model.controller.pot8 = model.controller.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
     // Update dimming control of the 2 house spot lights
-    model.spot_lights[0] = model.state.spot_light1_fade_to_black;
-    model.spot_lights[1] = model.state.spot_light2_fade_to_black;
+    let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
 
-    // Update the shader params
-    model.uniforms.params = model.state.shader_params;
+    // Collect the data that is uniform across all lights that will be passed into the shaders.
+    let shader_params = model.config.presets.list[model.config.presets.selected_preset_idx].shader_params.clone();
+    let uniforms = Uniforms {
+        time: app.time,
+        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
+        use_midi: model.config.midi_on,
+        slider1: model.controller.slider1, // BW param 1
+        slider2: model.controller.slider2, // BW param 2
+        slider3: model.controller.slider3, // Colour param 1
+        slider4: model.controller.slider4, // Colour param 2
+        slider5: model.controller.slider5, // Wash param 1
+        slider6: model.controller.slider6, // Wash param 2
+        pot6: model.controller.pot6, // Red / Hue
+        pot7: model.controller.pot7, // Green / Saturation
+        pot8: model.controller.pot8, // Blue / Value
+        params: shader_params,
+        wash_lerp_amt: model.config.presets.selected().wash_lerp_amt,
+    };
 
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
@@ -636,13 +404,15 @@ fn update(app: &App, model: &mut Model, update: Update) {
     when t = 1, volumes[0] = 1, volumes[1] = 0
     // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
     */
-    let xfade_left = (0.5 * (1.0 + model.state.led_left_right_mix)).sqrt();
-    let xfade_right = (0.5 * (1.0 - model.state.led_left_right_mix)).sqrt();
-    let blend_mode = &model.state.blend_mode_names[model.state.blend_mode_idx.unwrap()];
-    let ftb = model.state.wash_fade_to_black;
-    let left_name = &model.state.shader_names[model.state.led_shader_idx_left.unwrap()];
-    let right_name = &model.state.shader_names[model.state.led_shader_idx_right.unwrap()];
-    let colour_name = &model.state.solid_colour_names[model.state.solid_colour_idx.unwrap()];
+
+    let lr_mix = model.config.presets.selected().left_right_mix;
+    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
+    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
+    let blend_mode = &model.config.blend_mode_names[model.config.presets.selected().blend_mode_idx];
+    let preset = model.config.presets.selected();
+    let left_name = &model.config.shader_names[preset.shader_idx_left];
+    let right_name = &model.config.shader_names[preset.shader_idx_right];
+    let colour_name = &model.config.solid_colour_names[preset.solid_colour_idx];
     let mix_info = MixingInfo {
         left_name: left_name.to_string(),
         right_name: right_name.to_string(),
@@ -657,12 +427,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
         let trg_s = pm_to_ps(trg_m, trg_h);
+        let ftb = model.config.fade_to_black.wash;
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
-        let lerp_amt = model.state.lerp_amt;
-        let vertex = Vertex { position, light, last_color, lerp_amt };
-        model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        let vertex = Vertex { position, light, last_color };
+        model.wash_colors[wash_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Apply the shader for the LEDs.
@@ -677,9 +447,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let light = Light::Led { index, col_row, normalised_coords };
         let last_color = model.led_colors[led_ix];
         let position = ps;
-        let lerp_amt = model.state.lerp_amt;
-        let vertex = Vertex { position, light, last_color, lerp_amt };
-        model.led_colors[led_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        let vertex = Vertex { position, light, last_color };
+        let ftb = model.config.fade_to_black.led;
+        model.led_colors[led_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Ensure we are connected to a DMX source if enabled.
@@ -719,7 +489,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.dmx.buffer.extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
 
         // Collect spot light dimming data.
-        for (spot_ix, dim) in model.spot_lights.iter().enumerate() {
+        for (spot_ix, dim) in spot_lights.iter().enumerate() {
             let dimmer = convert_channel(*dim);
             let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
             let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
@@ -732,8 +502,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Collect wash light color data.
         for (wash_ix, col) in model.wash_colors.iter().enumerate() {
             let [r, g, b] = lin_srgb_f32_to_bytes(col);
-            let amber = 0;
-            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [r, g, b, amber];
+            let intensity = 255; // should this be 255?
+            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
             let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
             let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
             let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
@@ -797,12 +567,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Send Spot light dimmers.
         let addr = "/cohen/spot_light1/";
         let mut args = Vec::new();
-        args.push(osc::Type::Float(model.spot_lights[0]));
+        args.push(osc::Type::Float(spot_lights[0]));
         osc_tx.send((addr, args), &model.osc.addr).ok();
 
         let addr = "/cohen/spot_light2/";
         let mut args = Vec::new();
-        args.push(osc::Type::Float(model.spot_lights[1]));
+        args.push(osc::Type::Float(spot_lights[1]));
         osc_tx.send((addr, args), &model.osc.addr).ok();
     }
 }
@@ -983,10 +753,14 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Re
     }
 }
 
+fn save_config(assets: &Path, config: &Config) {
+    let config_path = conf::path(&assets);
+    save_to_json(config_path, config).expect("failed to save config");
+}
+
 fn exit(app: &App, model: Model) {
     let assets = app
         .assets_path()
         .expect("failed to find project `assets` directory");
-    let config_path = conf::path(&assets);
-    save_to_json(config_path, &model.config).expect("failed to save config");
+    save_config(&assets, &model.config);
 }
