@@ -376,28 +376,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.controller.pot7 = model.controller.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
     model.controller.pot8 = model.controller.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
-    // Update dimming control of the 2 house spot lights
-    let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
-
-    // Collect the data that is uniform across all lights that will be passed into the shaders.
-    let shader_params = model.config.presets.list[model.config.presets.selected_preset_idx].shader_params.clone();
-    let uniforms = Uniforms {
-        time: app.time,
-        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
-        use_midi: model.config.midi_on,
-        slider1: model.controller.slider1, // BW param 1
-        slider2: model.controller.slider2, // BW param 2
-        slider3: model.controller.slider3, // Colour param 1
-        slider4: model.controller.slider4, // Colour param 2
-        slider5: model.controller.slider5, // Wash param 1
-        slider6: model.controller.slider6, // Wash param 2
-        pot6: model.controller.pot6, // Red / Hue
-        pot7: model.controller.pot7, // Green / Saturation
-        pot8: model.controller.pot8, // Blue / Value
-        params: shader_params,
-        wash_lerp_amt: model.config.presets.selected().wash_lerp_amt,
-    };
-
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
     when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
@@ -418,6 +396,26 @@ fn update(app: &App, model: &mut Model, update: Update) {
         xfade_right
     };
 
+    // Collect the data that is uniform across all lights that will be passed into the shaders.
+    let shader_params = preset.shader_params.clone();
+    let uniforms = Uniforms {
+        time: app.time,
+        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
+        use_midi: model.config.midi_on,
+        slider1: model.controller.slider1, // BW param 1
+        slider2: model.controller.slider2, // BW param 2
+        slider3: model.controller.slider3, // Colour param 1
+        slider4: model.controller.slider4, // Colour param 2
+        slider5: model.controller.slider5, // Wash param 1
+        slider6: model.controller.slider6, // Wash param 2
+        pot6: model.controller.pot6, // Red / Hue
+        pot7: model.controller.pot7, // Green / Saturation
+        pot8: model.controller.pot8, // Blue / Value
+        params: shader_params,
+        wash_lerp_amt: preset.wash_lerp_amt,
+        mix: mix_info,
+    };
+
     // Apply the shader for the washes.
     for wash_ix in 0..model.wash_colors.len() {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
@@ -428,7 +426,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
         let vertex = Vertex { position, light, last_color };
-        model.wash_colors[wash_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        model.wash_colors[wash_ix] = shader(vertex, &uniforms) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Apply the shader for the LEDs.
@@ -445,7 +443,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let position = ps;
         let vertex = Vertex { position, light, last_color };
         let ftb = model.config.fade_to_black.led;
-        model.led_colors[led_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        model.led_colors[led_ix] = shader(vertex, &uniforms) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Ensure we are connected to a DMX source if enabled.
@@ -477,6 +475,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let b = convert_channel(lin_srgb.blue);
         [r, g, b]
     }
+
+    // Update dimming control of the 2 house spot lights
+    let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
 
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
