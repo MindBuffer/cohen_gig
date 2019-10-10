@@ -61,9 +61,15 @@ struct Model {
     target_slider_values: Vec<f32>,
     target_pot_values: Vec<f32>,
     smoothing_speed: f32,
+    // Colours output via the shader.
     wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
+    // Shader output with fade-to-black applied.
+    wash_outputs: Box<[LinSrgb; layout::WASH_COUNT]>,
+    // Colours output via the shader.
     // Starts from top left, one row at a time.
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
+    // Shader output with fade-to-black applied.
+    led_outputs: Box<[LinSrgb; layout::LED_COUNT]>,
     ui: Ui,
     ids: gui::Ids,
     acid_gradient_ids: gui::AcidGradientIds,
@@ -205,7 +211,9 @@ fn model(app: &App) -> Model {
     let osc = Osc { tx, addr };
 
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
+    let wash_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
+    let led_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -256,7 +264,9 @@ fn model(app: &App) -> Model {
         target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
+        wash_outputs,
         led_colors,
+        led_outputs,
         ui,
         ids,
         acid_gradient_ids,
@@ -421,12 +431,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
         let trg_s = pm_to_ps(trg_m, trg_h);
-        let ftb = model.config.fade_to_black.wash;
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
         let vertex = Vertex { position, light, last_color };
-        model.wash_colors[wash_ix] = shader(vertex, &uniforms) * lin_srgb(ftb,ftb,ftb);
+        model.wash_colors[wash_ix] = shader(vertex, &uniforms);
     }
 
     // Apply the shader for the LEDs.
@@ -442,8 +451,21 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let last_color = model.led_colors[led_ix];
         let position = ps;
         let vertex = Vertex { position, light, last_color };
-        let ftb = model.config.fade_to_black.led;
-        model.led_colors[led_ix] = shader(vertex, &uniforms) * lin_srgb(ftb,ftb,ftb);
+        model.led_colors[led_ix] = shader(vertex, &uniforms);
+    }
+
+    // Write the colours to the output buffer with the fade applied.
+    let ftb = model.config.fade_to_black.wash;
+    let w_ftb = lin_srgb(ftb, ftb, ftb);
+    for (output, &colour) in model.wash_outputs.iter_mut().zip(model.wash_colors.iter()) {
+        *output = colour * w_ftb;
+    }
+
+    // Write the colours to the output buffer with the fade applied.
+    let ftb = model.config.fade_to_black.led;
+    let l_ftb = lin_srgb(ftb, ftb, ftb);
+    for (output, &colour) in model.led_outputs.iter_mut().zip(model.led_colors.iter()) {
+        *output = colour * l_ftb;
     }
 
     // Ensure we are connected to a DMX source if enabled.
@@ -497,7 +519,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
 
         // Collect wash light color data.
-        for (wash_ix, col) in model.wash_colors.iter().enumerate() {
+        for (wash_ix, col) in model.wash_outputs.iter().enumerate() {
             let [r, g, b] = lin_srgb_f32_to_bytes(col);
             let intensity = 255; // should this be 255?
             let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
@@ -516,7 +538,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Collect and send LED data.
         model.dmx.buffer.clear();
         let mut universe = model.config.led_start_universe;
-        for col in model.led_colors.iter() {
+        for col in model.led_outputs.iter() {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
             // If we've filled a universe, send it.
@@ -535,8 +557,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
     if let Some(ref osc_tx) = model.osc.tx {
         // Send wash lights colors.
         let addr = "/cohen/wash_lights/";
-        let mut args = Vec::with_capacity(model.wash_colors.len() * 4);
-        for col in model.wash_colors.iter() {
+        let mut args = Vec::with_capacity(model.wash_outputs.len() * 4);
+        for col in model.wash_outputs.iter() {
             //let [r, g, b] = lin_srgb_f32_to_bytes(col);
             args.push(osc::Type::Float(col.red as _));
             args.push(osc::Type::Float(col.green as _));
@@ -548,7 +570,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Send LED colors.
         let addr = "/cohen/leds/";
         let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
-        for (metre_ix, metre) in model.led_colors.chunks(layout::LEDS_PER_METRE).enumerate() {
+        for (metre_ix, metre) in model.led_outputs.chunks(layout::LEDS_PER_METRE).enumerate() {
             // TODO: Account for strip IDs etc here.
             args.clear();
             args.push(osc::Type::Int(metre_ix as _));
@@ -608,7 +630,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
         let trg_p = pm_to_pp(trg_m);
         let r_m = 3.0;
         let r = m_to_p(r_m);
-        let color = model.wash_colors[wash_ix];
+        let color = model.wash_outputs[wash_ix];
         let alpha = 0.2;
         let c = nannou::color::Alpha { color, alpha };
         draw.ellipse().xy(trg_p).radius(r).color(c);
@@ -620,7 +642,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
         let src_p = pm_to_pp(src_m);
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
         let trg_p = pm_to_pp(trg_m);
-        let color = model.wash_colors[wash_ix];
+        let color = model.wash_outputs[wash_ix];
         draw.line().color(color).points(src_p, trg_p);
         draw.text(&format!("{}", wash_ix))
             .font_size(16)
@@ -674,7 +696,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
     let pm_to_ps = |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h);
 
     // Draw the LEDs one row at a time.
-    let mut leds = layout::led_positions_metres().zip(model.led_colors.iter());
+    let mut leds = layout::led_positions_metres().zip(model.led_outputs.iter());
     for _ in 0..layout::LED_ROW_COUNT {
         let vs = leds
             .by_ref()
