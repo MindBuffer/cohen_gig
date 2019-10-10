@@ -3,8 +3,9 @@ use nannou::Ui;
 use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
+use shader_shared::{Light, Uniforms, Vertex, MixingInfo};
+use std::path::Path;
 use std::sync::mpsc;
-use shader_shared::{Light, ShaderParams, Uniforms, Vertex, MixingInfo};
 
 mod conf;
 mod gui;
@@ -200,181 +201,8 @@ fn model(app: &App) -> Model {
 
     // Bind an `osc::Sender` and connect it to the target address.
     let tx = None;
-    let addr = "127.0.0.1:8000".parse().unwrap();
+    let addr = conf::default::osc_addr_textbox_string().parse().unwrap();
     let osc = Osc { tx, addr };
-
-    let acid_gradient = shader_shared::AcidGradient {
-        speed: 0.5125,
-        zoom: 0.0,
-        offset: 0.75,
-    };
-
-    let blinky_circles = shader_shared::BlinkyCircles {
-        speed: 0.5125,
-        zoom: 0.05,
-        offset: 0.25,
-    };
-
-    let bw_gradient = shader_shared::BwGradient {
-        speed: 0.03,
-        dc: 0.05,
-        amp: 0.5,
-        freq: 0.5,
-        mirror: false,
-    };
-
-    let colour_grid = shader_shared::ColourGrid {
-        speed: 0.5,
-        zoom_amount: 0.1,
-    };
-
-    let escher_tilings = shader_shared::EscherTilings {
-        speed: 0.2,
-        scale: 0.20,
-        shape_iter: 0.2,
-    };
-
-    let gilmore_acid = shader_shared::GilmoreAcid {
-        speed: 0.025,
-        displace: 0.01,
-        colour_offset: 0.85,
-        grid_size: 0.345,
-        wave: 0.088,
-        zoom_amount: 0.0,
-        rotation_amount: 0.0,
-        brightness: 1.0,
-        saturation: 0.15,
-    };
-
-    let just_relax = shader_shared::JustRelax {
-        speed: 0.6,
-        shape_offset: 0.728,
-        iter: 1.0,
-    };
-
-    let life_led_wall = shader_shared::LifeLedWall {
-        speed: 0.25,
-        size: 0.73,
-        red: 0.5,
-        green: 0.2,
-        blue: 0.1,
-        saturation: 1.0,
-        colour_offset: 0.01,
-    };
-
-    let line_gradient = shader_shared::LineGradient {
-        speed: 0.03,
-        num_stripes: 1.0,
-        stripe_width: 0.9,
-        angle: 0.5,
-        smooth_width: 0.155,
-    };
-
-    let metafall = shader_shared::Metafall {
-        speed: 0.47,
-        scale: 0.0,
-        red: 1.0,
-        green: 1.0,
-        blue: 1.0,
-    };
-
-    let particle_zoom = shader_shared::ParticleZoom {
-        speed: 0.01,
-        density: 0.01,
-        shape: 0.35,
-        tau: 1.0,
-    };
-
-    let radial_lines = shader_shared::RadialLines {
-        speed: 0.05,
-        zoom_amount: 0.8,
-    };
-
-    let satis_spiraling = shader_shared::SatisSpiraling {
-        speed: 0.5,
-        loops: 0.8,
-        mirror: true,
-        rotate: true,
-    };
-
-    let spiral_intersect = shader_shared::SpiralIntersect {
-        speed: 0.02,
-        g1: 0.4,
-        g2: 0.6,
-        rot1: 1.0,
-        rot2: 0.5,
-        colours: 1.0,
-    };
-
-    let square_tunnel = shader_shared::SquareTunnel {
-        speed: 0.6,
-        rotation_speed: 0.025,
-        rotation_offset: 0.0,
-        zoom: 0.8,
-    };
-
-    let the_pulse = shader_shared::ThePulse {
-        speed: 0.08,
-        scale: 0.1,
-        colour_iter: 0.25,
-        thickness: 0.0,
-    };
-
-    let tunnel_projection = shader_shared::TunnelProjection {
-        speed: 0.5,
-        res: 0.5,
-    };
-
-    let vert_colour_gradient = shader_shared::VertColourGradient {
-        speed: 0.5,
-        scale: 0.83,
-        colour_iter: 0.015,
-        line_amp: 0.0,
-        diag_amp: 0.0,
-        boarder_amp: 0.65,
-    };
-
-    let solid_hsv_colour = shader_shared::SolidHsvColour {
-        hue: 1.0,
-        saturation: 0.0,
-        value: 1.0,
-    };
-
-    let solid_rgb_colour = shader_shared::SolidRgbColour {
-        red: 0.0,
-        green: 0.0,
-        blue: 0.0,
-    };
-
-    let colour_palettes = shader_shared::ColourPalettes {
-        speed: 0.1,
-        interval: 0.05,
-        selected: 0,
-    };
-
-    let shader_params = ShaderParams {
-        acid_gradient,
-        blinky_circles,
-        bw_gradient,
-        colour_grid,
-        escher_tilings,
-        gilmore_acid,
-        just_relax,
-        life_led_wall,
-        line_gradient,
-        metafall,
-        particle_zoom,
-        radial_lines,
-        satis_spiraling,
-        spiral_intersect,
-        square_tunnel,
-        the_pulse,
-        tunnel_projection,
-        vert_colour_gradient,
-        solid_hsv_colour,
-        solid_rgb_colour,
-        colour_palettes,
-    };
 
     let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
@@ -422,7 +250,6 @@ fn model(app: &App) -> Model {
         midi_rx,
         shader_rx,
         shader,
-        state,
         config,
         controller,
         target_slider_values: vec![0.5; 6], // First 6 Sliders
@@ -459,12 +286,14 @@ fn model(app: &App) -> Model {
 fn update(app: &App, model: &mut Model, update: Update) {
     // Apply the GUI update.
     let ui = model.ui.set_widgets();
+    let assets = app.assets_path().expect("failed to find assets directory");
     gui::update(
         ui,
         &mut model.config,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
+        &assets,
         &model.ids,
         &model.acid_gradient_ids,
         &model.blinky_circles_ids,
@@ -505,9 +334,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Topdown metres to shader coords.
     let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
 
-     // Update the uniforms.
-    model.uniforms.time = app.time;
-
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
         match event {
@@ -529,7 +355,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     korg::Strip::B => model.config.fade_to_black.wash = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::C => model.config.fade_to_black.spot1 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::D => model.config.fade_to_black.spot2 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::E => model.config.presets.selected_mut().lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
+                    korg::Strip::E => model.config.presets.selected_mut().wash_lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
                     korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
                     korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
@@ -550,15 +376,13 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.controller.pot7 = model.controller.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
     model.controller.pot8 = model.controller.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
 
-    model.uniforms.use_midi = model.config.midi_on;
-
     // Update dimming control of the 2 house spot lights
     let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
-    let shader_params = model.conifg.presets.list[model.config.presets.selected_preset_idx].shader_params.clone();
+    let shader_params = model.config.presets.list[model.config.presets.selected_preset_idx].shader_params.clone();
     let uniforms = Uniforms {
-        time: model.app.time,
+        time: app.time,
         resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
         slider1: model.controller.slider1, // BW param 1
@@ -571,7 +395,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         pot7: model.controller.pot7, // Green / Saturation
         pot8: model.controller.pot8, // Blue / Value
         params: shader_params,
-        wash_lerp_amt: model.config.presets.selected().lerp_amt,
+        wash_lerp_amt: model.config.presets.selected().wash_lerp_amt,
     };
 
     /*
@@ -585,7 +409,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
     let blend_mode = &model.config.blend_mode_names[model.config.presets.selected().blend_mode_idx];
-    let lerp_amt = model.config.presets.selected().lerp_amt;
     let preset = model.config.presets.selected();
     let left_name = &model.config.shader_names[preset.shader_idx_left];
     let right_name = &model.config.shader_names[preset.shader_idx_right];
@@ -609,7 +432,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
         let vertex = Vertex { position, light, last_color };
-        model.wash_colors[wash_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        model.wash_colors[wash_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Apply the shader for the LEDs.
@@ -626,7 +449,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let position = ps;
         let vertex = Vertex { position, light, last_color };
         let ftb = model.config.fade_to_black.led;
-        model.led_colors[led_ix] = shader(vertex, &model.uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
+        model.led_colors[led_ix] = shader(vertex, &uniforms, &mix_info) * lin_srgb(ftb,ftb,ftb);
     }
 
     // Ensure we are connected to a DMX source if enabled.
@@ -930,10 +753,14 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Re
     }
 }
 
+fn save_config(assets: &Path, config: &Config) {
+    let config_path = conf::path(&assets);
+    save_to_json(config_path, config).expect("failed to save config");
+}
+
 fn exit(app: &App, model: Model) {
     let assets = app
         .assets_path()
         .expect("failed to find project `assets` directory");
-    let config_path = conf::path(&assets);
-    save_to_json(config_path, &model.config).expect("failed to save config");
+    save_config(&assets, &model.config);
 }

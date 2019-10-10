@@ -53,7 +53,7 @@ pub struct Presets {
     pub selected_preset_name: String,
     #[serde(default = "default::presets::selected_preset_idx")]
     pub selected_preset_idx: usize,
-    #[serde(default = "default::presets::presets")]
+    #[serde(default = "default::presets::list")]
     pub list: Vec<Preset>,
 }
 
@@ -67,8 +67,8 @@ pub struct Preset {
     pub shader_idx_right: usize,
     #[serde(default = "default::preset::left_right_mix")]
     pub left_right_mix: f32,
-    #[serde(default = "default::preset::lerp_amt")]
-    pub lerp_amt: f32,
+    #[serde(default = "default::preset::wash_lerp_amt")]
+    pub wash_lerp_amt: f32,
     #[serde(default = "default::preset::solid_colour_idx")]
     pub solid_colour_idx: usize,
     #[serde(default = "default::preset::blend_mode_idx")]
@@ -143,7 +143,7 @@ impl Default for Presets {
         Presets {
             selected_preset_name: default::presets::selected_preset_name(),
             selected_preset_idx: default::presets::selected_preset_idx(),
-            presets: default::presets::presets(),
+            list: default::presets::list(),
         }
     }
 }
@@ -155,7 +155,7 @@ impl Default for Preset {
             shader_idx_left: default::preset::shader_idx_left(),
             shader_idx_right: default::preset::shader_idx_right(),
             left_right_mix: default::preset::left_right_mix(),
-            lerp_amt: default::preset::lerp_amt(),
+            wash_lerp_amt: default::preset::wash_lerp_amt(),
             solid_colour_idx: default::preset::solid_colour_idx(),
             blend_mode_idx: default::preset::blend_mode_idx(),
             shader_params: shader_shared::ShaderParams::default(),
@@ -194,8 +194,7 @@ pub mod default {
     }
 
     pub fn osc_addr_textbox_string() -> String {
-        let addr = "127.0.0.1:8000".parse().unwrap();
-        format!("{}", addr)
+        "127.0.0.1:8000".to_string()
     }
 
     pub fn shader_names() -> Vec<String> {
@@ -253,7 +252,7 @@ pub mod default {
         pub fn selected_preset_idx() -> usize {
             0
         }
-        pub fn presets() -> Vec<crate::conf::Preset> {
+        pub fn list() -> Vec<crate::conf::Preset> {
             vec![crate::conf::Preset::default()]
         }
     }
@@ -268,7 +267,7 @@ pub mod default {
         pub fn left_right_mix() -> f32 {
             0.0
         }
-        pub fn lerp_amt() -> f32 {
+        pub fn wash_lerp_amt() -> f32 {
             0.5
         }
         pub fn solid_colour_idx() -> usize {
