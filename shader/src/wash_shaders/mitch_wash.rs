@@ -5,10 +5,13 @@ use crate::helpers::*;
 
 struct Params {
     speed: f32,
+    pulse_speed: f32,
 }
 
 pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let speed = uniforms.params.mitch_wash.speed;
+    let pulse_speed = uniforms.params.mitch_wash.pulse_speed;
+
     let p = v.position;
     let t = uniforms.time * speed;
     let b = (p.z + t).sin() * 0.5 + 0.5;
@@ -18,9 +21,10 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
 
     // Add a burst of light emanating from the led wall down the venue on cycle press.
     if let Some(state) = uniforms.buttons.get(&Button::Cycle) {
-        let env = (1.0 - state.secs).max(0.0).powf(2.0);
+        let s = state.secs * (0.1 + pulse_speed);
+        let env = (1.0 - s).max(0.0).powf(2.0);
         let m = p.magnitude();
-        let dist = (m - state.secs * 4.0).abs();
+        let dist = (m - s * 4.0).abs();
         let l = (1.0 - dist * 2.0).max(0.0);
         let glow = l * env;
         col += vec3(1.0, 1.0, 1.0) * glow;
