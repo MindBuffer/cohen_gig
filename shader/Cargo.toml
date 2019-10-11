@@ -14,3 +14,4 @@ path = "src/lib.rs"
 [dependencies]
 nannou = "0.11"
 shader_shared = { path = "../shader_shared" }
+korg_nano_kontrol_2 = "0.1.1"

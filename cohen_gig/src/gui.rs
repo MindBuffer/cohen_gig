@@ -384,11 +384,25 @@ impl Params for shader_shared::VertColourGradient {
 
 impl Params for shader_shared::MitchWash {
     fn param_count(&self) -> usize {
-        1
+        2
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
             0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "pulse_speed", kind: ParamKindMut::F32 { value: &mut self.pulse_speed, max: 1.0 } },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
+impl Params for shader_shared::ShapeEnvelopes {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
+            1 => ParamMut { name: "pulse_speed", kind: ParamKindMut::F32 { value: &mut self.pulse_speed, max: 1.0 } },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -1096,5 +1110,6 @@ fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
         Shader::SolidRgbColour => &mut params.solid_rgb_colour,
         Shader::ColourPalettes => &mut params.colour_palettes,
         Shader::MitchWash => &mut params.mitch_wash,
+        Shader::ShapeEnvelopes => &mut params.shape_envelopes,
     }
 }

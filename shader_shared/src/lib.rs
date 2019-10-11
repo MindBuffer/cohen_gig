@@ -140,6 +140,8 @@ pub struct ShaderParams {
     pub colour_palettes: ColourPalettes,
     #[serde(default)]
     pub mitch_wash: MitchWash,
+    #[serde(default)]
+    pub shape_envelopes: ShapeEnvelopes,
 }
 
 /// Refers to the selected blend mode type for a preset.
@@ -179,6 +181,7 @@ pub enum Shader {
     TunnelProjection,
     VertColourGradient,
     MitchWash,
+    ShapeEnvelopes,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -410,6 +413,13 @@ pub struct VertColourGradient {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MitchWash {
     pub speed: f32,
+    pub pulse_speed: f32,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShapeEnvelopes {
+    pub speed: f32,
+    pub pulse_speed: f32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -475,6 +485,7 @@ pub const ALL_SHADERS: &'static [Shader] = &[
     Shader::TunnelProjection,
     Shader::VertColourGradient,
     Shader::MitchWash,
+    Shader::ShapeEnvelopes,
 ];
 
 pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
@@ -550,6 +561,7 @@ impl Shader {
             Shader::TunnelProjection => "TunnelProjection",
             Shader::VertColourGradient => "VertColourGradient",
             Shader::MitchWash => "MitchWash",
+            Shader::ShapeEnvelopes => "ShapeEnvelopes",
         }
     }
 
@@ -577,6 +589,7 @@ impl Shader {
             Shader::TunnelProjection => 19,
             Shader::VertColourGradient => 20,
             Shader::MitchWash => 21,
+            Shader::ShapeEnvelopes => 22,
         }
     }
 
@@ -604,6 +617,7 @@ impl Shader {
             19 => Shader::TunnelProjection,
             20 => Shader::VertColourGradient,
             21 => Shader::MitchWash,
+            22 => Shader::ShapeEnvelopes,
             _ => return None,
         };
         Some(shader)
@@ -817,6 +831,16 @@ impl Default for MitchWash {
     fn default() -> Self {
         MitchWash {
             speed: default::mitch_wash::speed(),
+            pulse_speed: default::mitch_wash::pulse_speed(),
+        }
+    }
+}
+
+impl Default for ShapeEnvelopes {
+    fn default() -> Self {
+        ShapeEnvelopes {
+            speed: default::shape_envelopes::speed(),
+            pulse_speed: default::shape_envelopes::pulse_speed(),
         }
     }
 }
@@ -1140,6 +1164,18 @@ pub mod default {
 
     pub mod mitch_wash {
         pub fn speed() -> f32 {
+            1.0
+        }
+        pub fn pulse_speed() -> f32 {
+            1.0
+        }
+    }
+
+    pub mod shape_envelopes {
+        pub fn speed() -> f32 {
+            1.0
+        }
+        pub fn pulse_speed() -> f32 {
             1.0
         }
     }
