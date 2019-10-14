@@ -20,7 +20,7 @@ pub const WASH_COUNT: usize = 28;
 /// The number of uniquely coloured LEDs per metre.
 pub const LEDS_PER_METRE: usize = 144;
 /// The number of metres of LEDs in each row.
-pub const METRES_PER_LED_ROW: usize = 6;
+pub const METRES_PER_LED_ROW: usize = 5;
 /// The number of LEDs per row.
 pub const LEDS_PER_ROW: usize = LEDS_PER_METRE * METRES_PER_LED_ROW;
 /// The gap between individual LEDs in metres.
