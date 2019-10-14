@@ -17,7 +17,7 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let b = (p.z + t).sin() * 0.5 + 0.5;
     let r = (p.x + t * 2.0 * p.x.signum()).cos() * 0.5 + 0.5;
     let g = (p.y + t).cos() * 0.5 + 0.5;
-    let mut col = vec3(b*r*0.5, g*b, b);
+    let mut col = vec3(0.0,0.0,0.0);//vec3(b*r*0.5, g*b, b);
 
     // Add a burst of light emanating from the led wall down the venue on cycle press.
     if let Some(state) = uniforms.buttons.get(&Button::Cycle) {

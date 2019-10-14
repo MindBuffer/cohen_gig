@@ -420,6 +420,8 @@ pub struct MitchWash {
 pub struct ShapeEnvelopes {
     pub speed: f32,
     pub pulse_speed: f32,
+    pub line_thickness: f32,
+    pub shape_thickness: f32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -841,6 +843,8 @@ impl Default for ShapeEnvelopes {
         ShapeEnvelopes {
             speed: default::shape_envelopes::speed(),
             pulse_speed: default::shape_envelopes::pulse_speed(),
+            line_thickness: default::shape_envelopes::line_thickness(),
+            shape_thickness: default::shape_envelopes::shape_thickness(),
         }
     }
 }
@@ -1177,6 +1181,12 @@ pub mod default {
         }
         pub fn pulse_speed() -> f32 {
             1.0
+        }
+        pub fn line_thickness() -> f32 {
+            0.0
+        }
+        pub fn shape_thickness() -> f32 {
+            0.0
         }
     }
 

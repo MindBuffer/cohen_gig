@@ -36,10 +36,10 @@ pub const RIGHT_X: f32 = 1.0;
 pub const FLOOR_Y: f32 = -1.0;
 pub const ROOF_Y: f32 = 1.0;
 
-pub const LED_PPM: f32 = 60.0;
+pub const LED_PPM: f32 = 144.0;
 
-pub const LED_SHADER_RESOLUTION_X: f32 = 864.0;
-pub const LED_SHADER_RESOLUTION_Y: f32 = 600.0;
+pub const LED_SHADER_RESOLUTION_X: f32 = 720.0;
+pub const LED_SHADER_RESOLUTION_Y: f32 = 450.0;
 
 pub const SPOT_COUNT: usize = 2;
 pub const DMX_ADDRS_PER_SPOT: u8 = 1;
@@ -511,7 +511,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
             // If we've filled a universe, send it.
-            if model.dmx.buffer.len() >= DMX_ADDRS_PER_UNIVERSE as usize {
+            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2){
+                // We need to pack in 2 empty bytes so colour values aren't spilit over universes! 
+                model.dmx.buffer.push(0);
+                model.dmx.buffer.push(0);
                 let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
                 dmx_source.send(universe, data).expect("failed to send LED DMX data");
                 model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
@@ -520,6 +523,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
         let data = &model.dmx.buffer;
         dmx_source.send(universe, data).expect("failed to send LED DMX data");
+
     }
 
     // If we have an OSC sender, send data over it!

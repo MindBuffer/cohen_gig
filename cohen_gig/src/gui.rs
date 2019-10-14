@@ -16,7 +16,7 @@ pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const TEXT_BOX_H: Scalar = DEFAULT_WIDGET_H / 1.5;
 pub const PAD: Scalar = 20.0;
 pub const WINDOW_WIDTH: u32 = (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
-pub const WINDOW_HEIGHT: u32 = 720 - (2.0 * PAD) as u32;
+pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
@@ -397,12 +397,14 @@ impl Params for shader_shared::MitchWash {
 
 impl Params for shader_shared::ShapeEnvelopes {
     fn param_count(&self) -> usize {
-        2
+        4
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
             0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
             1 => ParamMut { name: "pulse_speed", kind: ParamKindMut::F32 { value: &mut self.pulse_speed, max: 1.0 } },
+            2 => ParamMut { name: "line_thickness", kind: ParamKindMut::F32 { value: &mut self.line_thickness, max: 1.0 } },
+            3 => ParamMut { name: "shape_thickness", kind: ParamKindMut::F32 { value: &mut self.shape_thickness, max: 1.0 } }, 
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }

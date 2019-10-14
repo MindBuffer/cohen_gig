@@ -7,6 +7,8 @@ use crate::helpers::*;
 struct Params {
     speed: f32,
     pulse_speed: f32,
+    line_thickness: f32,
+    shape_thckness: f32,
 }
 //---------------------------------------------------------
 // draw endless line through point A and B with radius r
@@ -34,8 +36,15 @@ fn haloRing(uv: Vector2, pos: Vector2, radius: f32, thick: f32) -> f32 {
 pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let speed = uniforms.params.shape_envelopes.speed;
     let pulse_speed = uniforms.params.shape_envelopes.pulse_speed;
+    let mut line_thickness = uniforms.params.shape_envelopes.line_thickness;
+    let mut shape_thickness = uniforms.params.shape_envelopes.shape_thickness;
 
     let t = uniforms.time * speed;
+
+    if uniforms.use_midi {
+        line_thickness = uniforms.slider1;  
+        shape_thickness = uniforms.slider2;                               
+    }
 
     let mut uv = match v.light {
         Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
@@ -44,54 +53,54 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
 
     let mut col = vec3(0.0,0.0,0.0);
-    let circle_amp = 10.0;
+    let circle_amp = 2.0;
     let square_amp = 1.0;
 
     //--- HALO RING ---
     let ring_color = vec3(1.0, 1.0, 1.5) * vec3(circle_amp,circle_amp,circle_amp);
-
+    let ring_thickness = 2.0 + (shape_thickness*40.0);
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::A)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, 2.0);
+        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(mix(col.x, ring_color.x, intensity),mix(col.y, ring_color.y, intensity),mix(col.z, ring_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::A)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, 2.0);
+        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(mix(col.x, ring_color.x, intensity),mix(col.y, ring_color.y, intensity),mix(col.z, ring_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::A)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, 2.0);
+        let intensity = haloRing (uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(mix(col.x, ring_color.x, intensity),mix(col.y, ring_color.y, intensity),mix(col.z, ring_color.z, intensity));
     }
 
 
     //--- rounded frame ---
   	let frame_color = vec3(1.0, 1.0, 1.5) * vec3(square_amp,square_amp,square_amp);
-
+    let square_thickness = 0.07 + (shape_thickness*1.7);
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::B)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::B)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::B)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
 
@@ -103,67 +112,112 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::C)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::C)) {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env*2.0, env*2.0);
-        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.008, 0.07);
+        let intensity = roundedFrame (uv2, vec2(0.0,0.0), size, 0.2, square_thickness);
         col += vec3(mix(col.x, frame_color.x, intensity),mix(col.y, frame_color.y, intensity),mix(col.z, frame_color.z, intensity));
     }
 
     
     //--- horizontal line --- 
     let line_color = vec3(1.0, 1.0, 1.7);
+    let line_weight = 0.016 + line_thickness;
     // Line Left
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::D)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let env = s.max(0.0).powf(1.5) - 0.72;
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::D)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let env = s.max(0.0).powf(1.5) - 0.72;
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::D)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let env = s.max(0.0).powf(1.5) - 0.72;
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
 
     // Line Right
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::E)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let mut env = s.max(0.0).powf(1.5) - 0.72;
-        
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
+        env *= -1.0;
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::E)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let mut env = s.max(0.0).powf(1.5) - 0.72;
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
         env *= -1.0;
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
     if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::E)) {
         let s = state.secs * (0.1 + pulse_speed);
-        let mut env = s.max(0.0).powf(1.5) - 0.72;
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,0.8,1.3);
         env *= -1.0;
-        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), 0.016);
+        let intensity = line (uv, vec2(env*2.0, -1.0), vec2(env*2.0,1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+
+
+    // Line Top
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::F)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        env *= -1.0;
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::F)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        env *= -1.0;
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::F)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let mut env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        env *= -1.0;
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+
+    // Line Bottom
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Solo, Strip::G)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Mute, Strip::G)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
+        col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
+    }
+    if let Some(state) = uniforms.buttons.get(&Button::Row(ButtonRow::Record, Strip::G)) {
+        let s = state.secs * (0.1 + pulse_speed);
+        let env = s.max(0.0).powf(1.5) - map_range(line_thickness,0.0,1.0,1.0,1.9);
+        let intensity = line (uv, vec2(-1.0, env*1.0), vec2(1.0,env*1.0), line_weight);
         col += vec3(mix(col.x, line_color.x, intensity),mix(col.y, line_color.y, intensity),mix(col.z, line_color.z, intensity));
     }
 
