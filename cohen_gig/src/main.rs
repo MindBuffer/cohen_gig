@@ -120,8 +120,8 @@ fn model(app: &App) -> Model {
 
     let gui_window = app
         .new_window()
-        .with_title("COHEN GIG - GUI")
-        .with_dimensions(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .title("COHEN GIG - GUI")
+        .size(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
         .key_pressed(key_pressed)
         .view(gui_view)
         .build()
@@ -129,8 +129,8 @@ fn model(app: &App) -> Model {
 
     let led_strip_window = app
         .new_window()
-        .with_title("COHEN GIG - PREVIS")
-        .with_dimensions(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
+        .title("COHEN GIG - PREVIS")
+        .size(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
         .key_pressed(key_pressed)
         .view(led_strip_view)
         .build()
@@ -138,8 +138,8 @@ fn model(app: &App) -> Model {
 
     let topdown_window = app
         .new_window()
-        .with_title("COHEN GIG - TOPDOWN")
-        .with_dimensions(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
+        .title("COHEN GIG - TOPDOWN")
+        .size(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
         .key_pressed(key_pressed)
         .view(topdown_view)
         .build()
@@ -154,15 +154,15 @@ fn model(app: &App) -> Model {
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
-        .set_position(GUI_WINDOW_X, GUI_WINDOW_Y);
+        .set_outer_position_pixels(GUI_WINDOW_X, GUI_WINDOW_Y);
 
     {
         let w = app.window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
-        w.set_position(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
+        w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
         let w = app.window(topdown_window)
             .expect("visualisation window closed unexpectedly");
-        w.set_position(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
+        w.set_outer_position_pixels(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
     let dmx = Dmx {
@@ -569,15 +569,15 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 }
 
-fn gui_view(app: &App, model: &Model, frame: &Frame) {
+fn gui_view(app: &App, model: &Model, frame: Frame) {
     model
         .ui
-        .draw_to_frame(app, frame)
+        .draw_to_frame(app, &frame)
         .expect("failed to draw `Ui` to `Frame`");
 }
 
-fn topdown_view(app: &App, model: &Model, frame: &Frame) {
-    let draw = app.draw_for_window(model.topdown_window).unwrap();
+fn topdown_view(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
     draw.background().color(BLACK);
 
     let w = app.window(model.topdown_window).unwrap().rect();
@@ -652,8 +652,8 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     draw.to_frame(app, &frame).unwrap();
 }
 
-fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
-    let draw = app.draw_for_window(model.led_strip_window).unwrap();
+fn led_strip_view(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
     draw.background().color(BLACK);
 
     let w = app.window(model.led_strip_window).unwrap().rect();
@@ -678,7 +678,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
                 let pp = pm_to_pp(x, h);
                 (pp, c)
             });
-        draw.polyline().weight(5.0).colored_points(vs);
+        draw.polyline().weight(5.0).points_colored(vs);
     }
 
     // Draw the mouse position in shader coords.
@@ -700,7 +700,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
 }
 
 // Draw hotloading status in top-left corner. Flash screen on build completion.
-fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Rect) {
+fn draw_hotload_feedback(app: &App, model: &Model, draw: &Draw, w: geom::Rect) {
     // If we only recently loaded a new shader, flash the screen a little.
     let secs_since_load = model.shader_rx.last_timestamp().elapsed().secs();
     if secs_since_load < 1.0 {

@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 korg_nano_kontrol_2 = "0.1"
-nannou = "0.11"
+nannou = "0.14"
 serde = "1"
