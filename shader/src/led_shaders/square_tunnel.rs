@@ -1,6 +1,5 @@
-use nannou::prelude::*;
-use shader_shared::{Uniforms, Vertex, Light};
-use nannou::math::Matrix2;
+use nannou_core::prelude::*;
+use shader_shared::{Light, Uniforms, Vertex};
 
 use crate::helpers::*;
 
@@ -13,19 +12,23 @@ use crate::helpers::*;
 //     zoom: f32,
 // }
 
-pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.square_tunnel;
 
     if uniforms.use_midi {
         params.rotation_offset = uniforms.slider1;
         params.zoom = uniforms.slider2;
     }
-    
-    let t = uniforms.time * (params.speed*2.0);
+
+    let t = uniforms.time * (params.speed * 2.0);
 
     let mut uv = match v.light {
-        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
-        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
+        Light::Led {
+            index,
+            col_row,
+            normalised_coords,
+        } => normalised_coords,
     };
 
     // let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
@@ -33,8 +36,8 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     // let mut uv = vec2(x,y);
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
 
-    uv *= vec2(params.zoom,params.zoom);
-    
+    uv *= vec2(params.zoom, params.zoom);
+
     let t = params.rotation_speed * (t - (params.rotation_offset * 33.0));
     let mut r = 1.0;
     let mut c;
@@ -44,10 +47,14 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     for i in 0..49 {
         c = t.cos();
         s = t.sin();
-        let mat = Matrix2::new(c, s, -s, c);
+        let mat = Mat2::from_cols(Vec2::new(c, s), Vec2::new(-s, c));
         uv = multiply_mat2_with_vec2(mat, uv);
         r /= c.abs() + s.abs();
-        col = smoothstep(3.0 / uniforms.resolution.y, 0.0, uv.x.abs().max(uv.y.abs()) - r) - col;
+        col = smoothstep(
+            3.0 / uniforms.resolution.y,
+            0.0,
+            uv.x.abs().max(uv.y.abs()) - r,
+        ) - col;
     }
     //lin_srgb(uv.x, uv.y, 1.0)
 

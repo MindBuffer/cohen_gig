@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use shader_shared::{BlendMode, Shader, ShaderParams};
+use std::path::{Path, PathBuf};
 
 /// Runtime configuration parameters.
 ///
@@ -235,4 +235,3 @@ pub mod default {
         }
     }
 }
-

@@ -2,14 +2,15 @@
 name = "cohen_gig"
 version = "0.1.0"
 authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 hotlib = { git = "https://github.com/mitchmindtree/hotlib", branch = "master" }
 libloading = "0.6.2"
-nannou = "0.14"
+nannou = "0.18"
+nannou_conrod = "0.18.0"
 nannou_osc = "0.1"
 sacn = "0.4"
 serde = "1"

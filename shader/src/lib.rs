@@ -1,16 +1,16 @@
 //! The shader function hotloaded at runtime by the cohen_gig crate.
 
-use nannou::prelude::*;
+use nannou_core::prelude::*;
 use shader_shared::{BlendMode, Light, Shader, Uniforms, Vertex};
 
-mod signals;
-mod helpers;
 mod blend_modes;
+mod helpers;
 mod shaders;
+mod signals;
 
+mod colour_palettes;
 mod solid_hsv_colour;
 mod solid_rgb_colour;
-mod colour_palettes;
 
 mod led_shaders;
 
@@ -36,13 +36,13 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     // Apply the blend mode.
     let mut col = match mix.blend_mode {
-        BlendMode::Add => blend_modes::add(left*xfl, right*xfr),
-        BlendMode::Subtract => blend_modes::subtract(left*xfl, right*xfr),
+        BlendMode::Add => blend_modes::add(left * xfl, right * xfr),
+        BlendMode::Subtract => blend_modes::subtract(left * xfl, right * xfr),
         BlendMode::Multiply => blend_modes::multiply(left, right),
-        BlendMode::Average => blend_modes::average(left*xfl, right*xfr),
-        BlendMode::Difference => blend_modes::difference(left*xfl, right*xfr),
-        BlendMode::Negation => blend_modes::negation(left*xfl, right*xfr),
-        BlendMode::Exclusion => blend_modes::exclusion(left*xfl, right*xfr),
+        BlendMode::Average => blend_modes::average(left * xfl, right * xfr),
+        BlendMode::Difference => blend_modes::difference(left * xfl, right * xfr),
+        BlendMode::Negation => blend_modes::negation(left * xfl, right * xfr),
+        BlendMode::Exclusion => blend_modes::exclusion(left * xfl, right * xfr),
     };
 
     // Colourise.

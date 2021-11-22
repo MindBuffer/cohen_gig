@@ -1,5 +1,5 @@
-use nannou::prelude::*;
-use shader_shared::{Uniforms, Vertex, Light};
+use nannou_core::prelude::*;
+use shader_shared::{Light, Uniforms, Vertex};
 
 // struct Params {
 //     red: f32,
@@ -7,8 +7,7 @@ use shader_shared::{Uniforms, Vertex, Light};
 //     blue: f32,
 // }
 
-
-pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.solid_rgb_colour;
 
     if uniforms.use_midi {
@@ -16,6 +15,6 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
         params.green = uniforms.pot7;
         params.blue = uniforms.pot8;
     }
-        
+
     lin_srgb(params.red, params.green, params.blue)
 }

@@ -1,9 +1,11 @@
 use crate::conf::Config;
 use crate::{shader, Osc};
 use nannou::prelude::*;
-use nannou::ui::conrod_core::widget_ids;
-use nannou::ui::prelude::*;
-use nannou::ui::Color;
+
+use nannou_conrod as ui;
+use nannou_conrod::prelude::*;
+use nannou_conrod::Color;
+
 use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::f64::consts::PI;
 use std::net::SocketAddr;
@@ -15,7 +17,8 @@ pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const TEXT_BOX_H: Scalar = DEFAULT_WIDGET_H / 1.5;
 pub const PAD: Scalar = 20.0;
-pub const WINDOW_WIDTH: u32 = (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
+pub const WINDOW_WIDTH: u32 =
+    (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
@@ -96,15 +99,9 @@ struct ParamMut<'a> {
 }
 
 enum ParamKindMut<'a> {
-    F32 {
-        value: &'a mut f32,
-        max: f32,
-    },
+    F32 { value: &'a mut f32, max: f32 },
     Bool(&'a mut bool),
-    Usize {
-        value: &'a mut usize,
-        max: usize,
-    },
+    Usize { value: &'a mut usize, max: usize },
 }
 
 impl Params for shader_shared::AcidGradient {
@@ -113,9 +110,27 @@ impl Params for shader_shared::AcidGradient {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
-            2 => ParamMut { name: "offset", kind: ParamKindMut::F32 { value: &mut self.offset, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "zoom",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.offset,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -127,9 +142,27 @@ impl Params for shader_shared::BlinkyCircles {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
-            2 => ParamMut { name: "offset", kind: ParamKindMut::F32 { value: &mut self.offset, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "zoom",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.offset,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -141,11 +174,38 @@ impl Params for shader_shared::BwGradient {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "dc", kind: ParamKindMut::F32 { value: &mut self.dc, max: 1.0 } },
-            2 => ParamMut { name: "amp", kind: ParamKindMut::F32 { value: &mut self.amp, max: 1.0 } },
-            3 => ParamMut { name: "freq", kind: ParamKindMut::F32 { value: &mut self.freq, max: 1.0 } },
-            4 => ParamMut { name: "mirror", kind: ParamKindMut::Bool(&mut self.mirror) },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "dc",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.dc,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "amp",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.amp,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "freq",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.freq,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "mirror",
+                kind: ParamKindMut::Bool(&mut self.mirror),
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -157,8 +217,20 @@ impl Params for shader_shared::ColourGrid {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "zoom_amount",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom_amount,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -170,9 +242,27 @@ impl Params for shader_shared::EscherTilings {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
-            2 => ParamMut { name: "shape_iter", kind: ParamKindMut::F32 { value: &mut self.shape_iter, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "scale",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.scale,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "shape_iter",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.shape_iter,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -184,15 +274,69 @@ impl Params for shader_shared::GilmoreAcid {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "displace", kind: ParamKindMut::F32 { value: &mut self.displace, max: 1.0 } },
-            2 => ParamMut { name: "colour_offset", kind: ParamKindMut::F32 { value: &mut self.colour_offset, max: 1.0 } },
-            3 => ParamMut { name: "grid_size", kind: ParamKindMut::F32 { value: &mut self.grid_size, max: 1.0 } },
-            4 => ParamMut { name: "wave", kind: ParamKindMut::F32 { value: &mut self.wave, max: 1.0 } },
-            5 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
-            6 => ParamMut { name: "rotation_amount", kind: ParamKindMut::F32 { value: &mut self.rotation_amount, max: 1.0 } },
-            7 => ParamMut { name: "brightness", kind: ParamKindMut::F32 { value: &mut self.brightness, max: 1.0 } },
-            8 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "displace",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.displace,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "colour_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_offset,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "grid_size",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.grid_size,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "wave",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.wave,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "zoom_amount",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom_amount,
+                    max: 1.0,
+                },
+            },
+            6 => ParamMut {
+                name: "rotation_amount",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.rotation_amount,
+                    max: 1.0,
+                },
+            },
+            7 => ParamMut {
+                name: "brightness",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.brightness,
+                    max: 1.0,
+                },
+            },
+            8 => ParamMut {
+                name: "saturation",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.saturation,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -204,9 +348,27 @@ impl Params for shader_shared::JustRelax {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "shape_offset", kind: ParamKindMut::F32 { value: &mut self.shape_offset, max: 1.0 } },
-            2 => ParamMut { name: "iter", kind: ParamKindMut::F32 { value: &mut self.iter, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "shape_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.shape_offset,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "iter",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.iter,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -218,13 +380,55 @@ impl Params for shader_shared::LifeLedWall {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "size", kind: ParamKindMut::F32 { value: &mut self.size, max: 1.0 } },
-            2 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
-            3 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
-            4 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
-            5 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
-            6 => ParamMut { name: "colour_offset", kind: ParamKindMut::F32 { value: &mut self.colour_offset, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "size",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.size,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "red",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.red,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "green",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.green,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "blue",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.blue,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "saturation",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.saturation,
+                    max: 1.0,
+                },
+            },
+            6 => ParamMut {
+                name: "colour_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_offset,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -236,11 +440,41 @@ impl Params for shader_shared::LineGradient {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "num_stripes", kind: ParamKindMut::F32 { value: &mut self.num_stripes, max: 1.0 } },
-            2 => ParamMut { name: "stripe_width", kind: ParamKindMut::F32 { value: &mut self.stripe_width, max: 1.0 } },
-            3 => ParamMut { name: "angle", kind: ParamKindMut::F32 { value: &mut self.angle, max: 1.0 } },
-            4 => ParamMut { name: "smooth_width", kind: ParamKindMut::F32 { value: &mut self.smooth_width, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "num_stripes",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.num_stripes,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "stripe_width",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.stripe_width,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "angle",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.angle,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "smooth_width",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.smooth_width,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -252,11 +486,41 @@ impl Params for shader_shared::Metafall {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
-            2 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
-            3 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
-            4 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "scale",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.scale,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "red",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.red,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "green",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.green,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "blue",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.blue,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -268,10 +532,34 @@ impl Params for shader_shared::ParticleZoom {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "density", kind: ParamKindMut::F32 { value: &mut self.density, max: 1.0 } },
-            2 => ParamMut { name: "shape", kind: ParamKindMut::F32 { value: &mut self.shape, max: 1.0 } },
-            3 => ParamMut { name: "tau", kind: ParamKindMut::F32 { value: &mut self.tau, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "density",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.density,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "shape",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.shape,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "tau",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.tau,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -283,8 +571,20 @@ impl Params for shader_shared::RadialLines {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "zoom_amount", kind: ParamKindMut::F32 { value: &mut self.zoom_amount, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "zoom_amount",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom_amount,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -296,10 +596,28 @@ impl Params for shader_shared::SatisSpiraling {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "loops", kind: ParamKindMut::F32 { value: &mut self.loops, max: 1.0 } },
-            2 => ParamMut { name: "mirror", kind: ParamKindMut::Bool(&mut self.mirror) },
-            3 => ParamMut { name: "rotate", kind: ParamKindMut::Bool(&mut self.rotate) },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "loops",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.loops,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "mirror",
+                kind: ParamKindMut::Bool(&mut self.mirror),
+            },
+            3 => ParamMut {
+                name: "rotate",
+                kind: ParamKindMut::Bool(&mut self.rotate),
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -311,12 +629,48 @@ impl Params for shader_shared::SpiralIntersect {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "g1", kind: ParamKindMut::F32 { value: &mut self.g1, max: 1.0 } },
-            2 => ParamMut { name: "g2", kind: ParamKindMut::F32 { value: &mut self.g2, max: 1.0 } },
-            3 => ParamMut { name: "rot1", kind: ParamKindMut::F32 { value: &mut self.rot1, max: 1.0 } },
-            4 => ParamMut { name: "rot2", kind: ParamKindMut::F32 { value: &mut self.rot2, max: 1.0 } },
-            5 => ParamMut { name: "colours", kind: ParamKindMut::F32 { value: &mut self.colours, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "g1",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.g1,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "g2",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.g2,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "rot1",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.rot1,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "rot2",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.rot2,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "colours",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colours,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -328,10 +682,34 @@ impl Params for shader_shared::SquareTunnel {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "rotation_speed", kind: ParamKindMut::F32 { value: &mut self.rotation_speed, max: 1.0 } },
-            2 => ParamMut { name: "rotation_offset", kind: ParamKindMut::F32 { value: &mut self.rotation_offset, max: 1.0 } },
-            3 => ParamMut { name: "zoom", kind: ParamKindMut::F32 { value: &mut self.zoom, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "rotation_speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.rotation_speed,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "rotation_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.rotation_offset,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "zoom",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.zoom,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -343,10 +721,34 @@ impl Params for shader_shared::ThePulse {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
-            2 => ParamMut { name: "colour_iter", kind: ParamKindMut::F32 { value: &mut self.colour_iter, max: 1.0 } },
-            3 => ParamMut { name: "thickness", kind: ParamKindMut::F32 { value: &mut self.thickness, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "scale",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.scale,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "colour_iter",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_iter,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "thickness",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.thickness,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -358,8 +760,20 @@ impl Params for shader_shared::TunnelProjection {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "res", kind: ParamKindMut::F32 { value: &mut self.res, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "res",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.res,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -371,12 +785,48 @@ impl Params for shader_shared::VertColourGradient {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "scale", kind: ParamKindMut::F32 { value: &mut self.scale, max: 1.0 } },
-            2 => ParamMut { name: "colour_iter", kind: ParamKindMut::F32 { value: &mut self.colour_iter, max: 1.0 } },
-            3 => ParamMut { name: "line_amp", kind: ParamKindMut::F32 { value: &mut self.line_amp, max: 1.0 } },
-            4 => ParamMut { name: "diag_amp", kind: ParamKindMut::F32 { value: &mut self.diag_amp, max: 1.0 } },
-            5 => ParamMut { name: "border_amp", kind: ParamKindMut::F32 { value: &mut self.boarder_amp, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "scale",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.scale,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "colour_iter",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_iter,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "line_amp",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.line_amp,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "diag_amp",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.diag_amp,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "border_amp",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.boarder_amp,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -388,8 +838,20 @@ impl Params for shader_shared::MitchWash {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "pulse_speed", kind: ParamKindMut::F32 { value: &mut self.pulse_speed, max: 1.0 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "pulse_speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.pulse_speed,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -401,10 +863,34 @@ impl Params for shader_shared::ShapeEnvelopes {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "pulse_speed", kind: ParamKindMut::F32 { value: &mut self.pulse_speed, max: 1.0 } },
-            2 => ParamMut { name: "line_thickness", kind: ParamKindMut::F32 { value: &mut self.line_thickness, max: 1.0 } },
-            3 => ParamMut { name: "shape_thickness", kind: ParamKindMut::F32 { value: &mut self.shape_thickness, max: 1.0 } }, 
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "pulse_speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.pulse_speed,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "line_thickness",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.line_thickness,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "shape_thickness",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.shape_thickness,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -416,9 +902,27 @@ impl Params for shader_shared::SolidHsvColour {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "hue", kind: ParamKindMut::F32 { value: &mut self.hue, max: 1.0 } },
-            1 => ParamMut { name: "saturation", kind: ParamKindMut::F32 { value: &mut self.saturation, max: 1.0 } },
-            2 => ParamMut { name: "value", kind: ParamKindMut::F32 { value: &mut self.value, max: 1.0 } },
+            0 => ParamMut {
+                name: "hue",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.hue,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "saturation",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.saturation,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "value",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.value,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -430,9 +934,27 @@ impl Params for shader_shared::SolidRgbColour {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "red", kind: ParamKindMut::F32 { value: &mut self.red, max: 1.0 } },
-            1 => ParamMut { name: "green", kind: ParamKindMut::F32 { value: &mut self.green, max: 1.0 } },
-            2 => ParamMut { name: "blue", kind: ParamKindMut::F32 { value: &mut self.blue, max: 1.0 } },
+            0 => ParamMut {
+                name: "red",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.red,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "green",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.green,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "blue",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.blue,
+                    max: 1.0,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -444,9 +966,27 @@ impl Params for shader_shared::ColourPalettes {
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut {
         match ix {
-            0 => ParamMut { name: "speed", kind: ParamKindMut::F32 { value: &mut self.speed, max: 1.0 } },
-            1 => ParamMut { name: "interval", kind: ParamKindMut::F32 { value: &mut self.interval, max: 1.0 } },
-            2 => ParamMut { name: "selected", kind: ParamKindMut::Usize { value: &mut self.selected, max: 9 } },
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.speed,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "interval",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.interval,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "selected",
+                kind: ParamKindMut::Usize {
+                    value: &mut self.selected,
+                    max: 9,
+                },
+            },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
     }
@@ -533,12 +1073,10 @@ pub fn update(
         .set(ids.osc_address_text, ui);
 
     let color = match config.osc_addr_textbox_string.parse::<SocketAddr>() {
-        Ok(socket) => {
-            match osc.addr == socket {
-                true => color::BLACK,
-                false => color::DARK_GREEN.with_luminance(0.1),
-            }
-        }
+        Ok(socket) => match osc.addr == socket {
+            true => color::BLACK,
+            false => color::DARK_GREEN.with_luminance(0.1),
+        },
         Err(_) => color::DARK_RED.with_luminance(0.1),
     };
     for event in widget::TextBox::new(&config.osc_addr_textbox_string)
@@ -555,7 +1093,7 @@ pub fn update(
                 if let Ok(socket) = config.osc_addr_textbox_string.parse() {
                     osc.addr = socket;
                 }
-            },
+            }
         }
     }
 
@@ -570,19 +1108,19 @@ pub fn update(
             let l = (since_start.secs() * 2.0 * PI).sin() * 0.35 + 0.5;
             let c = ui::color::YELLOW.with_luminance(l as _);
             (s, c)
-        },
+        }
         shader::Activity::LastIncoming(last) => match last {
             shader::LastIncoming::Succeeded => {
                 let s = "Succeeded".into();
                 let c = ui::color::GREEN;
                 (s, c)
-            },
+            }
             shader::LastIncoming::Failed(_err) => {
                 let s = format!("Compilation Failed");
                 let c = ui::color::RED;
                 (s, c)
-            },
-        }
+            }
+        },
     };
     text(&string)
         .color(color)
@@ -673,7 +1211,9 @@ pub fn update(
         }
     }
 
-    if let Some(s) = scrollbar { s.set(ui) }
+    if let Some(s) = scrollbar {
+        s.set(ui)
+    }
 
     set_presets_widgets(ui, &ids, config, &assets);
 
@@ -687,7 +1227,10 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
-    let shader_names: Vec<_> = shader_shared::ALL_SHADERS.iter().map(|s| s.name()).collect();
+    let shader_names: Vec<_> = shader_shared::ALL_SHADERS
+        .iter()
+        .map(|s| s.name())
+        .collect();
     let shader_idx = preset.shader_left.to_index();
 
     for selected_idx in widget::DropDownList::new(&shader_names, Some(shader_idx))
@@ -718,7 +1261,10 @@ pub fn update(
         .color(color::WHITE)
         .set(ids.colour_post_process_text, ui);
 
-    let colour_names: Vec<_> = shader_shared::SOLID_COLOUR_SHADERS.iter().map(|s| s.name()).collect();
+    let colour_names: Vec<_> = shader_shared::SOLID_COLOUR_SHADERS
+        .iter()
+        .map(|s| s.name())
+        .collect();
     let colourise_idx = preset.colourise.to_index();
 
     for selected_idx in widget::DropDownList::new(&colour_names, Some(colourise_idx))
@@ -854,7 +1400,10 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
         .color(BUTTON_COLOR)
         .set(ids.presets_delete_button, ui)
     {
-        config.presets.list.remove(config.presets.selected_preset_idx);
+        config
+            .presets
+            .list
+            .remove(config.presets.selected_preset_idx);
 
         // Ensure there's always at least one preset.
         if config.presets.list.is_empty() {
@@ -910,13 +1459,13 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
         .font_size(14)
         .set(ids.presets_text_box, ui)
     {
-        use nannou::ui::widget::text_box::Event;
+        use nannou_conrod::widget::text_box::Event;
         match event {
             Event::Update(text) => config.presets.selected_preset_name = text,
             Event::Enter => {
                 config.presets.selected_mut().name = config.presets.selected_preset_name.clone();
                 super::save_config(&assets, config);
-            },
+            }
         }
     }
 
@@ -935,13 +1484,13 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
 
     // Handle the `ListSelect`s events.
     while let Some(event) = events.next(ui, |i| i == config.presets.selected_preset_idx) {
-        use nannou::ui::widget::list_select::Event;
+        use nannou_conrod::widget::list_select::Event;
         match event {
             // For the `Item` events we instantiate the `List`'s items.
             Event::Item(item) => {
                 let label = &names[item.i];
                 let (color, label_color) = if item.i == config.presets.selected_preset_idx {
-                    (PRESET_LIST_SELECTED_COLOR, nannou::ui::color::BLACK)
+                    (PRESET_LIST_SELECTED_COLOR, nannou_conrod::color::BLACK)
                 } else {
                     (PRESET_LIST_COLOR, TEXT_COLOR)
                 };
@@ -984,15 +1533,12 @@ fn set_shader_widgets(
         match kind {
             ParamKindMut::F32 { value, max } => {
                 if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders.resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                    ids.shader_sliders
+                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
                 }
                 let id = ids.shader_sliders[*slider_ix];
 
-                for v in slider(*value, 0.0, max)
-                    .down(10.0)
-                    .label(name)
-                    .set(id, ui)
-                {
+                for v in slider(*value, 0.0, max).down(10.0).label(name).set(id, ui) {
                     *value = v;
                 }
 
@@ -1001,7 +1547,8 @@ fn set_shader_widgets(
 
             ParamKindMut::Usize { value, max } => {
                 if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders.resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                    ids.shader_sliders
+                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
                 }
                 let id = ids.shader_sliders[*slider_ix];
 
@@ -1018,7 +1565,8 @@ fn set_shader_widgets(
 
             ParamKindMut::Bool(value) => {
                 if ids.shader_buttons.len() <= *button_ix {
-                    ids.shader_buttons.resize(*button_ix + 1, &mut ui.widget_id_generator());
+                    ids.shader_buttons
+                        .resize(*button_ix + 1, &mut ui.widget_id_generator());
                 }
                 let id = ids.shader_buttons[*button_ix];
 

@@ -1,5 +1,5 @@
-use nannou::prelude::*;
-use shader_shared::{Uniforms, Vertex, Light};
+use nannou_core::prelude::*;
+use shader_shared::{Light, Uniforms, Vertex};
 
 use crate::helpers::*;
 use crate::signals::*;
@@ -21,7 +21,7 @@ use crate::signals::*;
 //     zoom_amount: f32,
 // }
 
-pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.colour_grid;
 
     if uniforms.use_midi {
@@ -30,26 +30,41 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     let t = uniforms.time * params.speed;
 
     let uv = match v.light {
-        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
-        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
+        Light::Led {
+            index,
+            col_row,
+            normalised_coords,
+        } => normalised_coords,
     };
-    
+
     let x = map_range(uv.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(uv.y, -1.0, 1.0, 0.0, 1.0);
-    let mut uv = vec2(x,y) * uniforms.resolution;
-    uv *= (params.zoom_amount*100.0) / uniforms.resolution.y;
+    let mut uv = vec2(x, y) * uniforms.resolution;
+    uv *= (params.zoom_amount * 100.0) / uniforms.resolution.y;
     let px = uv;
-    let id = 0.5 + 0.5 * (t + (vec2((px.x+0.5).floor(), (px.y+0.5).floor()).dot(vec2(113.1, 17.81)).sin())*43758.545).cos() * uniforms.slider4;
-    
+    let id = 0.5
+        + 0.5
+            * (t + (vec2((px.x + 0.5).floor(), (px.y + 0.5).floor())
+                .dot(vec2(113.1, 17.81))
+                .sin())
+                * 43758.545)
+                .cos()
+            * uniforms.slider4;
+
     let signal_type = Signal::SINE;
-    let co = vec3(0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 0.0),
-                0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 1.57),
-                0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 3.14)); 
+    let co = vec3(
+        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 0.0),
+        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 1.57),
+        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 3.14),
+    );
 
-    let pa = vec2(id*(0.5+0.5*(TWO_PI*px.x).cos()),
-                id*(0.5+0.5*(TWO_PI*px.y).cos()));
+    let pa = vec2(
+        id * (0.5 + 0.5 * (TWO_PI * px.x).cos()),
+        id * (0.5 + 0.5 * (TWO_PI * px.y).cos()),
+    );
 
-    let c = vec3(co.x*pa.x*pa.y, co.y*pa.x*pa.y, co.z*pa.x*pa.y);
+    let c = vec3(co.x * pa.x * pa.y, co.y * pa.x * pa.y, co.z * pa.x * pa.y);
 
     lin_srgb(c.x, c.y, c.z)
 }

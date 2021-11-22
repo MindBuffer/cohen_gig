@@ -2,9 +2,10 @@
 name = "shader_shared"
 version = "0.1.0"
 authors = ["mitchmindtree <mitchell.nordine@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 korg_nano_kontrol_2 = "0.1"
-nannou = "0.14"
-serde = "1"
+nannou_core = "0.18"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
