@@ -1,9 +1,10 @@
-use nannou::prelude::*;
-use nannou::Ui;
-use nannou_osc as osc;
 use korg_nano_kontrol_2 as korg;
 use midir;
-use shader_shared::{Light, Uniforms, Vertex, MixingInfo};
+use nannou::prelude::*;
+use nannou_conrod as ui;
+use nannou_conrod::Ui;
+use nannou_osc as osc;
+use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc;
@@ -98,9 +99,9 @@ struct Controller {
     slider4: f32, // Colour param 2
     slider5: f32, // Wash param 1
     slider6: f32, // Wash param 2
-    pot6: f32, // Red / Hue
-    pot7: f32, // Green / Saturation
-    pot8: f32, // Blue / Value
+    pot6: f32,    // Red / Hue
+    pot7: f32,    // Green / Saturation
+    pot8: f32,    // Blue / Value
     buttons: HashMap<shader_shared::Button, ButtonState>,
 }
 
@@ -120,8 +121,9 @@ fn model(app: &App) -> Model {
 
     let gui_window = app
         .new_window()
-        .with_title("COHEN GIG - GUI")
-        .with_dimensions(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .title("COHEN GIG - GUI")
+        .size(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .raw_event(raw_window_event)
         .key_pressed(key_pressed)
         .view(gui_view)
         .build()
@@ -129,8 +131,8 @@ fn model(app: &App) -> Model {
 
     let led_strip_window = app
         .new_window()
-        .with_title("COHEN GIG - PREVIS")
-        .with_dimensions(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
+        .title("COHEN GIG - PREVIS")
+        .size(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
         .key_pressed(key_pressed)
         .view(led_strip_view)
         .build()
@@ -138,15 +140,14 @@ fn model(app: &App) -> Model {
 
     let topdown_window = app
         .new_window()
-        .with_title("COHEN GIG - TOPDOWN")
-        .with_dimensions(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
+        .title("COHEN GIG - TOPDOWN")
+        .size(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
         .key_pressed(key_pressed)
         .view(topdown_view)
         .build()
         .unwrap();
 
-    let mut ui = app
-        .new_ui()
+    let mut ui = ui::builder(app)
         .window(gui_window)
         .build()
         .expect("failed to build `Ui` for GUI window");
@@ -154,15 +155,17 @@ fn model(app: &App) -> Model {
 
     app.window(gui_window)
         .expect("GUI window closed unexpectedly")
-        .set_position(GUI_WINDOW_X, GUI_WINDOW_Y);
+        .set_outer_position_pixels(GUI_WINDOW_X, GUI_WINDOW_Y);
 
     {
-        let w = app.window(led_strip_window)
+        let w = app
+            .window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
-        w.set_position(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
-        let w = app.window(topdown_window)
+        w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
+        let w = app
+            .window(topdown_window)
             .expect("visualisation window closed unexpectedly");
-        w.set_position(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
+        w.set_outer_position_pixels(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
     let dmx = Dmx {
@@ -196,11 +199,18 @@ fn model(app: &App) -> Model {
         let name = midi_in.port_name(i).unwrap();
         let midi_tx = midi_tx.clone();
         let midi_in = midir::MidiInput::new(&name).unwrap();
-        let input = midi_in.connect(i, "nanoKONTROL2 SLIDER/KNOB", move |_stamp, msg, _| {
-            if let Some(event) = korg::Event::from_midi(msg) {
-                midi_tx.send(event).unwrap();
-            }
-        }, ()).unwrap();
+        let input = midi_in
+            .connect(
+                i,
+                "nanoKONTROL2 SLIDER/KNOB",
+                move |_stamp, msg, _| {
+                    if let Some(event) = korg::Event::from_midi(msg) {
+                        midi_tx.send(event).unwrap();
+                    }
+                },
+                (),
+            )
+            .unwrap();
         midi_inputs.push(input);
     }
 
@@ -211,9 +221,9 @@ fn model(app: &App) -> Model {
         slider4: 0.0, // Colour param 2
         slider5: 0.0, // Wash param 1
         slider6: 0.0, // Wash param 2
-        pot6: 1.0, // Red / Hue
-        pot7: 0.0, // Green / Saturation
-        pot8: 1.0, // Blue / Value
+        pot6: 1.0,    // Red / Hue
+        pot7: 0.0,    // Green / Saturation
+        pot8: 1.0,    // Blue / Value
         buttons: Default::default(),
     };
 
@@ -229,7 +239,7 @@ fn model(app: &App) -> Model {
         shader,
         config,
         controller,
-        target_slider_values: vec![0.5; 6], // First 6 Sliders
+        target_slider_values: vec![0.5; 6],     // First 6 Sliders
         target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
@@ -241,13 +251,17 @@ fn model(app: &App) -> Model {
     }
 }
 
+fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
+    model.ui.handle_raw_event(app, event);
+}
+
 fn key_pressed(app: &App, model: &mut Model, key: Key) {
     match key {
         Key::Space => {
             let button = shader_shared::Button::Cycle;
             update_korg_button(&mut model.controller, button, korg::State::On);
         }
-        _ => ()
+        _ => (),
     }
 }
 
@@ -284,30 +298,60 @@ fn update(app: &App, model: &mut Model, update: Update) {
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
         match event {
-            korg::Event::VerticalSlider(strip, value) => {
-                match strip {
-                    korg::Strip::A => model.target_slider_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::B => model.target_slider_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::C => model.target_slider_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::D => model.target_slider_values[3] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::E => model.target_slider_values[4] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::F => model.target_slider_values[5] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::G => model.config.presets.selected_mut().left_right_mix = map_range(value as f32 ,0.0,127.0,-1.0,1.0),
-                    korg::Strip::H => model.smoothing_speed = map_range(value as f32 ,0.0,127.0,0.002,0.08),
+            korg::Event::VerticalSlider(strip, value) => match strip {
+                korg::Strip::A => {
+                    model.target_slider_values[0] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
-            }
-            korg::Event::RotarySlider(strip, value) => {
-                match strip {
-                    korg::Strip::A => model.config.fade_to_black.led = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::B => model.config.fade_to_black.wash = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::C => model.config.fade_to_black.spot1 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::D => model.config.fade_to_black.spot2 = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::E => model.config.presets.selected_mut().wash_lerp_amt = map_range(value as f32, 0.0, 127.0, 0.0, 1.0),
-                    korg::Strip::F => model.target_pot_values[0] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::G => model.target_pot_values[1] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
-                    korg::Strip::H => model.target_pot_values[2] = map_range(value as f32 ,0.0,127.0,0.0,1.0),
+                korg::Strip::B => {
+                    model.target_slider_values[1] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
-            }
+                korg::Strip::C => {
+                    model.target_slider_values[2] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::D => {
+                    model.target_slider_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::E => {
+                    model.target_slider_values[4] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::F => {
+                    model.target_slider_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::G => {
+                    model.config.presets.selected_mut().left_right_mix =
+                        map_range(value as f32, 0.0, 127.0, -1.0, 1.0)
+                }
+                korg::Strip::H => {
+                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
+                }
+            },
+            korg::Event::RotarySlider(strip, value) => match strip {
+                korg::Strip::A => {
+                    model.config.fade_to_black.led = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::B => {
+                    model.config.fade_to_black.wash = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::C => {
+                    model.config.fade_to_black.spot1 = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::D => {
+                    model.config.fade_to_black.spot2 = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::E => {
+                    model.config.presets.selected_mut().wash_lerp_amt =
+                        map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::F => {
+                    model.target_pot_values[0] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::G => {
+                    model.target_pot_values[1] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::H => {
+                    model.target_pot_values[2] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+            },
 
             // Updates for button events.
             korg::Event::Button(row, strip, state) => {
@@ -333,16 +377,25 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
     }
 
-    model.controller.slider1 = model.controller.slider1 * (1.0-model.smoothing_speed) + model.target_slider_values[0] * model.smoothing_speed;
-    model.controller.slider2 = model.controller.slider2 * (1.0-model.smoothing_speed) + model.target_slider_values[1] * model.smoothing_speed;
-    model.controller.slider3 = model.controller.slider3 * (1.0-model.smoothing_speed) + model.target_slider_values[2] * model.smoothing_speed;
-    model.controller.slider4 = model.controller.slider4 * (1.0-model.smoothing_speed) + model.target_slider_values[3] * model.smoothing_speed;
-    model.controller.slider5 = model.controller.slider5 * (1.0-model.smoothing_speed) + model.target_slider_values[4] * model.smoothing_speed;
-    model.controller.slider6 = model.controller.slider6 * (1.0-model.smoothing_speed) + model.target_slider_values[5] * model.smoothing_speed;
+    model.controller.slider1 = model.controller.slider1 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[0] * model.smoothing_speed;
+    model.controller.slider2 = model.controller.slider2 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[1] * model.smoothing_speed;
+    model.controller.slider3 = model.controller.slider3 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[2] * model.smoothing_speed;
+    model.controller.slider4 = model.controller.slider4 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[3] * model.smoothing_speed;
+    model.controller.slider5 = model.controller.slider5 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[4] * model.smoothing_speed;
+    model.controller.slider6 = model.controller.slider6 * (1.0 - model.smoothing_speed)
+        + model.target_slider_values[5] * model.smoothing_speed;
 
-    model.controller.pot6 = model.controller.pot6 * (1.0-model.smoothing_speed) + model.target_pot_values[0] * model.smoothing_speed;
-    model.controller.pot7 = model.controller.pot7 * (1.0-model.smoothing_speed) + model.target_pot_values[1] * model.smoothing_speed;
-    model.controller.pot8 = model.controller.pot8 * (1.0-model.smoothing_speed) + model.target_pot_values[2] * model.smoothing_speed;
+    model.controller.pot6 = model.controller.pot6 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[0] * model.smoothing_speed;
+    model.controller.pot7 = model.controller.pot7 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[1] * model.smoothing_speed;
+    model.controller.pot8 = model.controller.pot8 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[2] * model.smoothing_speed;
 
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
@@ -361,12 +414,13 @@ fn update(app: &App, model: &mut Model, update: Update) {
         colourise: preset.colourise,
         blend_mode: preset.blend_mode,
         xfade_left,
-        xfade_right
+        xfade_right,
     };
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();
-    let buttons = model.controller
+    let buttons = model
+        .controller
         .buttons
         .iter()
         .map(|(&b, b_state)| {
@@ -378,7 +432,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         .collect();
     let uniforms = Uniforms {
         time: app.time,
-        resolution: vec2(LED_SHADER_RESOLUTION_X,LED_SHADER_RESOLUTION_Y),
+        resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
         slider1: model.controller.slider1, // BW param 1
         slider2: model.controller.slider2, // BW param 2
@@ -386,9 +440,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
         slider4: model.controller.slider4, // Colour param 2
         slider5: model.controller.slider5, // Wash param 1
         slider6: model.controller.slider6, // Wash param 2
-        pot6: model.controller.pot6, // Red / Hue
-        pot7: model.controller.pot7, // Green / Saturation
-        pot8: model.controller.pot8, // Blue / Value
+        pot6: model.controller.pot6,       // Red / Hue
+        pot7: model.controller.pot7,       // Green / Saturation
+        pot8: model.controller.pot8,       // Blue / Value
         params: shader_params,
         wash_lerp_amt: preset.wash_lerp_amt,
         mix: mix_info,
@@ -403,23 +457,35 @@ fn update(app: &App, model: &mut Model, update: Update) {
         let light = Light::Wash { index: wash_ix };
         let last_color = model.wash_colors[wash_ix];
         let position = trg_s;
-        let vertex = Vertex { position, light, last_color };
+        let vertex = Vertex {
+            position,
+            light,
+            last_color,
+        };
         model.wash_colors[wash_ix] = shader(vertex, &uniforms);
     }
 
     // Apply the shader for the LEDs.
     for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
-        let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES.y), h);
+        let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES[1]), h);
         let index = led_ix;
         let col = led_ix % layout::LEDS_PER_ROW;
         let col_row = [col, row];
         let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
         let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
         let normalised_coords = vec2(n_x, n_y);
-        let light = Light::Led { index, col_row, normalised_coords };
+        let light = Light::Led {
+            index,
+            col_row,
+            normalised_coords,
+        };
         let last_color = model.led_colors[led_ix];
         let position = ps;
-        let vertex = Vertex { position, light, last_color };
+        let vertex = Vertex {
+            position,
+            light,
+            last_color,
+        };
         model.led_colors[led_ix] = shader(vertex, &uniforms);
     }
 
@@ -439,8 +505,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on && model.dmx.source.is_none() {
-        let source = sacn::DmxSource::new("Cohen Pre-vis")
-            .expect("failed to connect to DMX source");
+        let source =
+            sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
     } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
@@ -448,8 +514,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to an OSC source if enabled.
     if model.config.osc_on && model.osc.tx.is_none() {
-        let tx = osc::sender()
-            .expect("failed to create OSC sender");
+        let tx = osc::sender().expect("failed to create OSC sender");
         model.osc.tx = Some(tx);
     } else if !model.config.osc_on && model.osc.tx.is_some() {
         model.osc.tx.take();
@@ -468,13 +533,19 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // Update dimming control of the 2 house spot lights
-    let spot_lights = [model.config.fade_to_black.spot1, model.config.fade_to_black.spot2];
+    let spot_lights = [
+        model.config.fade_to_black.spot1,
+        model.config.fade_to_black.spot2,
+    ];
 
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
         // First, send data to spotlights and washes on universe 1.
         model.dmx.buffer.clear();
-        model.dmx.buffer.extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
+        model
+            .dmx
+            .buffer
+            .extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
 
         // Collect spot light dimming data.
         for (spot_ix, dim) in spot_lights.iter().enumerate() {
@@ -511,19 +582,22 @@ fn update(app: &App, model: &mut Model, update: Update) {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
             // If we've filled a universe, send it.
-            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2){
-                // We need to pack in 2 empty bytes so colour values aren't spilit over universes! 
+            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+                // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
                 model.dmx.buffer.push(0);
                 model.dmx.buffer.push(0);
                 let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
-                dmx_source.send(universe, data).expect("failed to send LED DMX data");
+                dmx_source
+                    .send(universe, data)
+                    .expect("failed to send LED DMX data");
                 model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
                 universe += 1;
             }
         }
         let data = &model.dmx.buffer;
-        dmx_source.send(universe, data).expect("failed to send LED DMX data");
-
+        dmx_source
+            .send(universe, data)
+            .expect("failed to send LED DMX data");
     }
 
     // If we have an OSC sender, send data over it!
@@ -569,15 +643,23 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 }
 
-fn gui_view(app: &App, model: &Model, frame: &Frame) {
+fn gui_view(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
+    draw.background().color(GREEN);
+    draw.ellipse()
+        .x_y(app.mouse.x, app.mouse.y)
+        .radius(20.0)
+        .color(RED);
+    draw.to_frame(app, &frame).unwrap();
+
     model
         .ui
-        .draw_to_frame(app, frame)
+        .draw_to_frame(app, &frame)
         .expect("failed to draw `Ui` to `Frame`");
 }
 
-fn topdown_view(app: &App, model: &Model, frame: &Frame) {
-    let draw = app.draw_for_window(model.topdown_window).unwrap();
+fn topdown_view(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
     draw.background().color(BLACK);
 
     let w = app.window(model.topdown_window).unwrap().rect();
@@ -587,11 +669,12 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
 
     let m_to_p = |m| m * metres_to_points_scale;
     let p_to_m = |p| p / metres_to_points_scale;
-    let pm_to_pp = |pm: Point2| pt2(m_to_p(pm.x), m_to_p(pm.y));
-    let pp_to_pm = |pp: Point2| pt2(p_to_m(pp.x), p_to_m(pp.y));
+    let pm_to_pp = |pm: [f32; 2]| pt2(m_to_p(pm[0]), m_to_p(pm[1]));
+    let pp_to_pm = |pp: [f32; 2]| pt2(p_to_m(pp[0]), p_to_m(pp[1]));
 
     // Topdown metres <-> shader coords.
-    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
+    let pm_to_ps =
+        |pm: [f32; 2], h: f32| layout::topdown_metres_to_shader_coords(Vec2::from_slice(&pm), h);
 
     // Draw the walls.
     let ps = layout::WALL_METRES.iter().cloned().map(pm_to_pp);
@@ -600,7 +683,7 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     // Draw the wash target ellipses.
     for wash_ix in 0..layout::WASH_COUNT {
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m);
+        let trg_p = pm_to_pp(trg_m.to_array());
         let r_m = 3.0;
         let r = m_to_p(r_m);
         let color = model.wash_outputs[wash_ix];
@@ -612,34 +695,35 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     // Draw the wash source indices.
     for wash_ix in 0..layout::WASH_COUNT {
         let src_m = layout::wash_index_to_topdown_source_position_metres(wash_ix);
-        let src_p = pm_to_pp(src_m);
+        let src_p = pm_to_pp(src_m.to_array());
         let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m);
+        let trg_p = pm_to_pp(trg_m.to_array());
         let color = model.wash_outputs[wash_ix];
         draw.line().color(color).points(src_p, trg_p);
-        draw.text(&format!("{}", wash_ix))
-            .font_size(16)
-            .xy(src_p);
+        draw.text(&format!("{}", wash_ix)).font_size(16).xy(src_p);
     }
 
     // Draw blackness outside the walls as an adhoc crop.
-    let crop_p = layout::WALL_METRES[0] - pt2(0.0, 20.0);
+    let crop_p = Vec2::from_slice(&layout::WALL_METRES[0]) - pt2(0.0, 20.0);
     let crop_bl = crop_p - pt2(20.0, 0.0);
     let crop_tl = crop_bl + pt2(0.0, 50.0);
     let crop_tr = crop_tl + pt2(50.0, 0.0);
     let crop_br = crop_tr - pt2(0.0, 50.0);
     let crop = [crop_p, crop_bl, crop_tl, crop_tr, crop_br, crop_p];
-    let crop_points = layout::WALL_METRES.iter().cloned()
-        .chain(Some(layout::WALL_METRES[0]))
+    let crop_points = layout::WALL_METRES
+        .iter()
+        .cloned()
+        .map(|p| Vec2::from_slice(&p))
+        .chain(Some(Vec2::from_slice(&layout::WALL_METRES[0])))
         .chain(crop.iter().cloned())
-        .map(pm_to_pp);
+        .map(|p| pm_to_pp(p.to_array()));
     draw.polygon().points(crop_points).color(BLACK);
 
     // Draw the mouse position in shader coords.
     if app.window_id() == model.topdown_window && app.keys.down.contains(&Key::LShift) {
         let mouse_p = app.mouse.position();
-        let mouse_m = pp_to_pm(mouse_p);
-        let mouse_s = pm_to_ps(mouse_m, 0.0);
+        let mouse_m = pp_to_pm(mouse_p.to_array());
+        let mouse_s = pm_to_ps(mouse_m.to_array(), 0.0);
         let coords_text = format!("{:.2}x, {:.2}z", mouse_s.x, mouse_s.z);
         draw.text(&coords_text)
             .x(mouse_p.x)
@@ -652,17 +736,18 @@ fn topdown_view(app: &App, model: &Model, frame: &Frame) {
     draw.to_frame(app, &frame).unwrap();
 }
 
-fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
-    let draw = app.draw_for_window(model.led_strip_window).unwrap();
+fn led_strip_view(app: &App, model: &Model, frame: Frame) {
+    let draw = app.draw();
     draw.background().color(BLACK);
 
     let w = app.window(model.led_strip_window).unwrap().rect();
 
     let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND as f32)
-        .min(w.w() / layout::METRES_PER_LED_ROW as f32) * 0.8;
+        .min(w.w() / layout::METRES_PER_LED_ROW as f32)
+        * 0.8;
     let m_to_p = |m| m * metres_to_points_scale;
     let p_to_m = |p| p / metres_to_points_scale;
-    let x_offset_m = layout::SHADER_ORIGIN_METRES.x;
+    let x_offset_m = layout::SHADER_ORIGIN_METRES[0];
     let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND as f32 * 0.5;
     let pm_to_pp = |x: f32, h: f32| pt2(m_to_p(x - x_offset_m), m_to_p(h - y_offset_m));
     let pp_to_pm = |pp: Point2| (p_to_m(pp.x) + x_offset_m, p_to_m(pp.y) + y_offset_m);
@@ -678,7 +763,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
                 let pp = pm_to_pp(x, h);
                 (pp, c)
             });
-        draw.polyline().weight(5.0).colored_points(vs);
+        draw.polyline().weight(5.0).points_colored(vs);
     }
 
     // Draw the mouse position in shader coords.
@@ -700,7 +785,7 @@ fn led_strip_view(app: &App, model: &Model, frame: &Frame) {
 }
 
 // Draw hotloading status in top-left corner. Flash screen on build completion.
-fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Rect) {
+fn draw_hotload_feedback(app: &App, model: &Model, draw: &Draw, w: geom::Rect) {
     // If we only recently loaded a new shader, flash the screen a little.
     let secs_since_load = model.shader_rx.last_timestamp().elapsed().secs();
     if secs_since_load < 1.0 {
@@ -709,10 +794,11 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &app::Draw, w: geom::Re
             shader::LastIncoming::Succeeded => GREEN,
             shader::LastIncoming::Failed(_) => RED,
         };
-        let color = nannou::color::Alpha { color: flash_color, alpha: flash_alpha };
-        draw.rect()
-            .wh(w.wh())
-            .color(color);
+        let color = nannou::color::Alpha {
+            color: flash_color,
+            alpha: flash_alpha,
+        };
+        draw.rect().wh(w.wh()).color(color);
     }
 
     // If we are building or there was some error compiling recently, display it.
@@ -758,11 +844,18 @@ fn exit(app: &App, model: Model) {
 }
 
 // A function for updating the controller's button states based on a button event.
-fn update_korg_button(controller: &mut Controller, button: shader_shared::Button, state: korg::State) {
+fn update_korg_button(
+    controller: &mut Controller,
+    button: shader_shared::Button,
+    state: korg::State,
+) {
     let now = std::time::Instant::now();
     let b_state = controller.buttons.entry(button).or_insert_with(|| {
         let last_pressed = now;
-        ButtonState { last_pressed, state }
+        ButtonState {
+            last_pressed,
+            state,
+        }
     });
     b_state.state = state;
     if state == korg::State::On {

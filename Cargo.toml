@@ -4,3 +4,5 @@ members = [
     "shader",
     "shader_shared",
 ]
+
+resolver = "2"

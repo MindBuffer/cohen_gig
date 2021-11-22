@@ -2,8 +2,8 @@
 //! important in order to ensure types are laid out the same way between the dynamic library and
 //! the exe.
 
-use korg_nano_kontrol_2::{ButtonRow, MarkerButton, Strip, State, TrackButton, Transport};
-use nannou::prelude::*;
+use korg_nano_kontrol_2::{ButtonRow, MarkerButton, State, Strip, TrackButton, Transport};
+use nannou_core::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -41,12 +41,11 @@ pub enum Light {
     },
 }
 
-
 /// Data that is uniform across all shader calls for a single frame.
 #[repr(C)]
 pub struct Uniforms {
     pub time: f32,
-    pub resolution: Vector2,
+    pub resolution: Vec2,
     pub use_midi: bool,
     pub slider1: f32,
     pub slider2: f32,
@@ -878,7 +877,6 @@ impl Default for ColourPalettes {
         }
     }
 }
-
 
 pub mod default {
     pub mod acid_gradient {

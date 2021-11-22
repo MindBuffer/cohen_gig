@@ -1,5 +1,5 @@
-use nannou::prelude::*;
-use shader_shared::{Uniforms, Vertex, Light};
+use nannou_core::prelude::*;
+use shader_shared::{Light, Uniforms, Vertex};
 
 use crate::helpers::*;
 
@@ -18,31 +18,36 @@ use crate::helpers::*;
 // }
 
 //iq colour palette
-fn palette(t: f32, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Vector3 {
+fn palette(t: f32, a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3 {
     a + b * vec3(
         (TWO_PI * (c.x * t + d.x)).cos(),
         (TWO_PI * (c.y * t + d.y)).cos(),
-        (TWO_PI * (c.z * t + d.z)).cos())
+        (TWO_PI * (c.z * t + d.z)).cos(),
+    )
 }
 
-pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.colour_palettes;
 
     if uniforms.use_midi {
         params.interval = 0.05 + uniforms.slider5;
     }
-    
+
     let t = uniforms.time * params.speed;
 
     let mut uv = match v.light {
-        Light::Wash{index} => pt2(v.position.x,v.position.z * 2.0 - 1.0),
-        Light::Led{index,col_row,normalised_coords} => normalised_coords,
+        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
+        Light::Led {
+            index,
+            col_row,
+            normalised_coords,
+        } => normalised_coords,
     };
 
     // animate
     uv.y += t;
 
-    let interval = vec3(params.interval,params.interval,params.interval);
+    let interval = vec3(params.interval, params.interval, params.interval);
 
     let colz = get_palette(uv.y, params.selected, interval);
 
@@ -53,18 +58,78 @@ pub fn shader(v: Vertex , uniforms: &Uniforms) -> LinSrgb {
     lin_srgb(col.x, col.y, col.z)
 }
 
-fn get_palette(axis: f32, selected: usize, interval: Vector3) -> Vector3 {
+fn get_palette(axis: f32, selected: usize, interval: Vec3) -> Vec3 {
     match selected {
-        0 => palette(axis,vec3(0.55,0.4,0.3),vec3(0.50,0.51,0.35)+vec3(0.1,0.1,0.1),vec3(0.8,0.75,0.8)*interval,vec3(0.075,0.33,0.67)+vec3(0.21,0.21,0.21)),
-        1 => palette(axis,vec3(0.55,0.55,0.55),vec3(0.8,0.8,0.8),vec3(0.29,0.29,0.29)*interval,vec3(0.00,0.05,0.15) + vec3(0.54,0.54,0.54)),
-        2 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.55,0.55,0.55),vec3(0.45,0.45,0.45)*interval,vec3(0.00,0.10,0.20) + vec3(0.47,0.47,0.47)),
-        3 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(0.9,0.9,0.9)*interval,vec3(0.3,0.20,0.20) + vec3(0.31,0.31,0.31)),
-        4 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(0.9,0.9,0.9)*interval,vec3(0.0,0.10,0.20) + vec3(0.47,0.47,0.47)),
-        5 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,0.5)*interval,vec3(0.8,0.90,0.30)),
-        6 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,0.7,0.4)*interval,vec3(0.0,0.15,0.20)),
-        7 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(2.0,1.0,0.0)*interval,vec3(0.5,0.20,0.25)),
-        8 => palette(axis,vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0)*interval,vec3(0.0,0.33,0.67)),
-        9 => palette(axis,vec3(0.8,0.5,0.4),vec3(0.2,0.4,0.2),vec3(2.0,1.0,1.0)*interval,vec3(0.0,0.25,0.25)),
-        _ => vec3(0.0,0.0,0.0),
+        0 => palette(
+            axis,
+            vec3(0.55, 0.4, 0.3),
+            vec3(0.50, 0.51, 0.35) + vec3(0.1, 0.1, 0.1),
+            vec3(0.8, 0.75, 0.8) * interval,
+            vec3(0.075, 0.33, 0.67) + vec3(0.21, 0.21, 0.21),
+        ),
+        1 => palette(
+            axis,
+            vec3(0.55, 0.55, 0.55),
+            vec3(0.8, 0.8, 0.8),
+            vec3(0.29, 0.29, 0.29) * interval,
+            vec3(0.00, 0.05, 0.15) + vec3(0.54, 0.54, 0.54),
+        ),
+        2 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.55, 0.55, 0.55),
+            vec3(0.45, 0.45, 0.45) * interval,
+            vec3(0.00, 0.10, 0.20) + vec3(0.47, 0.47, 0.47),
+        ),
+        3 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.9, 0.9, 0.9) * interval,
+            vec3(0.3, 0.20, 0.20) + vec3(0.31, 0.31, 0.31),
+        ),
+        4 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.9, 0.9, 0.9) * interval,
+            vec3(0.0, 0.10, 0.20) + vec3(0.47, 0.47, 0.47),
+        ),
+        5 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(1.0, 1.0, 0.5) * interval,
+            vec3(0.8, 0.90, 0.30),
+        ),
+        6 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(1.0, 0.7, 0.4) * interval,
+            vec3(0.0, 0.15, 0.20),
+        ),
+        7 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(2.0, 1.0, 0.0) * interval,
+            vec3(0.5, 0.20, 0.25),
+        ),
+        8 => palette(
+            axis,
+            vec3(0.5, 0.5, 0.5),
+            vec3(0.5, 0.5, 0.5),
+            vec3(1.0, 1.0, 1.0) * interval,
+            vec3(0.0, 0.33, 0.67),
+        ),
+        9 => palette(
+            axis,
+            vec3(0.8, 0.5, 0.4),
+            vec3(0.2, 0.4, 0.2),
+            vec3(2.0, 1.0, 1.0) * interval,
+            vec3(0.0, 0.25, 0.25),
+        ),
+        _ => vec3(0.0, 0.0, 0.0),
     }
 }

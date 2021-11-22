@@ -1,9 +1,7 @@
-extern crate nannou;
-
-use nannou::ease::*;
-use nannou::math::fmod;
-use nannou::prelude::*;
-use nannou::rand::random_f32;
+use nannou_core::math::fmod;
+use nannou_core::prelude::*;
+use nannou_core::rand::random_f32;
+use pennereq::*;
 
 pub const ALL: &'static [Signal] = &[
     Signal::SINE,

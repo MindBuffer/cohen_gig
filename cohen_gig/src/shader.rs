@@ -96,7 +96,9 @@ impl Shader {
     /// Load the shader function.
     pub fn get_fn(&self) -> libloading::Symbol<ShaderFnPtr> {
         unsafe {
-            self.lib.get("shader".as_bytes()).expect("failed to load shader fn symbol")
+            self.lib
+                .get("shader".as_bytes())
+                .expect("failed to load shader fn symbol")
         }
     }
 }
@@ -110,7 +112,10 @@ impl From<hotlib::TempLibrary> for Shader {
 fn shader_toml_path() -> std::path::PathBuf {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let workspace_dir = path.parent().expect("could not find workspace dir");
-    workspace_dir.join("shader").join("Cargo").with_extension("toml")
+    workspace_dir
+        .join("shader")
+        .join("Cargo")
+        .with_extension("toml")
 }
 
 /// Create the shader watch and run it on a separate thread.
@@ -122,8 +127,8 @@ pub fn spawn_watch() -> ShaderReceiver {
     // Spawn the shader watch thread.
     std::thread::spawn(move || {
         // Begin the watch.
-        let shader_watch = hotlib::watch(&shader_toml_path())
-            .expect("failed to start watching shader");
+        let shader_watch =
+            hotlib::watch(&shader_toml_path()).expect("failed to start watching shader");
 
         fn build_and_send(tx: &mpsc::Sender<Incoming>, pkg: hotlib::Package) {
             // Notify of incoming library.
@@ -131,9 +136,9 @@ pub fn spawn_watch() -> ShaderReceiver {
             tx.send(Incoming { rx }).ok();
 
             // Attempt to build the library and send the result.
-            let res = pkg.build().map(|build| {
-                build.load().expect("failed to load shader library")
-            });
+            let res = pkg
+                .build()
+                .map(|build| build.load().expect("failed to load shader library"));
             result_tx.send(res).ok();
         }
 
@@ -158,7 +163,12 @@ pub fn spawn_watch() -> ShaderReceiver {
     let last_incoming = LastIncoming::Succeeded;
     let incoming = None;
     let last_timestamp = std::time::Instant::now();
-    let shader_rx = ShaderReceiver { rx, incoming, last_timestamp, last_incoming };
+    let shader_rx = ShaderReceiver {
+        rx,
+        incoming,
+        last_timestamp,
+        last_incoming,
+    };
     shader_rx
 }
 
