@@ -39,6 +39,7 @@ pub struct Config {
     pub presets: Presets,
 }
 
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Presets {
     #[serde(default = "default::presets::selected_preset_name")]

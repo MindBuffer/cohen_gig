@@ -13,9 +13,11 @@ mod conf;
 mod gui;
 mod layout;
 mod shader;
+mod midi_osc;
 
 use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
+use crate::midi_osc::MidiOsc;
 
 const WINDOW_PAD: i32 = 20;
 const GUI_WINDOW_X: i32 = WINDOW_PAD;
@@ -74,6 +76,7 @@ struct Model {
     led_outputs: Box<[LinSrgb; layout::LED_COUNT]>,
     ui: Ui,
     ids: gui::Ids,
+    midi_osc: MidiOsc,
 }
 
 struct ButtonState {
@@ -199,19 +202,22 @@ fn model(app: &App) -> Model {
         let name = midi_in.port_name(i).unwrap();
         let midi_tx = midi_tx.clone();
         let midi_in = midir::MidiInput::new(&name).unwrap();
-        let input = midi_in
-            .connect(
-                i,
-                "nanoKONTROL2 SLIDER/KNOB",
-                move |_stamp, msg, _| {
-                    if let Some(event) = korg::Event::from_midi(msg) {
-                        midi_tx.send(event).unwrap();
-                    }
-                },
-                (),
-            )
-            .unwrap();
-        midi_inputs.push(input);
+        println!("midi_in = {:?}", name);
+        if name == "nanoKONTROL2" {
+            let input = midi_in
+                .connect(
+                    i,
+                    "nanoKONTROL2 SLIDER/KNOB",
+                    move |_stamp, msg, _| {
+                        if let Some(event) = korg::Event::from_midi(msg) {
+                            midi_tx.send(event).unwrap();
+                        }
+                    },
+                    (),
+                )
+                .unwrap();
+            midi_inputs.push(input);
+        }
     }
 
     let controller = Controller {
@@ -226,6 +232,8 @@ fn model(app: &App) -> Model {
         pot8: 1.0,    // Blue / Value
         buttons: Default::default(),
     };
+
+    let midi_osc = MidiOsc::new();
 
     Model {
         _gui_window: gui_window,
@@ -248,6 +256,7 @@ fn model(app: &App) -> Model {
         led_outputs,
         ui,
         ids,
+        midi_osc,
     }
 }
 
@@ -266,12 +275,15 @@ fn key_pressed(app: &App, model: &mut Model, key: Key) {
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
+    model.midi_osc.update();
+    
     // Apply the GUI update.
     let ui = model.ui.set_widgets();
     let assets = app.assets_path().expect("failed to find assets directory");
     gui::update(
         ui,
         &mut model.config,
+        &mut model.midi_osc,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
@@ -416,6 +428,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         xfade_left,
         xfade_right,
     };
+
+    let amp = 0.2;
+    let piano_mod = (model.midi_osc.midi_cv * amp) - (amp / 2.0);
+    let param1 = model.controller.slider1 + piano_mod;
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();

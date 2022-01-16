@@ -1,5 +1,6 @@
 use crate::conf::Config;
 use crate::{shader, Osc};
+use crate::midi_osc::{MidiOsc, MidiPianoFrame};
 use nannou::prelude::*;
 
 use nannou_conrod as ui;
@@ -82,6 +83,12 @@ widget_ids! {
         led_fade_to_black,
         wash_fade_to_black,
         lerp_amount,
+
+        midi_osc_text,
+        buffer_length, 
+        max_pitches,
+        smoothing_speed,
+        unique_pitches,
     }
 }
 
@@ -996,6 +1003,7 @@ impl Params for shader_shared::ColourPalettes {
 pub fn update(
     ref mut ui: UiCell,
     config: &mut Config,
+    midi_osc: &mut MidiOsc,
     osc: &mut Osc,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
@@ -1214,6 +1222,52 @@ pub fn update(
     if let Some(s) = scrollbar {
         s.set(ui)
     }
+
+    text("Midi OSC")
+        .mid_left_of(ids.column_1_id)
+        .down(PAD * 1.5)
+        .set(ids.midi_osc_text, ui);
+
+    for value in slider(midi_osc.midi_buffer_frame_len as f32, 1.0, 512.0)
+        .down(10.0)
+        .label("Buffer Length")
+        .set(ids.buffer_length, ui)
+    {
+        midi_osc.midi_buffer_frame_len = value as usize;
+
+        let mpf = MidiPianoFrame {
+            notes: Vec::new(),
+            sustain_pedal: 0.0,
+            soft_pedal: 0.0,
+        };
+        midi_osc.midi_buffer.resize(midi_osc.midi_buffer_frame_len, mpf);
+    }
+
+    for value in slider(midi_osc.max_unique_pitches as f32, 4.0, 16.0)
+        .down(10.0)
+        .label("Max Pitches")
+        .set(ids.max_pitches, ui)
+    {
+        midi_osc.max_unique_pitches = value as usize;
+    }
+
+    for value in slider(midi_osc.smoothing_speed, 0.002, 0.08)
+        .down(10.0)
+        .label("Smoothing Speed")
+        .set(ids.smoothing_speed, ui)
+    {
+        midi_osc.smoothing_speed = value;
+    }
+
+    for value in slider(midi_osc.midi_cv, 0.0, 1.0)
+        .down(10.0)
+        .label("Unique Pitches")
+        .set(ids.unique_pitches, ui)
+    {
+        midi_osc.midi_cv = value;
+    }
+
+
 
     set_presets_widgets(ui, &ids, config, &assets);
 

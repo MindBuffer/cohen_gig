@@ -11,7 +11,7 @@ hotlib = { git = "https://github.com/mitchmindtree/hotlib", branch = "master" }
 libloading = "0.6.2"
 nannou = "0.18"
 nannou_conrod = "0.18.0"
-nannou_osc = "0.1"
+nannou_osc = "0.18"
 sacn = "0.4"
 serde = "1"
 shader_shared = { path = "../shader_shared" }
