@@ -431,7 +431,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     let amp = 0.2;
     let piano_mod = (model.midi_osc.midi_cv * amp) - (amp / 2.0);
-    let param1 = model.controller.slider1 + piano_mod;
+    let param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();
