@@ -108,6 +108,27 @@ struct Controller {
     buttons: HashMap<shader_shared::Button, ButtonState>,
 }
 
+// The known state of the Korg at any point in time.
+// struct Controller {
+//     slider1: f32, // BW param 1
+//     slider2: f32, // BW param 2
+//     slider3: f32, // Colour param 1
+//     slider4: f32, // Colour param 2
+//     slider5: f32, // Midi Osc smoothing speed
+//     slider6: f32, // ?
+//     slider7: f32, // LED fade to black
+//     slider8: f32, // Left / Right Blend Mix
+//     pot1: f32,    // BW param 1 (midi_cv amp)
+//     pot2: f32,    // BW param 2 (midi_cv amp)
+//     pot3: f32,    // Colour param 1 (midi_cv amp)
+//     pot4: f32,    // Colour param 2 (midi_cv amp)
+//     pot5: f32,    // Shaders smoothing speed
+//     pot6: f32,    // Red / Hue
+//     pot7: f32,    // Green / Saturation
+//     pot8: f32,    // Blue / Value
+//     buttons: HashMap<shader_shared::Button, ButtonState>,
+// }
+
 fn main() {
     nannou::app(model).update(update).exit(exit).run();
 }
@@ -221,12 +242,19 @@ fn model(app: &App) -> Model {
     }
 
     let controller = Controller {
-        slider1: 0.0, // BW param 1
-        slider2: 0.0, // BW param 2
-        slider3: 0.0, // Colour param 1
-        slider4: 0.0, // Colour param 2
-        slider5: 0.0, // Wash param 1
-        slider6: 0.0, // Wash param 2
+        slider1: 0.5, // BW param 1
+        slider2: 0.5, // BW param 2
+        slider3: 0.5, // Colour param 1
+        slider4: 0.5, // Colour param 2
+        slider5: 0.5, // Midi Osc smoothing speed
+        slider6: 0.5, // ?
+        // slider7: 0.0, // LED fade to black
+        // slider8: 0.5, // Left / Right Blend Mix
+        // pot1: 0.0,    // BW param 1 (midi_cv amp)
+        // pot2: 0.0,    // BW param 2 (midi_cv amp)
+        // pot3: 0.0,    // Colour param 1 (midi_cv amp)
+        // pot4: 0.0,    // Colour param 2 (midi_cv amp)
+        // pot5: 0.0,    // Shaders smoothing speed
         pot6: 1.0,    // Red / Hue
         pot7: 0.0,    // Green / Saturation
         pot8: 1.0,    // Blue / Value
@@ -247,8 +275,8 @@ fn model(app: &App) -> Model {
         shader,
         config,
         controller,
-        target_slider_values: vec![0.5; 6],     // First 6 Sliders
-        target_pot_values: vec![1.0, 0.0, 1.0], // Last 3 Pots
+        target_slider_values: vec![0.5; 8],     // First 6 Sliders
+        target_pot_values: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
         wash_outputs,
@@ -432,6 +460,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let amp = 0.2;
     let piano_mod = (model.midi_osc.midi_cv * amp) - (amp / 2.0);
     let param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
+
+    model.controller.slider1 = model.midi_osc.midi_cv;
+    model.controller.slider2 = model.midi_osc.midi_cv;
+    model.controller.slider3 = model.midi_osc.midi_cv;
+    model.controller.slider4 = model.midi_osc.midi_cv;
+
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();
