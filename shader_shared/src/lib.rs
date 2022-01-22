@@ -142,6 +142,8 @@ pub struct ShaderParams {
     pub mitch_wash: MitchWash,
     #[serde(default)]
     pub shape_envelopes: ShapeEnvelopes,
+    #[serde(default)]
+    pub row_test: RowTest,
 }
 
 /// Refers to the selected blend mode type for a preset.
@@ -182,6 +184,7 @@ pub enum Shader {
     VertColourGradient,
     MitchWash,
     ShapeEnvelopes,
+    RowTest,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -460,6 +463,12 @@ pub struct ColourPalettes {
     pub selected: usize,
 }
 
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct RowTest {
+    #[devault("0.0")]
+    pub row: f32,
+}
+
 pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
     BlendMode::Add,
     BlendMode::Subtract,
@@ -494,6 +503,7 @@ pub const ALL_SHADERS: &'static [Shader] = &[
     Shader::VertColourGradient,
     Shader::MitchWash,
     Shader::ShapeEnvelopes,
+    Shader::RowTest,
 ];
 
 pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
@@ -570,6 +580,7 @@ impl Shader {
             Shader::VertColourGradient => "VertColourGradient",
             Shader::MitchWash => "MitchWash",
             Shader::ShapeEnvelopes => "ShapeEnvelopes",
+            Shader::RowTest => "RowTest",
         }
     }
 
@@ -598,6 +609,7 @@ impl Shader {
             Shader::VertColourGradient => 20,
             Shader::MitchWash => 21,
             Shader::ShapeEnvelopes => 22,
+            Shader::RowTest => 23,
         }
     }
 
@@ -626,6 +638,7 @@ impl Shader {
             20 => Shader::VertColourGradient,
             21 => Shader::MitchWash,
             22 => Shader::ShapeEnvelopes,
+            23 => Shader::RowTest,
             _ => return None,
         };
         Some(shader)
