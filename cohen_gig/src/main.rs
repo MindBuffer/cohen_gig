@@ -118,10 +118,10 @@ struct Controller {
 //     slider6: f32, // ?
 //     slider7: f32, // LED fade to black
 //     slider8: f32, // Left / Right Blend Mix
-//     pot1: f32,    // BW param 1 (midi_cv amp)
-//     pot2: f32,    // BW param 2 (midi_cv amp)
-//     pot3: f32,    // Colour param 1 (midi_cv amp)
-//     pot4: f32,    // Colour param 2 (midi_cv amp)
+    // pot1: f32,    // BW param 1 (midi_cv amp)
+    // pot2: f32,    // BW param 2 (midi_cv amp)
+    // pot3: f32,    // Colour param 1 (midi_cv amp)
+    // pot4: f32,    // Colour param 2 (midi_cv amp)
 //     pot5: f32,    // Shaders smoothing speed
 //     pot6: f32,    // Red / Hue
 //     pot7: f32,    // Green / Saturation
@@ -246,7 +246,7 @@ fn model(app: &App) -> Model {
         slider2: 0.5, // BW param 2
         slider3: 0.5, // Colour param 1
         slider4: 0.5, // Colour param 2
-        slider5: 0.5, // Midi Osc smoothing speed
+        slider5: 0.5, // Shaders smoothing speed
         slider6: 0.5, // ?
         // slider7: 0.0, // LED fade to black
         // slider8: 0.5, // Left / Right Blend Mix
@@ -254,7 +254,7 @@ fn model(app: &App) -> Model {
         // pot2: 0.0,    // BW param 2 (midi_cv amp)
         // pot3: 0.0,    // Colour param 1 (midi_cv amp)
         // pot4: 0.0,    // Colour param 2 (midi_cv amp)
-        // pot5: 0.0,    // Shaders smoothing speed
+        // pot5: 0.0,    // Midi Osc smoothing speed 
         pot6: 1.0,    // Red / Hue
         pot7: 0.0,    // Green / Saturation
         pot8: 1.0,    // Blue / Value
@@ -275,7 +275,7 @@ fn model(app: &App) -> Model {
         shader,
         config,
         controller,
-        target_slider_values: vec![0.5; 8],     // First 6 Sliders
+        target_slider_values: vec![0.5; 4],     // First 4 Sliders
         target_pot_values: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         wash_colors,
@@ -352,44 +352,43 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     model.target_slider_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
                 korg::Strip::E => {
-                    model.target_slider_values[4] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
                 }
                 korg::Strip::F => {
-                    model.target_slider_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                    // Nothing
                 }
                 korg::Strip::G => {
-                    model.config.presets.selected_mut().left_right_mix =
-                        map_range(value as f32, 0.0, 127.0, -1.0, 1.0)
+                    model.config.fade_to_black.led = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
                 korg::Strip::H => {
-                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
+                    model.config.presets.selected_mut().left_right_mix =
+                        map_range(value as f32, 0.0, 127.0, -1.0, 1.0)
                 }
             },
             korg::Event::RotarySlider(strip, value) => match strip {
                 korg::Strip::A => {
-                    model.config.fade_to_black.led = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::B => {
-                    model.config.fade_to_black.wash = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::C => {
-                    model.config.fade_to_black.spot1 = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::D => {
-                    model.config.fade_to_black.spot2 = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::E => {
-                    model.config.presets.selected_mut().wash_lerp_amt =
-                        map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::F => {
                     model.target_pot_values[0] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
-                korg::Strip::G => {
+                korg::Strip::B => {
                     model.target_pot_values[1] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
-                korg::Strip::H => {
+                korg::Strip::C => {
                     model.target_pot_values[2] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::D => {
+                    model.target_pot_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::E => {
+                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
+                }
+                korg::Strip::F => {
+                    model.target_pot_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::G => {
+                    model.target_pot_values[6] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
+                }
+                korg::Strip::H => {
+                    model.target_pot_values[7] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
             },
 
@@ -425,17 +424,22 @@ fn update(app: &App, model: &mut Model, update: Update) {
         + model.target_slider_values[2] * model.smoothing_speed;
     model.controller.slider4 = model.controller.slider4 * (1.0 - model.smoothing_speed)
         + model.target_slider_values[3] * model.smoothing_speed;
-    model.controller.slider5 = model.controller.slider5 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[4] * model.smoothing_speed;
-    model.controller.slider6 = model.controller.slider6 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[5] * model.smoothing_speed;
+
+    model.midi_osc.mod_amp1 = model.midi_osc.mod_amp1 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[0] * model.smoothing_speed;
+    model.midi_osc.mod_amp2 = model.midi_osc.mod_amp2 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[1] * model.smoothing_speed;
+    model.midi_osc.mod_amp3 = model.midi_osc.mod_amp3 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[2] * model.smoothing_speed;
+    model.midi_osc.mod_amp4 = model.midi_osc.mod_amp4 * (1.0 - model.smoothing_speed)
+        + model.target_pot_values[3] * model.smoothing_speed;
 
     model.controller.pot6 = model.controller.pot6 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[0] * model.smoothing_speed;
+        + model.target_pot_values[5] * model.smoothing_speed;
     model.controller.pot7 = model.controller.pot7 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[1] * model.smoothing_speed;
+        + model.target_pot_values[6] * model.smoothing_speed;
     model.controller.pot8 = model.controller.pot8 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[2] * model.smoothing_speed;
+        + model.target_pot_values[7] * model.smoothing_speed;
 
     /*
     when t is -1, volumes[0] = 0, volumes[1] = 1
@@ -457,15 +461,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
         xfade_right,
     };
 
-    let amp = 0.2;
-    let piano_mod = (model.midi_osc.midi_cv * amp) - (amp / 2.0);
-    let param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
+    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp1) - (model.midi_osc.mod_amp1 / 2.0);
+    let bw_param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
 
-    model.controller.slider1 = model.midi_osc.midi_cv;
-    model.controller.slider2 = model.midi_osc.midi_cv;
-    model.controller.slider3 = model.midi_osc.midi_cv;
-    model.controller.slider4 = model.midi_osc.midi_cv;
+    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp2) - (model.midi_osc.mod_amp2 / 2.0);
+    let bw_param2 = clamp(model.controller.slider2 + piano_mod, 0.0, 1.0);
 
+    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp3) - (model.midi_osc.mod_amp3 / 2.0);
+    let colour_param1 = clamp(model.controller.slider3 + piano_mod, 0.0, 1.0);
+
+    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp4) - (model.midi_osc.mod_amp4 / 2.0);
+    let colour_param2 = clamp(model.controller.slider4 + piano_mod, 0.0, 1.0);
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
     let shader_params = preset.shader_params.clone();
@@ -484,10 +490,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         time: app.time,
         resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
-        slider1: model.controller.slider1, // BW param 1
-        slider2: model.controller.slider2, // BW param 2
-        slider3: model.controller.slider3, // Colour param 1
-        slider4: model.controller.slider4, // Colour param 2
+        slider1: bw_param1, // BW param 1
+        slider2: bw_param2, // BW param 2
+        slider3: colour_param1, // Colour param 1
+        slider4: colour_param2, // Colour param 2
         slider5: model.controller.slider5, // Wash param 1
         slider6: model.controller.slider6, // Wash param 2
         pot6: model.controller.pot6,       // Red / Hue

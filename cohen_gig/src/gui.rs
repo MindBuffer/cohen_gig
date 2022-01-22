@@ -903,6 +903,24 @@ impl Params for shader_shared::ShapeEnvelopes {
     }
 }
 
+impl Params for shader_shared::RowTest {
+    fn param_count(&self) -> usize {
+        1
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut {
+        match ix {
+            0 => ParamMut {
+                name: "row",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.row,
+                    max: 8.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::SolidHsvColour {
     fn param_count(&self) -> usize {
         3
@@ -991,7 +1009,7 @@ impl Params for shader_shared::ColourPalettes {
                 name: "selected",
                 kind: ParamKindMut::Usize {
                     value: &mut self.selected,
-                    max: 9,
+                    max: 16,
                 },
             },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
@@ -1715,5 +1733,6 @@ fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
         Shader::ColourPalettes => &mut params.colour_palettes,
         Shader::MitchWash => &mut params.mitch_wash,
         Shader::ShapeEnvelopes => &mut params.shape_envelopes,
+        Shader::RowTest => &mut params.row_test,
     }
 }

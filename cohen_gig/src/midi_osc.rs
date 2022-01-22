@@ -28,6 +28,10 @@ pub struct MidiOsc {
     pub smoothing_speed: f32,
     pub max_unique_pitches: usize,
     pub midi_cv: f32,
+    pub mod_amp1: f32,
+    pub mod_amp2: f32,
+    pub mod_amp3: f32,
+    pub mod_amp4: f32,
 }
 
 impl MidiOsc {
@@ -45,6 +49,10 @@ impl MidiOsc {
             max_unique_pitches: 10,
             smoothing_speed: 0.15, 
             midi_cv: 0.0,
+            mod_amp1: 0.0,
+            mod_amp2: 0.0,
+            mod_amp3: 0.0,
+            mod_amp4: 0.0,
         }
     }
 
