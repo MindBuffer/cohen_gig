@@ -555,8 +555,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on && model.dmx.source.is_none() {
+        //let source =
+        //    sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
         let source =
-            sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
+            sacn::DmxSource::with_ip("Cohen Pre-vis", "10.0.0.5").expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
     } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
@@ -590,40 +592,40 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
-        // First, send data to spotlights and washes on universe 1.
-        model.dmx.buffer.clear();
-        model
-            .dmx
-            .buffer
-            .extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
+        // // First, send data to spotlights and washes on universe 1.
+        // model.dmx.buffer.clear();
+        // model
+        //     .dmx
+        //     .buffer
+        //     .extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
 
-        // Collect spot light dimming data.
-        for (spot_ix, dim) in spot_lights.iter().enumerate() {
-            let dimmer = convert_channel(*dim);
-            let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
-            let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
-            let end_addr = start_addr + DMX_ADDRS_PER_SPOT as usize;
-            let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
-            let col = &col[..range.len()];
-            model.dmx.buffer[range].copy_from_slice(col);
-        }
+        // // Collect spot light dimming data.
+        // for (spot_ix, dim) in spot_lights.iter().enumerate() {
+        //     let dimmer = convert_channel(*dim);
+        //     let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
+        //     let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
+        //     let end_addr = start_addr + DMX_ADDRS_PER_SPOT as usize;
+        //     let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
+        //     let col = &col[..range.len()];
+        //     model.dmx.buffer[range].copy_from_slice(col);
+        // }
 
-        // Collect wash light color data.
-        for (wash_ix, col) in model.wash_outputs.iter().enumerate() {
-            let [r, g, b] = lin_srgb_f32_to_bytes(col);
-            let intensity = 255; // should this be 255?
-            let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
-            let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
-            let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
-            let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
-            let col = &col[..range.len()];
-            model.dmx.buffer[range].copy_from_slice(col);
-        }
+        // // Collect wash light color data.
+        // for (wash_ix, col) in model.wash_outputs.iter().enumerate() {
+        //     let [r, g, b] = lin_srgb_f32_to_bytes(col);
+        //     let intensity = 255; // should this be 255?
+        //     let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
+        //     let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
+        //     let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
+        //     let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
+        //     let col = &col[..range.len()];
+        //     model.dmx.buffer[range].copy_from_slice(col);
+        // }
 
-        // Send spot and wash data.
-        dmx_source
-            .send(model.config.wash_spot_universe, &model.dmx.buffer[..])
-            .expect("failed to send DMX data");
+        // // Send spot and wash data.
+        // dmx_source
+        //     .send(model.config.wash_spot_universe, &model.dmx.buffer[..])
+        //     .expect("failed to send DMX data");
 
         // Collect and send LED data.
         model.dmx.buffer.clear();
@@ -631,66 +633,73 @@ fn update(app: &App, model: &mut Model, update: Update) {
         for col in model.led_outputs.iter() {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
+            
             // If we've filled a universe, send it.
-            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+            // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+            //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
+            //     model.dmx.buffer.push(0);
+            //     model.dmx.buffer.push(0);
+            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
                 // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-                model.dmx.buffer.push(0);
-                model.dmx.buffer.push(0);
+                // model.dmx.buffer.push(0);
+                // model.dmx.buffer.push(0);
+
                 let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
                 dmx_source
                     .send(universe, data)
                     .expect("failed to send LED DMX data");
+
                 model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
                 universe += 1;
             }
         }
-        let data = &model.dmx.buffer;
+        
         dmx_source
-            .send(universe, data)
+            .send(universe, &model.dmx.buffer)
             .expect("failed to send LED DMX data");
     }
 
     // If we have an OSC sender, send data over it!
-    if let Some(ref osc_tx) = model.osc.tx {
-        // Send wash lights colors.
-        let addr = "/cohen/wash_lights/";
-        let mut args = Vec::with_capacity(model.wash_outputs.len() * 4);
-        for col in model.wash_outputs.iter() {
-            //let [r, g, b] = lin_srgb_f32_to_bytes(col);
-            args.push(osc::Type::Float(col.red as _));
-            args.push(osc::Type::Float(col.green as _));
-            args.push(osc::Type::Float(col.blue as _));
-            args.push(osc::Type::Float(0.0))
-        }
-        osc_tx.send((addr, args), &model.osc.addr).ok();
+    // if let Some(ref osc_tx) = model.osc.tx {
+    //     // Send wash lights colors.
+    //     let addr = "/cohen/wash_lights/";
+    //     let mut args = Vec::with_capacity(model.wash_outputs.len() * 4);
+    //     for col in model.wash_outputs.iter() {
+    //         //let [r, g, b] = lin_srgb_f32_to_bytes(col);
+    //         args.push(osc::Type::Float(col.red as _));
+    //         args.push(osc::Type::Float(col.green as _));
+    //         args.push(osc::Type::Float(col.blue as _));
+    //         args.push(osc::Type::Float(0.0))
+    //     }
+    //     osc_tx.send((addr, args), &model.osc.addr).ok();
 
-        // Send LED colors.
-        let addr = "/cohen/leds/";
-        let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
-        for (metre_ix, metre) in model.led_outputs.chunks(layout::LEDS_PER_METRE).enumerate() {
-            // TODO: Account for strip IDs etc here.
-            args.clear();
-            args.push(osc::Type::Int(metre_ix as _));
-            for col in metre {
-                let [r, g, b] = lin_srgb_f32_to_bytes(col);
-                args.push(osc::Type::Int(r as _));
-                args.push(osc::Type::Int(g as _));
-                args.push(osc::Type::Int(b as _));
-            }
-            osc_tx.send((addr, args.clone()), &model.osc.addr).ok();
-        }
+    //     // Send LED colors.
+    //     let addr = "/cohen/leds/";
+    //     let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
+    //     for (metre_ix, metre) in model.led_outputs.chunks(layout::LEDS_PER_METRE).enumerate() {
+    //         // TODO: Account for strip IDs etc here.
+    //         args.clear();
+    //         args.push(osc::Type::Int(metre_ix as _));
+    //         for col in metre {
+    //             let [r, g, b] = lin_srgb_f32_to_bytes(col);
+    //             args.push(osc::Type::Int(r as _));
+    //             args.push(osc::Type::Int(g as _));
+    //             args.push(osc::Type::Int(b as _));
+    //         }
+    //         osc_tx.send((addr, args.clone()), &model.osc.addr).ok();
+    //     }
 
-        // Send Spot light dimmers.
-        let addr = "/cohen/spot_light1/";
-        let mut args = Vec::new();
-        args.push(osc::Type::Float(spot_lights[0]));
-        osc_tx.send((addr, args), &model.osc.addr).ok();
+    //     // Send Spot light dimmers.
+    //     let addr = "/cohen/spot_light1/";
+    //     let mut args = Vec::new();
+    //     args.push(osc::Type::Float(spot_lights[0]));
+    //     osc_tx.send((addr, args), &model.osc.addr).ok();
 
-        let addr = "/cohen/spot_light2/";
-        let mut args = Vec::new();
-        args.push(osc::Type::Float(spot_lights[1]));
-        osc_tx.send((addr, args), &model.osc.addr).ok();
-    }
+    //     let addr = "/cohen/spot_light2/";
+    //     let mut args = Vec::new();
+    //     args.push(osc::Type::Float(spot_lights[1]));
+    //     osc_tx.send((addr, args), &model.osc.addr).ok();
+    // }
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {

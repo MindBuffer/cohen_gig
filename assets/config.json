@@ -36,8 +36,8 @@
     0,
     1
   ],
-  "wash_spot_universe": 1,
-  "led_start_universe": 3,
+  "wash_spot_universe": 51,
+  "led_start_universe": 1,
   "fade_to_black": {
     "led": 1.0,
     "wash": 1.0,
