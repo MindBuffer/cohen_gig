@@ -79,6 +79,7 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::ThePulse => led_shaders::the_pulse::shader,
         Shader::TunnelProjection => led_shaders::tunnel_projection::shader,
         Shader::VertColourGradient => led_shaders::vert_colour_gradient::shader,
+        Shader::RowTest => led_shaders::row_test::shader,
         Shader::MitchWash => wash_shaders::mitch_wash::shader,
         Shader::ShapeEnvelopes => wash_shaders::shape_envelopes::shader,
     }

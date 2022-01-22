@@ -16,3 +16,4 @@ pub mod square_tunnel;
 pub mod the_pulse;
 pub mod tunnel_projection;
 pub mod vert_colour_gradient;
+pub mod row_test;
