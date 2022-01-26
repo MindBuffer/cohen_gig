@@ -49,10 +49,10 @@ impl MidiOsc {
             max_unique_pitches: 10,
             smoothing_speed: 0.15, 
             midi_cv: 0.0,
-            mod_amp1: 0.0,
-            mod_amp2: 0.0,
-            mod_amp3: 0.0,
-            mod_amp4: 0.0,
+            mod_amp1: 1.0,
+            mod_amp2: 1.0,
+            mod_amp3: 1.0,
+            mod_amp4: 1.0,
         }
     }
 

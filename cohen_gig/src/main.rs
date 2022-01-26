@@ -352,7 +352,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     model.target_slider_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
                 korg::Strip::E => {
-                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
+                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.08)
                 }
                 korg::Strip::F => {
                     // Nothing
@@ -379,7 +379,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     model.target_pot_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
                 korg::Strip::E => {
-                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.002, 0.08)
+                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.08)
                 }
                 korg::Strip::F => {
                     model.target_pot_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
@@ -561,7 +561,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on && model.dmx.source.is_none() {
-        //let source =
+        // let source =
         //    sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
         let source =
             sacn::DmxSource::with_ip("Cohen Pre-vis", "10.0.0.5").expect("failed to connect to DMX source");
