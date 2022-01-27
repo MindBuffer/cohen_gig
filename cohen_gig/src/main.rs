@@ -77,6 +77,7 @@ struct Model {
     ui: Ui,
     ids: gui::Ids,
     midi_osc: MidiOsc,
+    midi_cv_phase_amp: f32,
 }
 
 struct ButtonState {
@@ -115,7 +116,7 @@ struct Controller {
 //     slider3: f32, // Colour param 1
 //     slider4: f32, // Colour param 2
 //     slider5: f32, // Midi Osc smoothing speed
-//     slider6: f32, // ?
+//     slider6: f32, // midi_cv app.time phase add
 //     slider7: f32, // LED fade to black
 //     slider8: f32, // Left / Right Blend Mix
     // pot1: f32,    // BW param 1 (midi_cv amp)
@@ -224,7 +225,7 @@ fn model(app: &App) -> Model {
         let midi_tx = midi_tx.clone();
         let midi_in = midir::MidiInput::new(&name).unwrap();
         println!("midi_in = {:?}", name);
-        if name == "nanoKONTROL2" {
+        if name == "nanoKONTROL2 SLIDER/KNOB" {
             let input = midi_in
                 .connect(
                     i,
@@ -247,7 +248,7 @@ fn model(app: &App) -> Model {
         slider3: 0.5, // Colour param 1
         slider4: 0.5, // Colour param 2
         slider5: 0.5, // Shaders smoothing speed
-        slider6: 0.5, // ?
+        slider6: 0.5, // midi_cv app.time phase add
         // slider7: 0.0, // LED fade to black
         // slider8: 0.5, // Left / Right Blend Mix
         // pot1: 0.0,    // BW param 1 (midi_cv amp)
@@ -285,6 +286,7 @@ fn model(app: &App) -> Model {
         ui,
         ids,
         midi_osc,
+        midi_cv_phase_amp: 0.0,
     }
 }
 
@@ -355,7 +357,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.08)
                 }
                 korg::Strip::F => {
-                    // Nothing
+                    model.midi_cv_phase_amp = map_range(value as f32, 0.0, 127.0, 0.0, 4.0);
                 }
                 korg::Strip::G => {
                     model.config.fade_to_black.led = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
@@ -379,7 +381,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     model.target_pot_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
                 korg::Strip::E => {
-                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.08)
+                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.99)
                 }
                 korg::Strip::F => {
                     model.target_pot_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
@@ -487,7 +489,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         })
         .collect();
     let uniforms = Uniforms {
-        time: app.time,
+        time: app.time + (model.midi_osc.midi_cv * model.midi_cv_phase_amp),
         resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
         slider1: bw_param1, // BW param 1

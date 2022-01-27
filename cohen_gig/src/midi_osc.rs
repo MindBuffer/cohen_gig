@@ -7,7 +7,6 @@ pub const NOTE_OFF: u8 = 128;
 
 pub const PORT: u16 = 9000;
 
-
 #[derive(Debug, Clone)]
 pub struct Note {
     pub pitch: u8,
@@ -26,6 +25,7 @@ pub struct MidiOsc {
     pub midi_buffer: VecDeque<MidiPianoFrame>,
     pub midi_buffer_frame_len: usize,
     pub smoothing_speed: f32,
+    pub smoothing_release: f32,
     pub max_unique_pitches: usize,
     pub midi_cv: f32,
     pub mod_amp1: f32,
@@ -46,8 +46,9 @@ impl MidiOsc {
             receiver, 
             midi_buffer, 
             midi_buffer_frame_len,
-            max_unique_pitches: 10,
+            max_unique_pitches: 32,
             smoothing_speed: 0.15, 
+            smoothing_release: 0.05,
             midi_cv: 0.0,
             mod_amp1: 1.0,
             mod_amp2: 1.0,
@@ -58,7 +59,7 @@ impl MidiOsc {
 
     pub fn update(&mut self) {
         // --------------------- OPEN SOUND CONTROL
-        let mut notes = Vec::new();
+        let mut notes: Vec<MidiPianoFrame> = Vec::new();
         
         // Receive any pending osc packets.
         let mut received_packets = Vec::new();
@@ -70,40 +71,49 @@ impl MidiOsc {
             .drain(..)
             .flat_map(|(_addr, packet)| packet.into_msgs());
 
-        for message in all_msgs {
-            let args = match &message.args {
-                None => continue,
-                Some(args) => args,
-            };
-            let on_off = args[0].clone().int().unwrap() as u8;
-            let pitch = args[1].clone().int().unwrap() as u8;
-            let velocity = args[2].clone().int().unwrap() as u8;
-            if on_off == NOTE_ON {
-                notes.push( Note {
-                    pitch, 
-                    velocity
-                });
-            } 
-        }
-        
-        let mpf = MidiPianoFrame {
-            notes,
-            sustain_pedal: 0.0,
-            soft_pedal: 0.0,
-        };
+        // for message in all_msgs {
+        //     let args = match &message.args {
+        //         None => continue,
+        //         Some(args) => args,
+        //     };
+        //     let on_off = args[0].clone().int().unwrap() as u8;
+        //     let pitch = args[1].clone().int().unwrap() as u8;
+        //     let velocity = args[2].clone().int().unwrap() as u8;
+        //     if on_off == NOTE_ON {
+        //         notes.push( Note {
+        //             pitch, 
+        //             velocity
+        //         });
+        //     } 
+        // }
 
-        self.midi_buffer.push_front(mpf);
-        self.midi_buffer.pop_back();
+        // let mpf = MidiPianoFrame {
+        //     notes,
+        //     sustain_pedal: 0.0,
+        //     soft_pedal: 0.0,
+        // };
+
+        // self.midi_buffer.push_front(mpf);
+        // self.midi_buffer.pop_back();
 
         //println!("{:#?}", model.midi_buffer);
 
         //analyse(&self.midi_buffer);
 
-        let unique_pitches = unique_pitches(&self.midi_buffer).len();
-        let target_midi_cv = map_range(unique_pitches, 0 , self.max_unique_pitches, 0.0, 1.0);
+        //let unique_pitches = unique_pitches(&self.midi_buffer).len();
+        //let target_midi_cv = map_range(unique_pitches, 0 , self.max_unique_pitches, 0.0, 1.0);
+
+        let mut target_midi_cv = 0.0;
+        for message in all_msgs {
+            let args = match &message.args {
+                None => continue,
+                Some(args) => args,
+            };
+            target_midi_cv = args[0].clone().float().unwrap() as f32; 
+        }        
 
         let smoothing_speed = if target_midi_cv < self.midi_cv {
-            self.smoothing_speed * 0.1
+            self.smoothing_release
         } else {
             self.smoothing_speed
         };
@@ -196,17 +206,17 @@ fn analyse(midi_buffer: &VecDeque<MidiPianoFrame>) {
     
     let pitches = unique_pitches(&midi_buffer);
     println!("unique_pitches = {:?}", &pitches); 
-    println!("unique_pitches len = {}", pitches.len());  
+    //println!("unique_pitches len = {}", pitches.len());  
     if let Some(min) = min_pitch(&midi_buffer) {
-        println!("min_pitch = {:?}", min);
+        //println!("min_pitch = {:?}", min);
     }
     if let Some(max) = max_pitch(&midi_buffer) {
-        println!("max_pitch = {:?}", max);
+        //println!("max_pitch = {:?}", max);
     }
     
     //println!("avg_pitch {}", avg_pitch(&midi_buffer));
 
-    //println!("Num Chords {}", num_chords(&midi_buffer));
+    println!("Num Chords {}", num_chords(&midi_buffer));
 }
 
 pub fn default_midi_buffer(midi_buffer_frame_len: usize) -> VecDeque<MidiPianoFrame> {

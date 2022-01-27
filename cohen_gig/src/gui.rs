@@ -88,6 +88,7 @@ widget_ids! {
         buffer_length, 
         max_pitches,
         smoothing_speed,
+        smoothing_release,
         unique_pitches,
     }
 }
@@ -1261,7 +1262,7 @@ pub fn update(
         midi_osc.midi_buffer.resize(midi_osc.midi_buffer_frame_len, mpf);
     }
 
-    for value in slider(midi_osc.max_unique_pitches as f32, 4.0, 16.0)
+    for value in slider(midi_osc.max_unique_pitches as f32, 4.0, 32.0)
         .down(10.0)
         .label("Max Pitches")
         .set(ids.max_pitches, ui)
@@ -1269,12 +1270,20 @@ pub fn update(
         midi_osc.max_unique_pitches = value as usize;
     }
 
-    for value in slider(midi_osc.smoothing_speed, 0.002, 0.08)
+    for value in slider(midi_osc.smoothing_speed, 0.002, 0.99)
         .down(10.0)
-        .label("Smoothing Speed")
+        .label("Smoothing Attack")
         .set(ids.smoothing_speed, ui)
     {
         midi_osc.smoothing_speed = value;
+    }
+
+    for value in slider(midi_osc.smoothing_release, 0.002, 0.4)
+        .down(10.0)
+        .label("Smoothing Release")
+        .set(ids.smoothing_release, ui)
+    {
+        midi_osc.smoothing_release = value;
     }
 
     for value in slider(midi_osc.midi_cv, 0.0, 1.0)
