@@ -37,6 +37,8 @@ pub struct Config {
     pub osc_addr_textbox_string: String,
     #[serde(default)]
     pub presets: Presets,
+    #[serde(default)]
+    pub preset_lerp_secs: f32,
 }
 
 
@@ -113,6 +115,7 @@ impl Default for Config {
             fade_to_black: Default::default(),
             osc_addr_textbox_string: default::osc_addr_textbox_string(),
             presets: Default::default(),
+            preset_lerp_secs: Default::default(),
         }
     }
 }

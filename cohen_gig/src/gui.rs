@@ -22,7 +22,7 @@ pub const WINDOW_WIDTH: u32 =
     (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
-pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
+//pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
@@ -49,6 +49,7 @@ widget_ids! {
         shader_state_text,
 
         presets_text,
+        presets_lerp_slider,
         presets_duplicate,
         presets_new_button,
         presets_save_button,
@@ -1026,6 +1027,8 @@ pub fn update(
     osc: &mut Osc,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
+    led_colors: &Box<[LinSrgb; crate::layout::LED_COUNT]>,
+    last_preset_change: &mut Option<crate::LastPresetChange>,
     assets: &Path,
     ids: &mut Ids,
 ) {
@@ -1296,7 +1299,7 @@ pub fn update(
 
 
 
-    set_presets_widgets(ui, &ids, config, &assets);
+    set_presets_widgets(ui, &ids, config, last_preset_change, &led_colors, &assets);
 
     // Now that preset selection is done, get easier access to the selected preset.
     let preset = config.presets.selected_mut();
@@ -1457,11 +1460,20 @@ pub fn update(
     //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
 }
 
-pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, assets: &Path) {
+pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, last_preset_change: &mut Option<crate::LastPresetChange>, led_colors: &Box<[LinSrgb; crate::layout::LED_COUNT]>, assets: &Path) {
     widget::Text::new("PRESETS")
         .top_left_of(ids.column_2_id)
         .color(TEXT_COLOR)
         .set(ids.presets_text, ui);
+
+    let label = format!("Lerp Duration: {:.2} secs", config.preset_lerp_secs);
+    for v in slider(config.preset_lerp_secs, 0.0, 3.0)
+        .down(10.0)
+        .label(&label)
+        .set(ids.presets_lerp_slider, ui)
+    {
+        config.preset_lerp_secs = v;
+    }
 
     for _click in button()
         .down(10.0)
@@ -1590,6 +1602,8 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
                 if selection < config.presets.list.len() {
                     config.presets.selected_preset_idx = selection;
                     config.presets.selected_preset_name = config.presets.selected().name.clone();
+                    let now = std::time::Instant::now();
+                    *last_preset_change = Some((now, led_colors.clone()));
                 }
             }
             _ => (),

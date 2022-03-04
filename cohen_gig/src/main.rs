@@ -8,12 +8,14 @@ use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc;
+use lerp::Lerp;
 
 mod conf;
 mod gui;
 mod layout;
 mod shader;
 mod midi_osc;
+mod lerp;
 
 use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
@@ -74,11 +76,14 @@ struct Model {
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
     // Shader output with fade-to-black applied.
     led_outputs: Box<[LinSrgb; layout::LED_COUNT]>,
+    last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
     midi_osc: MidiOsc,
     midi_cv_phase_amp: f32,
 }
+
+type LastPresetChange = (std::time::Instant, Box<[LinSrgb; layout::LED_COUNT]>);
 
 struct ButtonState {
     pub last_pressed: std::time::Instant,
@@ -264,6 +269,8 @@ fn model(app: &App) -> Model {
 
     let midi_osc = MidiOsc::new();
 
+    let last_preset_change = None;
+
     Model {
         _gui_window: gui_window,
         led_strip_window,
@@ -283,6 +290,7 @@ fn model(app: &App) -> Model {
         wash_outputs,
         led_colors,
         led_outputs,
+        last_preset_change,
         ui,
         ids,
         midi_osc,
@@ -317,6 +325,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
+        &model.led_colors,
+        &mut model.last_preset_change,
         &assets,
         &mut model.ids,
     );
@@ -508,20 +518,45 @@ fn update(app: &App, model: &mut Model, update: Update) {
     };
 
     // Apply the shader for the washes.
-    for wash_ix in 0..model.wash_colors.len() {
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
-        let trg_s = pm_to_ps(trg_m, trg_h);
-        let light = Light::Wash { index: wash_ix };
-        let last_color = model.wash_colors[wash_ix];
-        let position = trg_s;
-        let vertex = Vertex {
-            position,
-            light,
-            last_color,
-        };
-        model.wash_colors[wash_ix] = shader(vertex, &uniforms);
-    }
+    // for wash_ix in 0..model.wash_colors.len() {
+    //     let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
+    //     let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
+    //     let trg_s = pm_to_ps(trg_m, trg_h);
+    //     let light = Light::Wash { index: wash_ix };
+    //     let last_color = model.wash_colors[wash_ix];
+    //     let position = trg_s;
+    //     let vertex = Vertex {
+    //         position,
+    //         light,
+    //         last_color,
+    //     };
+    //     model.wash_colors[wash_ix] = shader(vertex, &uniforms);
+    // }
+
+    // let vertices: Vec<Vertex> = layout::led_positions_metres()
+    //     .enumerate()
+    //     .map(| (led_ix, (row, x, h)) | {
+    //         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES[1]), h);
+    //         let index = led_ix;
+    //         let col = led_ix % layout::LEDS_PER_ROW;
+    //         let col_row = [col, row];
+    //         let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
+    //         let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
+    //         let normalised_coords = vec2(n_x, n_y);
+    //         let light = Light::Led {
+    //             index,
+    //             col_row,
+    //             normalised_coords,
+    //         };
+    //         let last_color = model.led_colors[led_ix];
+    //         let position = ps;
+    //         let vertex = Vertex {
+    //             position,
+    //             light,
+    //             last_color,
+    //         };
+    //         vertex
+    //     }).collect();
 
     // Apply the shader for the LEDs.
     for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
@@ -547,18 +582,39 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.led_colors[led_ix] = shader(vertex, &uniforms);
     }
 
-    // Write the colours to the output buffer with the fade applied.
-    let ftb = model.config.fade_to_black.wash;
-    let w_ftb = lin_srgb(ftb, ftb, ftb);
-    for (output, &colour) in model.wash_outputs.iter_mut().zip(model.wash_colors.iter()) {
-        *output = colour * w_ftb;
-    }
+    // If we recently changed presets, interpolate from the previous state.
+    let (prev_output, lerp_amt) = match model.last_preset_change {
+        None => (&[][..], 1.0),
+        Some((ref inst, ref prev_output)) => {
+            let elapsed_secs = inst.elapsed().as_secs_f32();
+            if elapsed_secs < model.config.preset_lerp_secs {
+                let diff = model.config.preset_lerp_secs - elapsed_secs;
+                let amt = 1.0 - diff / model.config.preset_lerp_secs;
+                (&prev_output[..], amt)
+            } else {
+                (&[][..], 1.0)
+            }
+        }
+    };
 
+    // Write the colours to the output buffer with the fade applied.
+    // let ftb = model.config.fade_to_black.wash;
+    // let w_ftb = lin_srgb(ftb, ftb, ftb);
+    // for (output, &colour) in model.wash_outputs.iter_mut().zip(model.wash_colors.iter()) {
+    //     *output = colour * w_ftb;
+    // }
+    
     // Write the colours to the output buffer with the fade applied.
     let ftb = model.config.fade_to_black.led;
     let l_ftb = lin_srgb(ftb, ftb, ftb);
-    for (output, &colour) in model.led_outputs.iter_mut().zip(model.led_colors.iter()) {
-        *output = colour * l_ftb;
+    for (i, (output, &colour)) in model.led_outputs.iter_mut().zip(model.led_colors.iter()).enumerate() {
+        let new = colour * l_ftb;
+        *output = match prev_output.get(i) {
+            None => new,
+            Some(prev) => prev.lerp(&new, lerp_amt),
+        };
+
+        //*output = colour * l_ftb;
     }
 
     // Ensure we are connected to a DMX source if enabled.
