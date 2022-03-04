@@ -566,7 +566,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // let source =
         //    sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
         let source =
-            sacn::DmxSource::with_ip("Cohen Pre-vis", "10.0.0.5").expect("failed to connect to DMX source");
+            sacn::DmxSource::with_ip("Cohen Pre-vis", "10.0.0.100").expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
     } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
@@ -643,14 +643,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
             model.dmx.buffer.extend(col.iter().cloned());
             
             // If we've filled a universe, send it.
-            // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+                // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
+                model.dmx.buffer.push(0);
+                model.dmx.buffer.push(0);
+            // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
             //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
             //     model.dmx.buffer.push(0);
             //     model.dmx.buffer.push(0);
-            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
-                // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-                // model.dmx.buffer.push(0);
-                // model.dmx.buffer.push(0);
 
                 let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
                 dmx_source
