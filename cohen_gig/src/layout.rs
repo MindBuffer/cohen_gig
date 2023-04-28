@@ -27,7 +27,7 @@ pub const LEDS_PER_ROW: usize = LEDS_PER_METRE * METRES_PER_LED_ROW;
 /// The gap between individual LEDs in metres.
 pub const LED_GAP_METRES: f32 = 1.0 / LEDS_PER_METRE as f32;
 /// Total number of LED rows.
-pub const LED_ROW_COUNT: usize = 8;
+pub const LED_ROW_COUNT: usize = 7;
 /// Total number of LEDs.
 pub const LED_COUNT: usize = LEDS_PER_ROW * LED_ROW_COUNT;
 /// Height gap between each LED row.

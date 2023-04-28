@@ -41,7 +41,7 @@ pub const RIGHT_X: f32 = 1.0;
 pub const FLOOR_Y: f32 = -1.0;
 pub const ROOF_Y: f32 = 1.0;
 
-pub const LED_PPM: f32 = 144.0;
+pub const LED_PPM: f32 = 80.0;//144.0;
 
 pub const LED_SHADER_RESOLUTION_X: f32 = 720.0;
 pub const LED_SHADER_RESOLUTION_Y: f32 = 450.0;
@@ -619,10 +619,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on && model.dmx.source.is_none() {
-        // let source =
-        //    sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
         let source =
-            sacn::DmxSource::with_ip("Cohen Pre-vis", "10.0.0.100").expect("failed to connect to DMX source");
+            sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
+           // println!("source {:?}", source.name());
+        // let source =
+        //     sacn::DmxSource::with_ip("Cohen Pre-vis", "127.0.0.1").expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
     } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
