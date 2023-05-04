@@ -53,7 +53,6 @@ pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
-    topdown_window: window::Id,
     dmx: Dmx,
     osc: Osc,
     midi_inputs: Vec<midir::MidiInputConnection<()>>,
@@ -163,15 +162,6 @@ fn model(app: &App) -> Model {
         .build()
         .unwrap();
 
-    let topdown_window = app
-        .new_window()
-        .title("COHEN GIG - TOPDOWN")
-        .size(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
-        .key_pressed(key_pressed)
-        .view(topdown_view)
-        .build()
-        .unwrap();
-
     let mut ui = ui::builder(app)
         .window(gui_window)
         .build()
@@ -187,10 +177,6 @@ fn model(app: &App) -> Model {
             .window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
         w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
-        let w = app
-            .window(topdown_window)
-            .expect("visualisation window closed unexpectedly");
-        w.set_outer_position_pixels(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
     let dmx = Dmx {
@@ -267,7 +253,6 @@ fn model(app: &App) -> Model {
     Model {
         _gui_window: gui_window,
         led_strip_window,
-        topdown_window,
         dmx,
         osc,
         midi_inputs,
@@ -492,10 +477,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         time: app.time + (model.midi_osc.midi_cv * model.midi_cv_phase_amp),
         resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
-        slider1: bw_param1, // BW param 1
-        slider2: bw_param2, // BW param 2
-        slider3: colour_param1, // Colour param 1
-        slider4: colour_param2, // Colour param 2
+        slider1: model.controller.slider1, // bw_param1, // BW param 1
+        slider2: model.controller.slider2, // bw_param2, // BW param 2
+        slider3: model.controller.slider3, // colour_param1, // Colour param 1
+        slider4: model.controller.slider4, // colour_param2, // Colour param 2
         slider5: model.controller.slider5, // Wash param 1
         slider6: model.controller.slider6, // Wash param 2
         pot6: model.controller.pot6,       // Red / Hue
@@ -725,84 +710,6 @@ fn gui_view(app: &App, model: &Model, frame: Frame) {
         .expect("failed to draw `Ui` to `Frame`");
 }
 
-fn topdown_view(app: &App, model: &Model, frame: Frame) {
-    let draw = app.draw();
-    draw.background().color(BLACK);
-
-    let w = app.window(model.topdown_window).unwrap().rect();
-
-    // Functions ready for metres <-> point translations.
-    let metres_to_points_scale = 15.0;
-
-    let m_to_p = |m| m * metres_to_points_scale;
-    let p_to_m = |p| p / metres_to_points_scale;
-    let pm_to_pp = |pm: [f32; 2]| pt2(m_to_p(pm[0]), m_to_p(pm[1]));
-    let pp_to_pm = |pp: [f32; 2]| pt2(p_to_m(pp[0]), p_to_m(pp[1]));
-
-    // Topdown metres <-> shader coords.
-    let pm_to_ps =
-        |pm: [f32; 2], h: f32| layout::topdown_metres_to_shader_coords(Vec2::from_slice(&pm), h);
-
-    // Draw the walls.
-    let ps = layout::WALL_METRES.iter().cloned().map(pm_to_pp);
-    draw.path().fill().points(ps).rgb(0.1, 0.1, 0.1);
-
-    // Draw the wash target ellipses.
-    for wash_ix in 0..layout::WASH_COUNT {
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m.to_array());
-        let r_m = 3.0;
-        let r = m_to_p(r_m);
-        let color = model.wash_outputs[wash_ix];
-        let alpha = 0.2;
-        let c = nannou::color::Alpha { color, alpha };
-        draw.ellipse().xy(trg_p).radius(r).color(c);
-    }
-
-    // Draw the wash source indices.
-    for wash_ix in 0..layout::WASH_COUNT {
-        let src_m = layout::wash_index_to_topdown_source_position_metres(wash_ix);
-        let src_p = pm_to_pp(src_m.to_array());
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m.to_array());
-        let color = model.wash_outputs[wash_ix];
-        draw.line().color(color).points(src_p, trg_p);
-        draw.text(&format!("{}", wash_ix)).font_size(16).xy(src_p);
-    }
-
-    // Draw blackness outside the walls as an adhoc crop.
-    let crop_p = Vec2::from_slice(&layout::WALL_METRES[0]) - pt2(0.0, 20.0);
-    let crop_bl = crop_p - pt2(20.0, 0.0);
-    let crop_tl = crop_bl + pt2(0.0, 50.0);
-    let crop_tr = crop_tl + pt2(50.0, 0.0);
-    let crop_br = crop_tr - pt2(0.0, 50.0);
-    let crop = [crop_p, crop_bl, crop_tl, crop_tr, crop_br, crop_p];
-    let crop_points = layout::WALL_METRES
-        .iter()
-        .cloned()
-        .map(|p| Vec2::from_slice(&p))
-        .chain(Some(Vec2::from_slice(&layout::WALL_METRES[0])))
-        .chain(crop.iter().cloned())
-        .map(|p| pm_to_pp(p.to_array()));
-    draw.polygon().points(crop_points).color(BLACK);
-
-    // Draw the mouse position in shader coords.
-    if app.window_id() == model.topdown_window && app.keys.down.contains(&Key::LShift) {
-        let mouse_p = app.mouse.position();
-        let mouse_m = pp_to_pm(mouse_p.to_array());
-        let mouse_s = pm_to_ps(mouse_m.to_array(), 0.0);
-        let coords_text = format!("{:.2}x, {:.2}z", mouse_s.x, mouse_s.z);
-        draw.text(&coords_text)
-            .x(mouse_p.x)
-            .y(mouse_p.y + 16.0)
-            .font_size(16);
-    }
-
-    draw_hotload_feedback(app, model, &draw, w);
-
-    draw.to_frame(app, &frame).unwrap();
-}
-
 fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
@@ -811,11 +718,11 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
 
     let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND as f32)
         .min(w.w() / layout::METRES_PER_LED_ROW as f32)
-        * 0.8;
+        * 1.0;
     let m_to_p = |m| m * metres_to_points_scale;
     let p_to_m = |p| p / metres_to_points_scale;
     let x_offset_m = layout::SHADER_ORIGIN_METRES[0];
-    let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND as f32 * 0.5;
+    let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND as f32 * 0.65;
     let pm_to_pp = |x: f32, h: f32| pt2(m_to_p(x - x_offset_m), m_to_p(h - y_offset_m));
     let pp_to_pm = |pp: Point2| (p_to_m(pp.x) + x_offset_m, p_to_m(pp.y) + y_offset_m);
     let pm_to_ps = |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h);
