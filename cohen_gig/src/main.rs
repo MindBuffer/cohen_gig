@@ -29,11 +29,6 @@ const LED_STRIP_WINDOW_Y: i32 = GUI_WINDOW_Y;
 //const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3 - gui::WINDOW_WIDTH;
 const LED_STRIP_WINDOW_W: u32 = 1920 / 2 - WINDOW_PAD as u32 * 3;
 const LED_STRIP_WINDOW_H: u32 = 480;
-const TOPDOWN_WINDOW_X: i32 = LED_STRIP_WINDOW_X;
-const TOPDOWN_WINDOW_Y: i32 = LED_STRIP_WINDOW_Y + LED_STRIP_WINDOW_H as i32 + WINDOW_PAD;
-const TOPDOWN_WINDOW_W: u32 = LED_STRIP_WINDOW_W;
-const TOPDOWN_WINDOW_H: u32 = 480;
-
 pub const FAR_Z: f32 = 0.0;
 pub const CLOSE_Z: f32 = 1.0;
 pub const LEFT_X: f32 = -1.0;
@@ -46,16 +41,12 @@ pub const LED_PPM: f32 = 80.0;//144.0;
 pub const LED_SHADER_RESOLUTION_X: f32 = 720.0;
 pub const LED_SHADER_RESOLUTION_Y: f32 = 450.0;
 
-pub const SPOT_COUNT: usize = 2;
-pub const DMX_ADDRS_PER_SPOT: u8 = 1;
-pub const DMX_ADDRS_PER_WASH: u8 = 7;
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
-    topdown_window: window::Id,
     dmx: Dmx,
     osc: Osc,
     midi_inputs: Vec<midir::MidiInputConnection<()>>,
@@ -67,10 +58,6 @@ struct Model {
     target_slider_values: Vec<f32>,
     target_pot_values: Vec<f32>,
     smoothing_speed: f32,
-    // Colours output via the shader.
-    wash_colors: Box<[LinSrgb; layout::WASH_COUNT]>,
-    // Shader output with fade-to-black applied.
-    wash_outputs: Box<[LinSrgb; layout::WASH_COUNT]>,
     // Colours output via the shader.
     // Starts from top left, one row at a time.
     led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
@@ -106,34 +93,13 @@ struct Controller {
     slider2: f32, // BW param 2
     slider3: f32, // Colour param 1
     slider4: f32, // Colour param 2
-    slider5: f32, // Wash param 1
-    slider6: f32, // Wash param 2
+    slider5: f32, // Shader param 5
+    slider6: f32, // Shader param 6
     pot6: f32,    // Red / Hue
     pot7: f32,    // Green / Saturation
     pot8: f32,    // Blue / Value
     buttons: HashMap<shader_shared::Button, ButtonState>,
 }
-
-// The known state of the Korg at any point in time.
-// struct Controller {
-//     slider1: f32, // BW param 1
-//     slider2: f32, // BW param 2
-//     slider3: f32, // Colour param 1
-//     slider4: f32, // Colour param 2
-//     slider5: f32, // Midi Osc smoothing speed
-//     slider6: f32, // midi_cv app.time phase add
-//     slider7: f32, // LED fade to black
-//     slider8: f32, // Left / Right Blend Mix
-    // pot1: f32,    // BW param 1 (midi_cv amp)
-    // pot2: f32,    // BW param 2 (midi_cv amp)
-    // pot3: f32,    // Colour param 1 (midi_cv amp)
-    // pot4: f32,    // Colour param 2 (midi_cv amp)
-//     pot5: f32,    // Shaders smoothing speed
-//     pot6: f32,    // Red / Hue
-//     pot7: f32,    // Green / Saturation
-//     pot8: f32,    // Blue / Value
-//     buttons: HashMap<shader_shared::Button, ButtonState>,
-// }
 
 fn main() {
     nannou::app(model).update(update).exit(exit).run();
@@ -168,15 +134,6 @@ fn model(app: &App) -> Model {
         .build()
         .unwrap();
 
-    let topdown_window = app
-        .new_window()
-        .title("COHEN GIG - TOPDOWN")
-        .size(TOPDOWN_WINDOW_W, TOPDOWN_WINDOW_H)
-        .key_pressed(key_pressed)
-        .view(topdown_view)
-        .build()
-        .unwrap();
-
     let mut ui = ui::builder(app)
         .window(gui_window)
         .build()
@@ -192,10 +149,6 @@ fn model(app: &App) -> Model {
             .window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
         w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
-        let w = app
-            .window(topdown_window)
-            .expect("visualisation window closed unexpectedly");
-        w.set_outer_position_pixels(TOPDOWN_WINDOW_X, TOPDOWN_WINDOW_Y);
     }
 
     let dmx = Dmx {
@@ -211,8 +164,6 @@ fn model(app: &App) -> Model {
     let addr = conf::default::osc_addr_textbox_string().parse().unwrap();
     let osc = Osc { tx, addr };
 
-    let wash_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
-    let wash_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::WASH_COUNT]);
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
     let led_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
 
@@ -252,8 +203,8 @@ fn model(app: &App) -> Model {
         slider2: 0.5, // BW param 2
         slider3: 0.5, // Colour param 1
         slider4: 0.5, // Colour param 2
-        slider5: 0.5, // Shaders smoothing speed
-        slider6: 0.5, // midi_cv app.time phase add
+        slider5: 0.5, // Shader param 5
+        slider6: 0.5, // Shader param 6
         // slider7: 0.0, // LED fade to black
         // slider8: 0.5, // Left / Right Blend Mix
         // pot1: 0.0,    // BW param 1 (midi_cv amp)
@@ -274,7 +225,6 @@ fn model(app: &App) -> Model {
     Model {
         _gui_window: gui_window,
         led_strip_window,
-        topdown_window,
         dmx,
         osc,
         midi_inputs,
@@ -286,8 +236,6 @@ fn model(app: &App) -> Model {
         target_slider_values: vec![0.5; 4],     // First 4 Sliders
         target_pot_values: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
-        wash_colors,
-        wash_outputs,
         led_colors,
         led_outputs,
         last_preset_change,
@@ -506,57 +454,15 @@ fn update(app: &App, model: &mut Model, update: Update) {
         slider2: bw_param2, // BW param 2
         slider3: colour_param1, // Colour param 1
         slider4: colour_param2, // Colour param 2
-        slider5: model.controller.slider5, // Wash param 1
-        slider6: model.controller.slider6, // Wash param 2
+        slider5: model.controller.slider5, // Shader param 5
+        slider6: model.controller.slider6, // Shader param 6
         pot6: model.controller.pot6,       // Red / Hue
         pot7: model.controller.pot7,       // Green / Saturation
         pot8: model.controller.pot8,       // Blue / Value
         params: shader_params,
-        wash_lerp_amt: preset.wash_lerp_amt,
         mix: mix_info,
         buttons,
     };
-
-    // Apply the shader for the washes.
-    // for wash_ix in 0..model.wash_colors.len() {
-    //     let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-    //     let trg_h = layout::wash_index_to_target_height_metres(wash_ix);
-    //     let trg_s = pm_to_ps(trg_m, trg_h);
-    //     let light = Light::Wash { index: wash_ix };
-    //     let last_color = model.wash_colors[wash_ix];
-    //     let position = trg_s;
-    //     let vertex = Vertex {
-    //         position,
-    //         light,
-    //         last_color,
-    //     };
-    //     model.wash_colors[wash_ix] = shader(vertex, &uniforms);
-    // }
-
-    // let vertices: Vec<Vertex> = layout::led_positions_metres()
-    //     .enumerate()
-    //     .map(| (led_ix, (row, x, h)) | {
-    //         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES[1]), h);
-    //         let index = led_ix;
-    //         let col = led_ix % layout::LEDS_PER_ROW;
-    //         let col_row = [col, row];
-    //         let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
-    //         let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
-    //         let normalised_coords = vec2(n_x, n_y);
-    //         let light = Light::Led {
-    //             index,
-    //             col_row,
-    //             normalised_coords,
-    //         };
-    //         let last_color = model.led_colors[led_ix];
-    //         let position = ps;
-    //         let vertex = Vertex {
-    //             position,
-    //             light,
-    //             last_color,
-    //         };
-    //         vertex
-    //     }).collect();
 
     // Apply the shader for the LEDs.
     for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
@@ -598,13 +504,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
     };
 
     // Write the colours to the output buffer with the fade applied.
-    // let ftb = model.config.fade_to_black.wash;
-    // let w_ftb = lin_srgb(ftb, ftb, ftb);
-    // for (output, &colour) in model.wash_outputs.iter_mut().zip(model.wash_colors.iter()) {
-    //     *output = colour * w_ftb;
-    // }
-    
-    // Write the colours to the output buffer with the fade applied.
     let ftb = model.config.fade_to_black.led;
     let l_ftb = lin_srgb(ftb, ftb, ftb);
     for (i, (output, &colour)) in model.led_outputs.iter_mut().zip(model.led_colors.iter()).enumerate() {
@@ -613,17 +512,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
             None => new,
             Some(prev) => prev.lerp(&new, lerp_amt),
         };
-
-        //*output = colour * l_ftb;
     }
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on && model.dmx.source.is_none() {
         let source =
             sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
-           // println!("source {:?}", source.name());
-        // let source =
-        //     sacn::DmxSource::with_ip("Cohen Pre-vis", "127.0.0.1").expect("failed to connect to DMX source");
         model.dmx.source = Some(source);
     } else if !model.config.dmx_on && model.dmx.source.is_some() {
         model.dmx.source.take();
@@ -649,49 +543,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
         [r, g, b]
     }
 
-    // Update dimming control of the 2 house spot lights
-    let spot_lights = [
-        model.config.fade_to_black.spot1,
-        model.config.fade_to_black.spot2,
-    ];
-
     // If we have a DMX source, send data over it!
     if let Some(ref dmx_source) = model.dmx.source {
-        // // First, send data to spotlights and washes on universe 1.
-        // model.dmx.buffer.clear();
-        // model
-        //     .dmx
-        //     .buffer
-        //     .extend((0..DMX_ADDRS_PER_UNIVERSE).map(|_| 0u8));
-
-        // // Collect spot light dimming data.
-        // for (spot_ix, dim) in spot_lights.iter().enumerate() {
-        //     let dimmer = convert_channel(*dim);
-        //     let col: [u8; DMX_ADDRS_PER_SPOT as usize] = [dimmer];
-        //     let start_addr = model.config.spot_dmx_addrs[spot_ix] as usize;
-        //     let end_addr = start_addr + DMX_ADDRS_PER_SPOT as usize;
-        //     let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
-        //     let col = &col[..range.len()];
-        //     model.dmx.buffer[range].copy_from_slice(col);
-        // }
-
-        // // Collect wash light color data.
-        // for (wash_ix, col) in model.wash_outputs.iter().enumerate() {
-        //     let [r, g, b] = lin_srgb_f32_to_bytes(col);
-        //     let intensity = 255; // should this be 255?
-        //     let col: [u8; DMX_ADDRS_PER_WASH as usize] = [intensity, r, g, b, 0, 0, 0];
-        //     let start_addr = model.config.wash_dmx_addrs[wash_ix] as usize;
-        //     let end_addr = start_addr + DMX_ADDRS_PER_WASH as usize;
-        //     let range = start_addr..std::cmp::min(end_addr, model.dmx.buffer.len());
-        //     let col = &col[..range.len()];
-        //     model.dmx.buffer[range].copy_from_slice(col);
-        // }
-
-        // // Send spot and wash data.
-        // dmx_source
-        //     .send(model.config.wash_spot_universe, &model.dmx.buffer[..])
-        //     .expect("failed to send DMX data");
-
         // Collect and send LED data.
         model.dmx.buffer.clear();
         let mut universe = model.config.led_start_universe;
@@ -724,47 +577,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
             .expect("failed to send LED DMX data");
     }
 
-    // If we have an OSC sender, send data over it!
-    // if let Some(ref osc_tx) = model.osc.tx {
-    //     // Send wash lights colors.
-    //     let addr = "/cohen/wash_lights/";
-    //     let mut args = Vec::with_capacity(model.wash_outputs.len() * 4);
-    //     for col in model.wash_outputs.iter() {
-    //         //let [r, g, b] = lin_srgb_f32_to_bytes(col);
-    //         args.push(osc::Type::Float(col.red as _));
-    //         args.push(osc::Type::Float(col.green as _));
-    //         args.push(osc::Type::Float(col.blue as _));
-    //         args.push(osc::Type::Float(0.0))
-    //     }
-    //     osc_tx.send((addr, args), &model.osc.addr).ok();
-
-    //     // Send LED colors.
-    //     let addr = "/cohen/leds/";
-    //     let mut args = Vec::with_capacity(layout::LEDS_PER_METRE * 3);
-    //     for (metre_ix, metre) in model.led_outputs.chunks(layout::LEDS_PER_METRE).enumerate() {
-    //         // TODO: Account for strip IDs etc here.
-    //         args.clear();
-    //         args.push(osc::Type::Int(metre_ix as _));
-    //         for col in metre {
-    //             let [r, g, b] = lin_srgb_f32_to_bytes(col);
-    //             args.push(osc::Type::Int(r as _));
-    //             args.push(osc::Type::Int(g as _));
-    //             args.push(osc::Type::Int(b as _));
-    //         }
-    //         osc_tx.send((addr, args.clone()), &model.osc.addr).ok();
-    //     }
-
-    //     // Send Spot light dimmers.
-    //     let addr = "/cohen/spot_light1/";
-    //     let mut args = Vec::new();
-    //     args.push(osc::Type::Float(spot_lights[0]));
-    //     osc_tx.send((addr, args), &model.osc.addr).ok();
-
-    //     let addr = "/cohen/spot_light2/";
-    //     let mut args = Vec::new();
-    //     args.push(osc::Type::Float(spot_lights[1]));
-    //     osc_tx.send((addr, args), &model.osc.addr).ok();
-    // }
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {
@@ -780,84 +592,6 @@ fn gui_view(app: &App, model: &Model, frame: Frame) {
         .ui
         .draw_to_frame(app, &frame)
         .expect("failed to draw `Ui` to `Frame`");
-}
-
-fn topdown_view(app: &App, model: &Model, frame: Frame) {
-    let draw = app.draw();
-    draw.background().color(BLACK);
-
-    let w = app.window(model.topdown_window).unwrap().rect();
-
-    // Functions ready for metres <-> point translations.
-    let metres_to_points_scale = 15.0;
-
-    let m_to_p = |m| m * metres_to_points_scale;
-    let p_to_m = |p| p / metres_to_points_scale;
-    let pm_to_pp = |pm: [f32; 2]| pt2(m_to_p(pm[0]), m_to_p(pm[1]));
-    let pp_to_pm = |pp: [f32; 2]| pt2(p_to_m(pp[0]), p_to_m(pp[1]));
-
-    // Topdown metres <-> shader coords.
-    let pm_to_ps =
-        |pm: [f32; 2], h: f32| layout::topdown_metres_to_shader_coords(Vec2::from_slice(&pm), h);
-
-    // Draw the walls.
-    let ps = layout::WALL_METRES.iter().cloned().map(pm_to_pp);
-    draw.path().fill().points(ps).rgb(0.1, 0.1, 0.1);
-
-    // Draw the wash target ellipses.
-    for wash_ix in 0..layout::WASH_COUNT {
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m.to_array());
-        let r_m = 3.0;
-        let r = m_to_p(r_m);
-        let color = model.wash_outputs[wash_ix];
-        let alpha = 0.2;
-        let c = nannou::color::Alpha { color, alpha };
-        draw.ellipse().xy(trg_p).radius(r).color(c);
-    }
-
-    // Draw the wash source indices.
-    for wash_ix in 0..layout::WASH_COUNT {
-        let src_m = layout::wash_index_to_topdown_source_position_metres(wash_ix);
-        let src_p = pm_to_pp(src_m.to_array());
-        let trg_m = layout::wash_index_to_topdown_target_position_metres(wash_ix);
-        let trg_p = pm_to_pp(trg_m.to_array());
-        let color = model.wash_outputs[wash_ix];
-        draw.line().color(color).points(src_p, trg_p);
-        draw.text(&format!("{}", wash_ix)).font_size(16).xy(src_p);
-    }
-
-    // Draw blackness outside the walls as an adhoc crop.
-    let crop_p = Vec2::from_slice(&layout::WALL_METRES[0]) - pt2(0.0, 20.0);
-    let crop_bl = crop_p - pt2(20.0, 0.0);
-    let crop_tl = crop_bl + pt2(0.0, 50.0);
-    let crop_tr = crop_tl + pt2(50.0, 0.0);
-    let crop_br = crop_tr - pt2(0.0, 50.0);
-    let crop = [crop_p, crop_bl, crop_tl, crop_tr, crop_br, crop_p];
-    let crop_points = layout::WALL_METRES
-        .iter()
-        .cloned()
-        .map(|p| Vec2::from_slice(&p))
-        .chain(Some(Vec2::from_slice(&layout::WALL_METRES[0])))
-        .chain(crop.iter().cloned())
-        .map(|p| pm_to_pp(p.to_array()));
-    draw.polygon().points(crop_points).color(BLACK);
-
-    // Draw the mouse position in shader coords.
-    if app.window_id() == model.topdown_window && app.keys.down.contains(&Key::LShift) {
-        let mouse_p = app.mouse.position();
-        let mouse_m = pp_to_pm(mouse_p.to_array());
-        let mouse_s = pm_to_ps(mouse_m.to_array(), 0.0);
-        let coords_text = format!("{:.2}x, {:.2}z", mouse_s.x, mouse_s.z);
-        draw.text(&coords_text)
-            .x(mouse_p.x)
-            .y(mouse_p.y + 16.0)
-            .font_size(16);
-    }
-
-    draw_hotload_feedback(app, model, &draw, w);
-
-    draw.to_frame(app, &frame).unwrap();
 }
 
 fn led_strip_view(app: &App, model: &Model, frame: Frame) {

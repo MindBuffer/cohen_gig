@@ -1,7 +1,7 @@
 //! The shader function hotloaded at runtime by the cohen_gig crate.
 
 use nannou_core::prelude::*;
-use shader_shared::{BlendMode, Light, Shader, Uniforms, Vertex};
+use shader_shared::{BlendMode, Shader, Uniforms, Vertex};
 
 mod blend_modes;
 mod helpers;
@@ -47,11 +47,6 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     // Colourise.
     col = col * colour;
-
-    // Interpolate wash colours to avoid strobing.
-    if let Light::Wash { .. } = v.light {
-        col = crate::helpers::lerp_lin_srgb(v.last_color, col, uniforms.wash_lerp_amt);
-    }
 
     col
 }

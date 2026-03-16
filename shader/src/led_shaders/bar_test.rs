@@ -1,21 +1,11 @@
 use nannou_core::prelude::*;
 use shader_shared::{Light, Uniforms, Vertex};
 
-use crate::helpers::*;
-
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.row_test;
+    let params = uniforms.params.row_test;
 
-    let (p, col, row) = match v.light {
-        Light::Wash { index } => (pt2(v.position.x, v.position.z * 2.0 - 1.0) ,0,0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => {
-            (normalised_coords, col_row[1], col_row[0])
-        },
-    };
+    let Light::Led { normalised_coords, .. } = v.light;
+    let p = normalised_coords;
 
     let x = (p.x * 3.0) as i32;
 

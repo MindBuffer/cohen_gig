@@ -30,14 +30,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     }
     let d = 0.3 * (params.offset * 10.0);
 
-    let mut uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led { normalised_coords, .. } = v.light;
+    let mut uv = normalised_coords;
 
     // let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);
     // let y = map_range(p.y, 0.3, 1.0, 0.0,1.0);

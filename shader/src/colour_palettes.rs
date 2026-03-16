@@ -1,8 +1,6 @@
 use nannou_core::prelude::*;
 use shader_shared::{Light, Uniforms, Vertex};
-
 use crate::helpers::*;
-
 // Created by inigo quilez - iq/2015
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 
@@ -35,14 +33,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * params.speed;
 
-    let mut uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led { normalised_coords, .. } = v.light;
+    let mut uv = normalised_coords;
 
     // animate
     uv.y += t;

@@ -21,11 +21,6 @@ pub struct Vertex {
 
 #[derive(Copy, Clone)]
 pub enum Light {
-    /// Wash light info.
-    Wash {
-        /// The index of the light within the layout.
-        index: usize,
-    },
     /// Single LED light info.
     Led {
         /// The index of the LED within all LEDs.
@@ -58,7 +53,6 @@ pub struct Uniforms {
     pub pot7: f32,
     pub pot8: f32,
     pub params: ShaderParams,
-    pub wash_lerp_amt: f32,
     pub mix: MixingInfo,
     /// Only contains buttons that have been pressed at least once.
     pub buttons: HashMap<Button, ButtonState>,

@@ -1,5 +1,5 @@
 use nannou_core::prelude::*;
-use shader_shared::{Light, Uniforms, Vertex};
+use shader_shared::{Uniforms, Vertex};
 
 // struct Params {
 //     red: f32,

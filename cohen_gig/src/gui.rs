@@ -59,11 +59,7 @@ widget_ids! {
         enter_preset_name_text,
 
         universe_starts_text,
-        wash_spot_universe_dialer,
         led_start_universe_dialer,
-
-        wash_dmx_addrs_text,
-        wash_dmx_addrs_list,
 
         led_shader_left_text,
         led_shader_left_ddl,
@@ -82,8 +78,6 @@ widget_ids! {
 
         shader_mix_left_right,
         led_fade_to_black,
-        wash_fade_to_black,
-        lerp_amount,
 
         midi_osc_text,
         buffer_length, 
@@ -1190,84 +1184,19 @@ pub fn update(
     let min_universe = 1.0;
     let max_universe = 99.0;
     let precision = 0;
-    let dialer_w = WIDGET_W * 0.5 - PAD * 0.25;
-    let v = config.wash_spot_universe;
-    for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
-        .border(0.0)
-        .label("Wash")
-        .label_color(color::WHITE)
-        .label_font_size(14)
-        .down(PAD)
-        .w(dialer_w)
-        .h(DEFAULT_WIDGET_H)
-        .color(color::DARK_CHARCOAL)
-        .set(ids.wash_spot_universe_dialer, ui)
-    {
-        config.wash_spot_universe = v as u16;
-    }
-
     let v = config.led_start_universe;
     for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
         .border(0.0)
         .label("LEDs")
         .label_color(color::WHITE)
         .label_font_size(14)
-        .right(PAD * 0.5)
-        .w(dialer_w)
+        .down(PAD)
+        .w(WIDGET_W)
+        .h(DEFAULT_WIDGET_H)
         .color(color::DARK_CHARCOAL)
         .set(ids.led_start_universe_dialer, ui)
     {
         config.led_start_universe = v as u16;
-    }
-
-    text("Wash and Spot DMX Addrs")
-        .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
-        .set(ids.wash_dmx_addrs_text, ui);
-
-    let wash_count = config.wash_dmx_addrs.len();
-    let spot_count = config.spot_dmx_addrs.len();
-    let n_items = wash_count + spot_count;
-    let (mut items, scrollbar) = widget::List::flow_down(n_items)
-        .item_size(DEFAULT_WIDGET_H)
-        .scrollbar_next_to()
-        .h(DEFAULT_WIDGET_H * 4.0)
-        .mid_left_of(ids.column_1_id)
-        .down(PAD)
-        .w(COLUMN_W)
-        .set(ids.wash_dmx_addrs_list, ui);
-
-    while let Some(item) = items.next(ui) {
-        let i = item.i;
-        let is_wash = i < wash_count;
-        let light_i = if is_wash { i } else { i - wash_count };
-        let label = match is_wash {
-            true => format!("Wash {}", light_i),
-            false => format!("Spot {}", light_i),
-        };
-        let v = match is_wash {
-            true => config.wash_dmx_addrs[light_i],
-            false => config.spot_dmx_addrs[light_i],
-        };
-        let min = 0.0;
-        let max = (crate::DMX_ADDRS_PER_UNIVERSE - 1) as f32;
-        let precision = 0;
-        let dialer = widget::NumberDialer::new(v as f32, min, max, precision)
-            .border(0.0)
-            .label(&label)
-            .label_color(color::WHITE)
-            .label_font_size(14)
-            .color(color::DARK_CHARCOAL);
-        for v in item.set(dialer, ui) {
-            match is_wash {
-                true => config.wash_dmx_addrs[light_i] = v as u8,
-                false => config.spot_dmx_addrs[light_i] = v as u8,
-            }
-        }
-    }
-
-    if let Some(s) = scrollbar {
-        s.set(ui)
     }
 
     text("Midi OSC")
@@ -1461,24 +1390,6 @@ pub fn update(
         .set(ids.led_fade_to_black, ui)
     {
         config.fade_to_black.led = value;
-    }
-
-    for value in slider(config.fade_to_black.wash, 0.0, 1.0)
-        .down(10.0)
-        .label("Wash Fade to Black")
-        .set(ids.wash_fade_to_black, ui)
-    {
-        config.fade_to_black.wash = value;
-    }
-
-    let label = format!("Wash Lerp: {:.2} frames", 1.0 / preset.wash_lerp_amt);
-    for value in slider(preset.wash_lerp_amt, 0.0, 1.0)
-        .skew(2.0)
-        .down(10.0)
-        .label(&label)
-        .set(ids.lerp_amount, ui)
-    {
-        preset.wash_lerp_amt = value;
     }
 
     // A scrollbar for the canvas.

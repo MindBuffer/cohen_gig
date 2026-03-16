@@ -1,5 +1,5 @@
 use nannou_core::prelude::*;
-use shader_shared::{Button, Light, Uniforms, Vertex};
+use shader_shared::{Button, Uniforms, Vertex};
 
 use crate::helpers::*;
 
