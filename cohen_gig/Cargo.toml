@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 hotlib = { git = "https://github.com/mitchmindtree/hotlib", branch = "master" }
-libloading = "0.6.2"
+libloading = "0.7"
 nannou = "0.18"
 nannou_conrod = "0.18.0"
 nannou_osc = "0.18"
