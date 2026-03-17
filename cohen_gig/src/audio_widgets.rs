@@ -1,5 +1,6 @@
 use crate::audio_input::AudioInput;
 use crate::gui::{self, slider, COLUMN_W, PAD, TEXT_COLOR};
+use crate::knob::Knob;
 use nannou_conrod::prelude::*;
 use std::collections::VecDeque;
 
@@ -82,6 +83,17 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         ids.audio_envelope_scope,
         &audio.envelope_history,
     );
+
+    // --- Test knob ---
+    let label = format!("Test: {:.2}", audio.threshold);
+    for v in Knob::new(audio.threshold, 0.0, 1.0)
+        .label(&label)
+        .w_h(60.0, 74.0)
+        .down(10.0)
+        .set(ids.test_knob, ui)
+    {
+        audio.threshold = v;
+    }
 }
 
 fn draw_scope(

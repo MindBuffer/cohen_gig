@@ -14,6 +14,7 @@ mod audio_input;
 mod audio_widgets;
 mod conf;
 mod gui;
+pub mod knob;
 mod layout;
 mod shader;
 mod lerp;
