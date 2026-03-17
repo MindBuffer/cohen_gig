@@ -10,16 +10,16 @@ use std::path::Path;
 use std::sync::mpsc;
 use lerp::Lerp;
 
+mod audio_input;
+mod audio_widgets;
 mod conf;
 mod gui;
 mod layout;
 mod shader;
-mod midi_osc;
 mod lerp;
 
 use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
-use crate::midi_osc::MidiOsc;
 
 const WINDOW_PAD: i32 = 20;
 const GUI_WINDOW_X: i32 = WINDOW_PAD;
@@ -66,7 +66,7 @@ struct Model {
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
-    midi_osc: MidiOsc,
+    audio_input: audio_input::AudioInput,
     midi_cv_phase_amp: f32,
 }
 
@@ -218,7 +218,7 @@ fn model(app: &App) -> Model {
         buttons: Default::default(),
     };
 
-    let midi_osc = MidiOsc::new();
+    let audio_input = audio_input::AudioInput::new(128);
 
     let last_preset_change = None;
 
@@ -241,7 +241,7 @@ fn model(app: &App) -> Model {
         last_preset_change,
         ui,
         ids,
-        midi_osc,
+        audio_input,
         midi_cv_phase_amp: 0.0,
     }
 }
@@ -261,15 +261,15 @@ fn key_pressed(app: &App, model: &mut Model, key: Key) {
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
-    model.midi_osc.update();
-    
+    model.audio_input.update();
+
     // Apply the GUI update.
     let ui = model.ui.set_widgets();
     let assets = app.assets_path().expect("failed to find assets directory");
     gui::update(
         ui,
         &mut model.config,
-        &mut model.midi_osc,
+        &mut model.audio_input,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
@@ -338,9 +338,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                 korg::Strip::D => {
                     model.target_pot_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
-                korg::Strip::E => {
-                    model.midi_osc.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.99)
-                }
+                korg::Strip::E => {}
                 korg::Strip::F => {
                     model.target_pot_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
                 }
@@ -385,13 +383,13 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.controller.slider4 = model.controller.slider4 * (1.0 - model.smoothing_speed)
         + model.target_slider_values[3] * model.smoothing_speed;
 
-    model.midi_osc.mod_amp1 = model.midi_osc.mod_amp1 * (1.0 - model.smoothing_speed)
+    model.audio_input.mod_amp1 = model.audio_input.mod_amp1 * (1.0 - model.smoothing_speed)
         + model.target_pot_values[0] * model.smoothing_speed;
-    model.midi_osc.mod_amp2 = model.midi_osc.mod_amp2 * (1.0 - model.smoothing_speed)
+    model.audio_input.mod_amp2 = model.audio_input.mod_amp2 * (1.0 - model.smoothing_speed)
         + model.target_pot_values[1] * model.smoothing_speed;
-    model.midi_osc.mod_amp3 = model.midi_osc.mod_amp3 * (1.0 - model.smoothing_speed)
+    model.audio_input.mod_amp3 = model.audio_input.mod_amp3 * (1.0 - model.smoothing_speed)
         + model.target_pot_values[2] * model.smoothing_speed;
-    model.midi_osc.mod_amp4 = model.midi_osc.mod_amp4 * (1.0 - model.smoothing_speed)
+    model.audio_input.mod_amp4 = model.audio_input.mod_amp4 * (1.0 - model.smoothing_speed)
         + model.target_pot_values[3] * model.smoothing_speed;
 
     model.controller.pot6 = model.controller.pot6 * (1.0 - model.smoothing_speed)
@@ -421,16 +419,18 @@ fn update(app: &App, model: &mut Model, update: Update) {
         xfade_right,
     };
 
-    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp1) - (model.midi_osc.mod_amp1 / 2.0);
+    let env = model.audio_input.envelope;
+
+    let piano_mod = (env * model.audio_input.mod_amp1) - (model.audio_input.mod_amp1 / 2.0);
     let bw_param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
 
-    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp2) - (model.midi_osc.mod_amp2 / 2.0);
+    let piano_mod = (env * model.audio_input.mod_amp2) - (model.audio_input.mod_amp2 / 2.0);
     let bw_param2 = clamp(model.controller.slider2 + piano_mod, 0.0, 1.0);
 
-    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp3) - (model.midi_osc.mod_amp3 / 2.0);
+    let piano_mod = (env * model.audio_input.mod_amp3) - (model.audio_input.mod_amp3 / 2.0);
     let colour_param1 = clamp(model.controller.slider3 + piano_mod, 0.0, 1.0);
 
-    let piano_mod = (model.midi_osc.midi_cv * model.midi_osc.mod_amp4) - (model.midi_osc.mod_amp4 / 2.0);
+    let piano_mod = (env * model.audio_input.mod_amp4) - (model.audio_input.mod_amp4 / 2.0);
     let colour_param2 = clamp(model.controller.slider4 + piano_mod, 0.0, 1.0);
 
     // Collect the data that is uniform across all lights that will be passed into the shaders.
@@ -447,7 +447,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         })
         .collect();
     let uniforms = Uniforms {
-        time: app.time + (model.midi_osc.midi_cv * model.midi_cv_phase_amp),
+        time: app.time + (env * model.midi_cv_phase_amp),
         resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
         slider1: bw_param1, // BW param 1

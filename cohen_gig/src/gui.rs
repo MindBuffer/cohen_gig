@@ -1,6 +1,5 @@
 use crate::conf::Config;
 use crate::{shader, Osc};
-use crate::midi_osc::{MidiOsc, MidiPianoFrame};
 use nannou::prelude::*;
 
 use nannou_conrod as ui;
@@ -79,12 +78,17 @@ widget_ids! {
         shader_mix_left_right,
         led_fade_to_black,
 
-        midi_osc_text,
-        buffer_length, 
-        max_pitches,
-        smoothing_speed,
-        smoothing_release,
-        unique_pitches,
+        audio_input_text,
+        audio_scope_bg,
+        audio_scope,
+        audio_threshold_line,
+        audio_threshold_slider,
+        audio_attack_slider,
+        audio_hold_slider,
+        audio_release_slider,
+        audio_envelope_scope_bg,
+        audio_envelope_scope,
+
     }
 }
 
@@ -1042,7 +1046,7 @@ impl Params for shader_shared::ColourPalettes {
 pub fn update(
     ref mut ui: UiCell,
     config: &mut Config,
-    midi_osc: &mut MidiOsc,
+    audio_input: &mut crate::audio_input::AudioInput,
     osc: &mut Osc,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
@@ -1199,59 +1203,7 @@ pub fn update(
         config.led_start_universe = v as u16;
     }
 
-    text("Midi OSC")
-        .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
-        .set(ids.midi_osc_text, ui);
-
-    for value in slider(midi_osc.midi_buffer_frame_len as f32, 1.0, 512.0)
-        .down(10.0)
-        .label("Buffer Length")
-        .set(ids.buffer_length, ui)
-    {
-        midi_osc.midi_buffer_frame_len = value as usize;
-
-        let mpf = MidiPianoFrame {
-            notes: Vec::new(),
-            sustain_pedal: 0.0,
-            soft_pedal: 0.0,
-        };
-        midi_osc.midi_buffer.resize(midi_osc.midi_buffer_frame_len, mpf);
-    }
-
-    for value in slider(midi_osc.max_unique_pitches as f32, 4.0, 32.0)
-        .down(10.0)
-        .label("Max Pitches")
-        .set(ids.max_pitches, ui)
-    {
-        midi_osc.max_unique_pitches = value as usize;
-    }
-
-    for value in slider(midi_osc.smoothing_speed, 0.002, 0.99)
-        .down(10.0)
-        .label("Smoothing Attack")
-        .set(ids.smoothing_speed, ui)
-    {
-        midi_osc.smoothing_speed = value;
-    }
-
-    for value in slider(midi_osc.smoothing_release, 0.002, 0.4)
-        .down(10.0)
-        .label("Smoothing Release")
-        .set(ids.smoothing_release, ui)
-    {
-        midi_osc.smoothing_release = value;
-    }
-
-    for value in slider(midi_osc.midi_cv, 0.0, 1.0)
-        .down(10.0)
-        .label("Unique Pitches")
-        .set(ids.unique_pitches, ui)
-    {
-        midi_osc.midi_cv = value;
-    }
-
-
+    crate::audio_widgets::set_widgets(ui, &ids, audio_input);
 
     set_presets_widgets(ui, &ids, config, last_preset_change, &led_colors, &assets);
 
@@ -1647,7 +1599,7 @@ fn toggle(b: bool) -> widget::Toggle<'static> {
 }
 
 // Shorthand for the slider style we'll use
-fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
+pub fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
     widget::Slider::new(val, min, max)
         .w_h(COLUMN_W, DEFAULT_SLIDER_H)
         .label_font_size(14)
