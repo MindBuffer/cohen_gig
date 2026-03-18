@@ -69,6 +69,7 @@ struct Model {
     ui: Ui,
     ids: gui::Ids,
     audio_input: audio_input::AudioInput,
+    shader_mod_amounts: Vec<f32>,
     midi_cv_phase_amp: f32,
 }
 
@@ -244,6 +245,7 @@ fn model(app: &App) -> Model {
         ui,
         ids,
         audio_input,
+        shader_mod_amounts: Vec::new(),
         midi_cv_phase_amp: 0.0,
     }
 }
@@ -272,6 +274,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         ui,
         &mut model.config,
         &mut model.audio_input,
+        &mut model.shader_mod_amounts,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
@@ -435,8 +438,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let piano_mod = (env * model.audio_input.mod_amp4) - (model.audio_input.mod_amp4 / 2.0);
     let colour_param2 = clamp(model.controller.slider4 + piano_mod, 0.0, 1.0);
 
-    // Collect the data that is uniform across all lights that will be passed into the shaders.
-    let shader_params = preset.shader_params.clone();
+    // Clone shader params and apply envelope modulation from the mod sliders.
+    let mut shader_params = preset.shader_params.clone();
+    {
+        let mut slider_ix = 0;
+        gui::apply_shader_modulation(preset.shader_left, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
+        gui::apply_shader_modulation(preset.colourise, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
+        gui::apply_shader_modulation(preset.shader_right, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
+    }
     let buttons = model
         .controller
         .buttons
