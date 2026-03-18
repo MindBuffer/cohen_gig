@@ -127,9 +127,9 @@ impl<'a> Widget for Knob<'a> {
 
         // --- Layout ---
         let cx = rect.x();
-        let label_h = 14.0;
+        let label_h = if label.is_empty() { 0.0 } else { 14.0 };
         let cy = rect.y() + label_h * 0.5;
-        let radius = (rect.w().min(rect.h() - label_h)) * 0.45;
+        let radius = (rect.w().min(rect.h() - label_h)) * 0.48;
         let track_r = radius * 0.78;
 
         // Background circle

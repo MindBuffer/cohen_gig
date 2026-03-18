@@ -16,6 +16,7 @@ mod conf;
 mod gui;
 pub mod knob;
 mod layout;
+pub mod mod_slider;
 mod shader;
 mod lerp;
 

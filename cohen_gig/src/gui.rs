@@ -88,7 +88,7 @@ widget_ids! {
         audio_release_slider,
         audio_envelope_scope_bg,
         audio_envelope_scope,
-        test_knob,
+        test_mod_slider,
 
     }
 }

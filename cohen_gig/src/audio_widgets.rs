@@ -1,6 +1,6 @@
 use crate::audio_input::AudioInput;
 use crate::gui::{self, slider, COLUMN_W, PAD, TEXT_COLOR};
-use crate::knob::Knob;
+use crate::mod_slider::ModSlider;
 use nannou_conrod::prelude::*;
 use std::collections::VecDeque;
 
@@ -84,15 +84,18 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         &audio.envelope_history,
     );
 
-    // --- Test knob ---
-    let label = format!("Test: {:.2}", audio.threshold);
-    for v in Knob::new(audio.threshold, 0.0, 1.0)
+    // --- Test mod slider ---
+    static mut TEST_VAL: f32 = 0.5;
+    static mut TEST_MOD: f32 = 0.5;
+    let (tv, tm) = unsafe { (TEST_VAL, TEST_MOD) };
+    let label = format!("Test: {:.2}", tv);
+    for (v, m) in ModSlider::new(tv, tm, audio.envelope, 0.0, 1.0)
         .label(&label)
-        .w_h(60.0, 74.0)
+        .w_h(COLUMN_W, 40.0)
         .down(10.0)
-        .set(ids.test_knob, ui)
+        .set(ids.test_mod_slider, ui)
     {
-        audio.threshold = v;
+        unsafe { TEST_VAL = v; TEST_MOD = m; }
     }
 }
 
