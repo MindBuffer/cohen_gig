@@ -29,14 +29,10 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     }
     let t = uniforms.time * params.speed;
 
-    let uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let uv = normalised_coords;
 
     let x = map_range(uv.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(uv.y, -1.0, 1.0, 0.0, 1.0);
@@ -55,8 +51,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let signal_type = Signal::SINE;
     let co = vec3(
         0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 0.0),
-        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 1.57),
-        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + 3.14),
+        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + HALF_PI),
+        0.5 + 0.5 * signal_type.amp(t + 3.5 * id + PI),
     );
 
     let pa = vec2(

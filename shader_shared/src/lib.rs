@@ -2,9 +2,9 @@
 //! important in order to ensure types are laid out the same way between the dynamic library and
 //! the exe.
 
+use devault::Devault;
 use korg_nano_kontrol_2::{ButtonRow, MarkerButton, State, Strip, TrackButton, Transport};
 use nannou_core::prelude::*;
-use devault::Devault;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -21,11 +21,6 @@ pub struct Vertex {
 
 #[derive(Copy, Clone)]
 pub enum Light {
-    /// Wash light info.
-    Wash {
-        /// The index of the light within the layout.
-        index: usize,
-    },
     /// Single LED light info.
     Led {
         /// The index of the LED within all LEDs.
@@ -58,7 +53,6 @@ pub struct Uniforms {
     pub pot7: f32,
     pub pot8: f32,
     pub params: ShaderParams,
-    pub wash_lerp_amt: f32,
     pub mix: MixingInfo,
     /// Only contains buttons that have been pressed at least once.
     pub buttons: HashMap<Button, ButtonState>,
@@ -142,6 +136,10 @@ pub struct ShaderParams {
     pub mitch_wash: MitchWash,
     #[serde(default)]
     pub shape_envelopes: ShapeEnvelopes,
+    #[serde(default)]
+    pub row_test: RowTest,
+    #[serde(default)]
+    pub bar_test: BarTest,
 }
 
 /// Refers to the selected blend mode type for a preset.
@@ -182,6 +180,8 @@ pub enum Shader {
     VertColourGradient,
     MitchWash,
     ShapeEnvelopes,
+    RowTest,
+    BarTest,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -460,7 +460,21 @@ pub struct ColourPalettes {
     pub selected: usize,
 }
 
-pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct RowTest {
+    #[devault("0.0")]
+    pub row: f32,
+}
+
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct BarTest {
+    #[devault("0.0")]
+    pub row: f32,
+    #[devault("0.0")]
+    pub bar: f32,
+}
+
+pub const ALL_BLEND_MODES: &[BlendMode] = &[
     BlendMode::Add,
     BlendMode::Subtract,
     BlendMode::Multiply,
@@ -470,7 +484,7 @@ pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
     BlendMode::Exclusion,
 ];
 
-pub const ALL_SHADERS: &'static [Shader] = &[
+pub const ALL_SHADERS: &[Shader] = &[
     Shader::SolidHsvColour,
     Shader::SolidRgbColour,
     Shader::ColourPalettes,
@@ -494,9 +508,11 @@ pub const ALL_SHADERS: &'static [Shader] = &[
     Shader::VertColourGradient,
     Shader::MitchWash,
     Shader::ShapeEnvelopes,
+    Shader::RowTest,
+    Shader::BarTest,
 ];
 
-pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
+pub const SOLID_COLOUR_SHADERS: &[Shader] = &[
     Shader::SolidHsvColour,
     Shader::SolidRgbColour,
     Shader::ColourPalettes,
@@ -570,6 +586,8 @@ impl Shader {
             Shader::VertColourGradient => "VertColourGradient",
             Shader::MitchWash => "MitchWash",
             Shader::ShapeEnvelopes => "ShapeEnvelopes",
+            Shader::RowTest => "RowTest",
+            Shader::BarTest => "BarTest",
         }
     }
 
@@ -598,6 +616,8 @@ impl Shader {
             Shader::VertColourGradient => 20,
             Shader::MitchWash => 21,
             Shader::ShapeEnvelopes => 22,
+            Shader::RowTest => 23,
+            Shader::BarTest => 24,
         }
     }
 
@@ -626,6 +646,8 @@ impl Shader {
             20 => Shader::VertColourGradient,
             21 => Shader::MitchWash,
             22 => Shader::ShapeEnvelopes,
+            23 => Shader::RowTest,
+            24 => Shader::BarTest,
             _ => return None,
         };
         Some(shader)

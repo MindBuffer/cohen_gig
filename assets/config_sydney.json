@@ -1,11 +1,50 @@
 {
+  "osc_on": false,
   "dmx_on": false,
   "midi_on": true,
+  "wash_dmx_addrs": [
+    30,
+    37,
+    44,
+    51,
+    2,
+    9,
+    16,
+    23,
+    58,
+    65,
+    72,
+    79,
+    86,
+    93,
+    100,
+    107,
+    114,
+    121,
+    128,
+    135,
+    142,
+    149,
+    156,
+    163,
+    170,
+    177,
+    184,
+    191
+  ],
+  "spot_dmx_addrs": [
+    0,
+    1
+  ],
+  "wash_spot_universe": 51,
   "led_start_universe": 1,
   "fade_to_black": {
-    "led": 1.0
+    "led": 0.0,
+    "wash": 1.0,
+    "spot1": 1.0,
+    "spot2": 1.0
   },
-  "sacn_interface_ip": "",
+  "osc_addr_textbox_string": "127.0.0.1:8000",
   "presets": {
     "selected_preset_name": "No surprises breakdown time",
     "selected_preset_idx": 40,
@@ -16,6 +55,7 @@
         "shader_right": "AcidGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.07344514,
+        "wash_lerp_amt": 0.056288775,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -158,10 +198,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -170,7 +206,8 @@
         "shader_left": "SatisSpiraling",
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 1.0,
+        "left_right_mix": 0.0,
+        "wash_lerp_amt": 0.07228645,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -313,10 +350,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -325,7 +358,8 @@
         "shader_left": "GilmoreAcid",
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.79527557,
+        "left_right_mix": -0.08929038,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -468,10 +502,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -481,6 +511,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.0,
+        "wash_lerp_amt": 1.0,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -623,19 +654,16 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
       {
         "name": "Monochrome Escher Shifts",
         "shader_left": "EscherTilings",
-        "shader_right": "JustRelax",
+        "shader_right": "SolidHsvColour",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.37007874,
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.040208198,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -660,7 +688,7 @@
             "zoom_amount": 0.1
           },
           "escher_tilings": {
-            "speed": 0.0508138,
+            "speed": 0.14051183,
             "scale": 0.118715666,
             "shape_iter": 0.21841711
           },
@@ -778,10 +806,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -790,7 +814,8 @@
         "shader_left": "TunnelProjection",
         "shader_right": "SolidHsvColour",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.65462244,
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -933,10 +958,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -946,6 +967,7 @@
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.025943995,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1088,10 +1110,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1101,6 +1119,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": 0.051367164,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1243,10 +1262,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1256,6 +1271,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.8144206,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1398,10 +1414,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1411,6 +1423,7 @@
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.088932276,
+        "wash_lerp_amt": 0.40092558,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1553,10 +1566,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1566,6 +1575,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1708,10 +1718,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1720,7 +1726,8 @@
         "shader_left": "AcidGradient",
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
-        "left_right_mix": -1.0,
+        "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1863,10 +1870,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -1876,6 +1879,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2018,10 +2022,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2031,6 +2031,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.98909503,
+        "wash_lerp_amt": 0.123367414,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2173,10 +2174,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2186,6 +2183,7 @@
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.09967446,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2328,10 +2326,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2341,6 +2335,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.19078779,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2483,10 +2478,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2496,6 +2487,7 @@
         "shader_right": "ThePulse",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.075846374,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2638,10 +2630,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2650,7 +2638,8 @@
         "shader_left": "GilmoreAcid",
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.8425197,
+        "left_right_mix": 0.28489584,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -2793,10 +2782,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2805,7 +2790,8 @@
         "shader_left": "GilmoreAcid",
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
-        "left_right_mix": -0.9212598,
+        "left_right_mix": 0.1878255,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -2948,10 +2934,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -2961,6 +2943,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3103,10 +3086,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3116,6 +3095,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3258,10 +3238,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3271,6 +3247,7 @@
         "shader_right": "LineGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3413,10 +3390,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3426,6 +3399,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3568,10 +3542,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3581,6 +3551,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3723,10 +3694,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3736,6 +3703,7 @@
         "shader_right": "RadialLines",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.088932276,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3878,10 +3846,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -3890,7 +3854,8 @@
         "shader_left": "VertColourGradient",
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
-        "left_right_mix": -0.6220703,
+        "left_right_mix": -1.0,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4033,10 +3998,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4046,6 +4007,7 @@
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
         "left_right_mix": -1.0,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4188,10 +4150,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4201,6 +4159,7 @@
         "shader_right": "SolidHsvColour",
         "colourise": "SolidHsvColour",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4343,10 +4302,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4356,6 +4311,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.53046876,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4498,10 +4454,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4510,7 +4462,8 @@
         "shader_left": "JustRelax",
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.8267717,
+        "left_right_mix": 0.84801435,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4653,10 +4606,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4665,7 +4614,8 @@
         "shader_left": "LineGradient",
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
-        "left_right_mix": -0.9212598,
+        "left_right_mix": -0.511811,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4794,7 +4744,7 @@
           "colour_palettes": {
             "speed": 0.3374349,
             "interval": 0.52916664,
-            "selected": 3
+            "selected": 14
           },
           "mitch_wash": {
             "speed": 1.0,
@@ -4808,10 +4758,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4820,7 +4766,8 @@
         "shader_left": "LineGradient",
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
-        "left_right_mix": 1.0,
+        "left_right_mix": -1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4963,10 +4910,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -4975,7 +4918,8 @@
         "shader_left": "LineGradient",
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.984252,
+        "left_right_mix": 0.16535433,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5118,10 +5062,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5130,7 +5070,8 @@
         "shader_left": "LineGradient",
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.5696289,
+        "left_right_mix": 0.42135417,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5215,7 +5156,7 @@
             "rotate": true
           },
           "spiral_intersect": {
-            "speed": 0.05851237,
+            "speed": 0.2783203,
             "g1": 0.4,
             "g2": 0.6,
             "rot1": 1.0,
@@ -5273,10 +5214,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5286,6 +5223,7 @@
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.6692913,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5428,10 +5366,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5441,6 +5375,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.24409449,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5583,10 +5518,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5595,7 +5526,8 @@
         "shader_left": "TunnelProjection",
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.79527557,
+        "left_right_mix": 0.21259843,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5738,10 +5670,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5750,7 +5678,8 @@
         "shader_left": "ShapeEnvelopes",
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.03937008,
+        "left_right_mix": 0.984252,
+        "wash_lerp_amt": 0.015748031,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5893,10 +5822,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -5906,6 +5831,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.984252,
+        "wash_lerp_amt": 0.015748031,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6048,10 +5974,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6060,7 +5982,8 @@
         "shader_left": "EscherTilings",
         "shader_right": "SolidHsvColour",
         "colourise": "ColourPalettes",
-        "left_right_mix": 1.0,
+        "left_right_mix": 0.96850395,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6203,10 +6126,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6215,7 +6134,8 @@
         "shader_left": "EscherTilings",
         "shader_right": "SatisSpiraling",
         "colourise": "ColourPalettes",
-        "left_right_mix": 0.24409449,
+        "left_right_mix": -0.05341792,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -6358,10 +6278,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6371,6 +6287,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.4006511,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Difference",
         "shader_params": {
           "acid_gradient": {
@@ -6513,10 +6430,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6526,6 +6439,7 @@
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.09967446,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -6668,10 +6582,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6680,7 +6590,8 @@
         "shader_left": "SatisSpiraling",
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
-        "left_right_mix": 0.47291666,
+        "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.07228645,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6823,10 +6734,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6836,6 +6743,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.16535433,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6978,10 +6886,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -6991,6 +6895,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.27559054,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7133,10 +7038,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -7146,6 +7047,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7263,7 +7165,7 @@
           },
           "solid_hsv_colour": {
             "hue": 1.0,
-            "saturation": 1.0,
+            "saturation": 0.9733073,
             "value": 1.0
           },
           "solid_rgb_colour": {
@@ -7288,10 +7190,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -7301,6 +7199,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.98909503,
+        "wash_lerp_amt": 0.123367414,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7443,10 +7342,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -7455,7 +7350,8 @@
         "shader_left": "SpiralIntersect",
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
-        "left_right_mix": -0.24409449,
+        "left_right_mix": 0.09967446,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7540,7 +7436,7 @@
             "rotate": true
           },
           "spiral_intersect": {
-            "speed": 0.16030273,
+            "speed": 0.055826824,
             "g1": 0.4,
             "g2": 0.6,
             "rot1": 1.0,
@@ -7548,10 +7444,10 @@
             "colours": 1.0
           },
           "square_tunnel": {
-            "speed": 0.11354167,
+            "speed": 0.19746093,
             "rotation_speed": 0.050097656,
             "rotation_offset": 0.07049154,
-            "zoom": 0.67291665
+            "zoom": 0.4116211
           },
           "the_pulse": {
             "speed": 0.08,
@@ -7598,10 +7494,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -7611,6 +7503,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.28489584,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -7753,10 +7646,6 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       },
@@ -7766,6 +7655,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.1878255,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -7795,7 +7685,7 @@
             "shape_iter": 0.2
           },
           "gilmore_acid": {
-            "speed": 0.040104166,
+            "speed": 0.12589519,
             "displace": 0.0015136718,
             "colour_offset": 0.85,
             "grid_size": 0.345,
@@ -7844,7 +7734,7 @@
             "zoom_amount": 0.8
           },
           "satis_spiraling": {
-            "speed": 0.25304362,
+            "speed": 0.39322916,
             "loops": 0.8,
             "mirror": true,
             "rotate": true
@@ -7908,14 +7798,9 @@
           },
           "row_test": {
             "row": 0.0
-          },
-          "bar_test": {
-            "row": 0.0,
-            "bar": 0.0
           }
         }
       }
     ]
-  },
-  "preset_lerp_secs": 2.5284667
+  }
 }

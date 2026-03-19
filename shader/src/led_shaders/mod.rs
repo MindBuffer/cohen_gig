@@ -1,4 +1,5 @@
 pub mod acid_gradient;
+pub mod bar_test;
 pub mod blinky_circles;
 pub mod bw_gradient;
 pub mod colour_grid;
@@ -10,6 +11,7 @@ pub mod line_gradient;
 pub mod metafall;
 pub mod particle_zoom;
 pub mod radial_lines;
+pub mod row_test;
 pub mod satis_spiraling;
 pub mod spiral_intersect;
 pub mod square_tunnel;

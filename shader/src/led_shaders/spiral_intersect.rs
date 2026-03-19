@@ -42,14 +42,10 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         params.colours = uniforms.slider4;
     }
 
-    let mut p = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let p = normalised_coords;
 
     let x = map_range(p.x, -1.1, 1.1, 0.0, 1.0);
     let y = map_range(p.y, -1.1, 1.1, 0.0, 1.0);
@@ -64,8 +60,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     xy = multiply_mat2_with_vec2(rotate_2d(t / (params.rot2 * 8.0)), xy);
     st = vec3(xy.x, xy.y, xz.y);
     let o = vec2((t / params.rot1).cos(), (t / params.rot2).sin());
-    let mut col = vec![0.0; 3];
-    for i in 0..3 {
+    let mut col = [0.0; 3];
+    for channel in &mut col {
         t +=
             0.3 * spiral(
                 o + vec2(st.z, st.y),
@@ -80,7 +76,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
                 t / 100.0,
                 -1.0,
             );
-        col[i] =
+        *channel =
             ((params.colours * 0.1) * t - length(vec3(st.x, st.y, 0.0)) * 10.0 * sinp(t)).sin();
     }
 

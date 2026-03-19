@@ -4,24 +4,18 @@ use shader_shared::{Button, Light, Uniforms, Vertex};
 
 use crate::helpers::*;
 
-struct Params {
-    speed: f32,
-    pulse_speed: f32,
-    line_thickness: f32,
-    shape_thckness: f32,
-}
 //---------------------------------------------------------
 // draw endless line through point A and B with radius r
 //---------------------------------------------------------
-fn line(P: Vec2, A: Vec2, B: Vec2, r: f32) -> f32 {
-    let g = B - A;
-    let d = vec2(g.y, -g.x).normalize().dot(P - A).abs();
+fn line(p: Vec2, a: Vec2, b: Vec2, r: f32) -> f32 {
+    let g = b - a;
+    let d = vec2(g.y, -g.x).normalize().dot(p - a).abs();
     smoothstep(r, 0.5 * r, d)
 }
 //---------------------------------------------------------
 // draw rectangle frame with rounded edges
 //---------------------------------------------------------
-fn roundedFrame(uv: Vec2, pos: Vec2, size: Vec2, radius: f32, thickness: f32) -> f32 {
+fn rounded_frame(uv: Vec2, pos: Vec2, size: Vec2, radius: f32, thickness: f32) -> f32 {
     let d = length(vec3(
         abs(uv.x - pos.x).max(size.x) - size.x,
         abs(uv.y - pos.y).max(size.y) - size.y,
@@ -32,7 +26,7 @@ fn roundedFrame(uv: Vec2, pos: Vec2, size: Vec2, radius: f32, thickness: f32) ->
 //---------------------------------------------------------
 // draw ring at pos
 //---------------------------------------------------------
-fn haloRing(uv: Vec2, pos: Vec2, radius: f32, thick: f32) -> f32 {
+fn halo_ring(uv: Vec2, pos: Vec2, radius: f32, thick: f32) -> f32 {
     clamp(
         -(abs(length(vec3(uv.x - pos.x, uv.y - pos.y, 0.0)) - radius) * 100.0 / thick) + 0.9,
         0.0,
@@ -53,14 +47,10 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         shape_thickness = uniforms.slider2;
     }
 
-    let mut uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let mut uv = normalised_coords;
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
 
     let mut col = vec3(0.0, 0.0, 0.0);
@@ -76,7 +66,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
+        let intensity = halo_ring(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(
             mix(col.x, ring_color.x, intensity),
             mix(col.y, ring_color.y, intensity),
@@ -89,7 +79,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
+        let intensity = halo_ring(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(
             mix(col.x, ring_color.x, intensity),
             mix(col.y, ring_color.y, intensity),
@@ -102,7 +92,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
-        let intensity = haloRing(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
+        let intensity = halo_ring(uv, vec2(0.0, 0.0), env * 2.0, ring_thickness);
         col += vec3(
             mix(col.x, ring_color.x, intensity),
             mix(col.y, ring_color.y, intensity),
@@ -120,7 +110,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),
@@ -134,7 +124,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),
@@ -148,7 +138,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),
@@ -167,7 +157,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),
@@ -181,7 +171,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),
@@ -195,7 +185,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         let s = state.secs * (0.1 + pulse_speed);
         let env = s.max(0.0).powf(2.0);
         let size = vec2(env * 2.0, env * 2.0);
-        let intensity = roundedFrame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
+        let intensity = rounded_frame(uv2, vec2(0.0, 0.0), size, 0.2, square_thickness);
         col += vec3(
             mix(col.x, frame_color.x, intensity),
             mix(col.y, frame_color.y, intensity),

@@ -1,12 +1,12 @@
 //! The shader function hotloaded at runtime by the cohen_gig crate.
 
 use nannou_core::prelude::*;
-use shader_shared::{BlendMode, Light, Shader, Uniforms, Vertex};
+use shader_shared::{BlendMode, Shader, Uniforms, Vertex};
 
 mod blend_modes;
-mod helpers;
-mod shaders;
-mod signals;
+pub mod helpers;
+pub mod shaders;
+pub mod signals;
 
 mod colour_palettes;
 mod solid_hsv_colour;
@@ -46,12 +46,7 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     };
 
     // Colourise.
-    col = col * colour;
-
-    // Interpolate wash colours to avoid strobing.
-    if let Light::Wash { .. } = v.light {
-        col = crate::helpers::lerp_lin_srgb(v.last_color, col, uniforms.wash_lerp_amt);
-    }
+    col *= colour;
 
     col
 }
@@ -79,6 +74,8 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::ThePulse => led_shaders::the_pulse::shader,
         Shader::TunnelProjection => led_shaders::tunnel_projection::shader,
         Shader::VertColourGradient => led_shaders::vert_colour_gradient::shader,
+        Shader::RowTest => led_shaders::row_test::shader,
+        Shader::BarTest => led_shaders::bar_test::shader,
         Shader::MitchWash => wash_shaders::mitch_wash::shader,
         Shader::ShapeEnvelopes => wash_shaders::shape_envelopes::shader,
     }

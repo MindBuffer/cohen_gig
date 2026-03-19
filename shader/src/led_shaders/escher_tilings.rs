@@ -11,11 +11,6 @@ use crate::helpers::*;
 //     shape_iter: f32,
 // }
 
-enum Direction {
-    Vertical,
-    Horizontal,
-}
-
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.escher_tilings;
 
@@ -24,17 +19,12 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         params.shape_iter = uniforms.slider2;
     }
 
-    let direction = Direction::Horizontal;
     let t = uniforms.time * params.speed;
 
-    let uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let uv = normalised_coords;
 
     let x = map_range(uv.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(uv.y, -1.0, 1.0, 0.0, 1.0);
@@ -43,21 +33,15 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let mut col = vec3(0.0, 0.0, 0.0);
 
-    let f = vec2(uv.x.floor(), uv.y.floor());
     let mut u = vec2(2.0, 2.0) * vec2(uv.x.fract(), uv.y.fract()) - vec2(1.0, 1.0);
-    let mut y = 0.0;
-
-    let d = match direction {
-        Direction::Horizontal => uv.x,
-        Direction::Vertical => uv.y,
-    };
+    let d = uv.x;
 
     for _ in 0..4 {
         u = multiply_mat2_with_vec2(
             Mat2::from_cols(Vec2::new(0.0, -1.0), Vec2::new(1.0, 0.0)),
             u,
         );
-        y = 2.0 * (t + d * (params.shape_iter * 0.05)).fract() - 1.0;
+        let y = 2.0 * (t + d * (params.shape_iter * 0.05)).fract() - 1.0;
         let o = smoothstep(
             0.55,
             0.45,

@@ -3,7 +3,7 @@ use nannou_core::prelude::*;
 use nannou_core::rand::random_f32;
 use pennereq::*;
 
-pub const ALL: &'static [Signal] = &[
+pub const ALL: &[Signal] = &[
     Signal::SINE,
     Signal::TRIANGLE,
     Signal::SAWTOOTH,
@@ -140,12 +140,16 @@ fn triangle(phase: f32) -> f32 {
     (phase * -2.0 + 1.0).abs() * 2.0 - 1.0
 }
 fn square(phase: f32) -> f32 {
-    (if fmod(phase, 1.0) < 0.5 { -1.0 } else { 1.0 })
+    if fmod(phase, 1.0) < 0.5 {
+        -1.0
+    } else {
+        1.0
+    }
 }
 fn sawtooth(phase: f32) -> f32 {
     fmod(phase, 1.0) * -2.0 + 1.0
 }
-fn noise(phase: f32) -> f32 {
+fn noise(_phase: f32) -> f32 {
     random_f32() * 2.0 - 1.0
 }
 

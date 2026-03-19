@@ -1,5 +1,5 @@
 use nannou_core::prelude::*;
-use shader_shared::{Light, Uniforms, Vertex};
+use shader_shared::{Uniforms, Vertex};
 
 use crate::helpers::*;
 
@@ -25,7 +25,7 @@ fn hsv2rgb_smooth(c: Vec3) -> Vec3 {
     )
 }
 
-pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(_v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.solid_hsv_colour;
 
     if uniforms.use_midi {

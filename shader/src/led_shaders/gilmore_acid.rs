@@ -37,8 +37,7 @@ fn calc(tx: Vec2, t: f32, params: &shader_shared::GilmoreAcid, uniforms: &Unifor
                 + t,
         );
     }
-    let v = value / 3.0;
-    v
+    value / 3.0
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
@@ -51,24 +50,20 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * params.speed;
 
-    let mut uv = match v.light {
-        Light::Wash { index } => pt2(v.position.x, v.position.z * 2.0 - 1.0),
-        Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        } => normalised_coords,
-    };
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let mut uv = normalised_coords;
 
     // let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
     // let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);
     // let mut uv = vec2(x,y);
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
-    let mut rgb = vec![0.0, 0.0, 0.0];
-    for i in 0..3 {
+    let mut rgb = [0.0, 0.0, 0.0];
+    for (i, channel) in rgb.iter_mut().enumerate() {
         let t2 = t + i as f32 * params.displace;
-        rgb[i] +=
-            calc(uv, t2, &params, &uniforms).powf(map_range(params.saturation, 0.0, 1.0, 5.0, 1.0));
+        *channel +=
+            calc(uv, t2, &params, uniforms).powf(map_range(params.saturation, 0.0, 1.0, 5.0, 1.0));
     }
 
     let b = params.brightness * 2.0;

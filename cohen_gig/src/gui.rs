@@ -1,5 +1,5 @@
 use crate::conf::Config;
-use crate::{shader, Osc};
+use crate::shader;
 use nannou::prelude::*;
 
 use nannou_conrod as ui;
@@ -8,7 +8,6 @@ use nannou_conrod::Color;
 
 use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::f64::consts::PI;
-use std::net::SocketAddr;
 use std::path::Path;
 
 pub const NUM_COLUMNS: u32 = 4;
@@ -22,7 +21,6 @@ pub const WINDOW_WIDTH: u32 =
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
-pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
@@ -40,14 +38,16 @@ widget_ids! {
         scrollbar,
         title_text,
         dmx_button,
-        osc_button,
         midi_button,
-        osc_address_text,
-        osc_address_text_box,
+        sacn_interface_ip_text,
+        sacn_interface_ip_help_text,
+        sacn_interface_ip_text_box,
+        sacn_interface_ip_error_text,
         shader_title_text,
         shader_state_text,
 
         presets_text,
+        presets_lerp_slider,
         presets_duplicate,
         presets_new_button,
         presets_save_button,
@@ -57,11 +57,7 @@ widget_ids! {
         enter_preset_name_text,
 
         universe_starts_text,
-        wash_spot_universe_dialer,
         led_start_universe_dialer,
-
-        wash_dmx_addrs_text,
-        wash_dmx_addrs_list,
 
         led_shader_left_text,
         led_shader_left_ddl,
@@ -69,7 +65,8 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
-        shader_sliders[],
+        shader_mod_sliders[],
+        shader_int_sliders[],
         shader_buttons[],
 
         colour_post_process_text,
@@ -80,9 +77,37 @@ widget_ids! {
 
         shader_mix_left_right,
         led_fade_to_black,
-        wash_fade_to_black,
-        lerp_amount,
+
+        audio_input_text,
+        audio_scope_bg,
+        audio_scope,
+        audio_scope_neg,
+        audio_scope_midline,
+        audio_threshold_line,
+        audio_threshold_line_neg,
+        audio_gain_slider,
+        audio_threshold_slider,
+        audio_attack_slider,
+        audio_hold_slider,
+        audio_release_slider,
+        audio_envelope_scope_bg,
+        audio_envelope_scope,
+
     }
+}
+
+type LedColors = [LinSrgb; crate::layout::LED_COUNT];
+
+pub struct UpdateContext<'a> {
+    pub config: &'a mut Config,
+    pub audio_input: &'a mut crate::audio_input::AudioInput,
+    pub dmx_bind_error: Option<&'a str>,
+    pub since_start: std::time::Duration,
+    pub shader_activity: shader::Activity<'a>,
+    pub led_colors: &'a LedColors,
+    pub last_preset_change: &'a mut Option<crate::LastPresetChange>,
+    pub assets: &'a Path,
+    pub ids: &'a mut Ids,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -90,7 +115,7 @@ trait Params {
     /// The total number of parameters.
     fn param_count(&self) -> usize;
     /// The parameter at the given index.
-    fn param_mut(&mut self, ix: usize) -> ParamMut;
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_>;
 }
 
 struct ParamMut<'a> {
@@ -104,11 +129,19 @@ enum ParamKindMut<'a> {
     Usize { value: &'a mut usize, max: usize },
 }
 
+struct ShaderWidgetState<'a> {
+    mod_slider_ix: &'a mut usize,
+    int_slider_ix: &'a mut usize,
+    button_ix: &'a mut usize,
+    mod_amounts: &'a mut Vec<f32>,
+    envelope: f32,
+}
+
 impl Params for shader_shared::AcidGradient {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -140,7 +173,7 @@ impl Params for shader_shared::BlinkyCircles {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -172,7 +205,7 @@ impl Params for shader_shared::BwGradient {
     fn param_count(&self) -> usize {
         5
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -215,7 +248,7 @@ impl Params for shader_shared::ColourGrid {
     fn param_count(&self) -> usize {
         2
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -240,7 +273,7 @@ impl Params for shader_shared::EscherTilings {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -272,7 +305,7 @@ impl Params for shader_shared::GilmoreAcid {
     fn param_count(&self) -> usize {
         9
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -346,7 +379,7 @@ impl Params for shader_shared::JustRelax {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -378,7 +411,7 @@ impl Params for shader_shared::LifeLedWall {
     fn param_count(&self) -> usize {
         7
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -438,7 +471,7 @@ impl Params for shader_shared::LineGradient {
     fn param_count(&self) -> usize {
         5
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -484,7 +517,7 @@ impl Params for shader_shared::Metafall {
     fn param_count(&self) -> usize {
         5
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -530,7 +563,7 @@ impl Params for shader_shared::ParticleZoom {
     fn param_count(&self) -> usize {
         4
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -569,7 +602,7 @@ impl Params for shader_shared::RadialLines {
     fn param_count(&self) -> usize {
         2
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -594,7 +627,7 @@ impl Params for shader_shared::SatisSpiraling {
     fn param_count(&self) -> usize {
         4
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -627,7 +660,7 @@ impl Params for shader_shared::SpiralIntersect {
     fn param_count(&self) -> usize {
         6
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -680,7 +713,7 @@ impl Params for shader_shared::SquareTunnel {
     fn param_count(&self) -> usize {
         4
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -719,7 +752,7 @@ impl Params for shader_shared::ThePulse {
     fn param_count(&self) -> usize {
         4
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -758,7 +791,7 @@ impl Params for shader_shared::TunnelProjection {
     fn param_count(&self) -> usize {
         2
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -783,7 +816,7 @@ impl Params for shader_shared::VertColourGradient {
     fn param_count(&self) -> usize {
         6
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -836,7 +869,7 @@ impl Params for shader_shared::MitchWash {
     fn param_count(&self) -> usize {
         2
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -861,7 +894,7 @@ impl Params for shader_shared::ShapeEnvelopes {
     fn param_count(&self) -> usize {
         4
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -896,11 +929,54 @@ impl Params for shader_shared::ShapeEnvelopes {
     }
 }
 
+impl Params for shader_shared::RowTest {
+    fn param_count(&self) -> usize {
+        1
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "row",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.row,
+                    max: 8.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
+impl Params for shader_shared::BarTest {
+    fn param_count(&self) -> usize {
+        1
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "row",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.row,
+                    max: 8.0,
+                },
+            },
+            1 => ParamMut {
+                name: "bar",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.bar,
+                    max: 8.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::SolidHsvColour {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "hue",
@@ -932,7 +1008,7 @@ impl Params for shader_shared::SolidRgbColour {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "red",
@@ -964,7 +1040,7 @@ impl Params for shader_shared::ColourPalettes {
     fn param_count(&self) -> usize {
         3
     }
-    fn param_mut(&mut self, ix: usize) -> ParamMut {
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
             0 => ParamMut {
                 name: "speed",
@@ -984,7 +1060,7 @@ impl Params for shader_shared::ColourPalettes {
                 name: "selected",
                 kind: ParamKindMut::Usize {
                     value: &mut self.selected,
-                    max: 9,
+                    max: 16,
                 },
             },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
@@ -993,15 +1069,19 @@ impl Params for shader_shared::ColourPalettes {
 }
 
 /// Update the user interface.
-pub fn update(
-    ref mut ui: UiCell,
-    config: &mut Config,
-    osc: &mut Osc,
-    since_start: std::time::Duration,
-    shader_activity: shader::Activity,
-    assets: &Path,
-    ids: &mut Ids,
-) {
+pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
+    let UpdateContext {
+        config,
+        audio_input,
+        dmx_bind_error,
+        since_start,
+        shader_activity,
+        led_colors,
+        last_preset_change,
+        assets,
+        ids,
+    } = ctx;
+
     widget::Canvas::new()
         .pad(PAD)
         .border(0.0)
@@ -1036,7 +1116,7 @@ pub fn update(
     if button()
         .color(toggle_color(config.dmx_on))
         .label("DMX")
-        .w(THIRD_WIDGET_W)
+        .w(HALF_WIDGET_W)
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.dmx_button, ui)
@@ -1046,55 +1126,65 @@ pub fn update(
     }
 
     if button()
-        .color(toggle_color(config.osc_on))
-        .label("OSC")
-        .right(PAD * 0.5)
-        .w(THIRD_WIDGET_W)
-        .set(ids.osc_button, ui)
-        .was_clicked()
-    {
-        config.osc_on = !config.osc_on;
-    }
-
-    if button()
         .color(toggle_color(config.midi_on))
         .label("MIDI")
         .right(PAD * 0.5)
-        .w(THIRD_WIDGET_W)
+        .w(HALF_WIDGET_W)
         .set(ids.midi_button, ui)
         .was_clicked()
     {
         config.midi_on = !config.midi_on;
     }
 
-    text("OSC Address")
+    text("sACN Interface IP")
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
-        .set(ids.osc_address_text, ui);
+        .set(ids.sacn_interface_ip_text, ui);
 
-    let color = match config.osc_addr_textbox_string.parse::<SocketAddr>() {
-        Ok(socket) => match osc.addr == socket {
-            true => color::BLACK,
-            false => color::DARK_GREEN.with_luminance(0.1),
-        },
-        Err(_) => color::DARK_RED.with_luminance(0.1),
+    widget::Text::new(
+        "Use this computer's IP on the PixLite network, e.g. 10.0.0.100. Leave blank for Auto.",
+    )
+    .down(5.0)
+    .w(WIDGET_W)
+    .font_size(10)
+    .color(TEXT_COLOR)
+    .left_justify()
+    .set(ids.sacn_interface_ip_help_text, ui);
+
+    let color = if dmx_bind_error.is_some() {
+        color::DARK_RED.with_luminance(0.1)
+    } else {
+        match crate::conf::parse_sacn_interface_ip(&config.sacn_interface_ip) {
+            Ok(Some(_)) => color::DARK_GREEN.with_luminance(0.1),
+            Ok(None) => color::BLACK,
+            Err(_) => color::DARK_RED.with_luminance(0.1),
+        }
     };
-    for event in widget::TextBox::new(&config.osc_addr_textbox_string)
+    for event in widget::TextBox::new(&config.sacn_interface_ip)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .down(5.0)
         .border(0.0)
         .color(color)
         .text_color(color::WHITE)
         .font_size(14)
-        .set(ids.osc_address_text_box, ui)
+        .set(ids.sacn_interface_ip_text_box, ui)
     {
         match event {
-            widget::text_box::Event::Update(string) => config.osc_addr_textbox_string = string,
+            widget::text_box::Event::Update(string) => config.sacn_interface_ip = string,
             widget::text_box::Event::Enter => {
-                if let Ok(socket) = config.osc_addr_textbox_string.parse() {
-                    osc.addr = socket;
-                }
+                config.sacn_interface_ip = config.sacn_interface_ip.trim().to_string();
             }
         }
+    }
+
+    if let Some(error) = dmx_bind_error {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.sacn_interface_ip_error_text, ui);
     }
 
     text("Shader State")
@@ -1116,7 +1206,7 @@ pub fn update(
                 (s, c)
             }
             shader::LastIncoming::Failed(_err) => {
-                let s = format!("Compilation Failed");
+                let s = "Compilation Failed".to_string();
                 let c = ui::color::RED;
                 (s, c)
             }
@@ -1135,87 +1225,24 @@ pub fn update(
     let min_universe = 1.0;
     let max_universe = 99.0;
     let precision = 0;
-    let dialer_w = WIDGET_W * 0.5 - PAD * 0.25;
-    let v = config.wash_spot_universe;
-    for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
-        .border(0.0)
-        .label("Wash")
-        .label_color(color::WHITE)
-        .label_font_size(14)
-        .down(PAD)
-        .w(dialer_w)
-        .h(DEFAULT_WIDGET_H)
-        .color(color::DARK_CHARCOAL)
-        .set(ids.wash_spot_universe_dialer, ui)
-    {
-        config.wash_spot_universe = v as u16;
-    }
-
     let v = config.led_start_universe;
-    for v in widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+    if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
         .border(0.0)
         .label("LEDs")
         .label_color(color::WHITE)
         .label_font_size(14)
-        .right(PAD * 0.5)
-        .w(dialer_w)
+        .down(PAD)
+        .w(WIDGET_W)
+        .h(DEFAULT_WIDGET_H)
         .color(color::DARK_CHARCOAL)
         .set(ids.led_start_universe_dialer, ui)
     {
         config.led_start_universe = v as u16;
     }
 
-    text("Wash and Spot DMX Addrs")
-        .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
-        .set(ids.wash_dmx_addrs_text, ui);
+    crate::audio_widgets::set_widgets(ui, ids, audio_input);
 
-    let wash_count = config.wash_dmx_addrs.len();
-    let spot_count = config.spot_dmx_addrs.len();
-    let n_items = wash_count + spot_count;
-    let (mut items, scrollbar) = widget::List::flow_down(n_items)
-        .item_size(DEFAULT_WIDGET_H)
-        .scrollbar_next_to()
-        .h(DEFAULT_WIDGET_H * 4.0)
-        .mid_left_of(ids.column_1_id)
-        .down(PAD)
-        .w(COLUMN_W)
-        .set(ids.wash_dmx_addrs_list, ui);
-
-    while let Some(item) = items.next(ui) {
-        let i = item.i;
-        let is_wash = i < wash_count;
-        let light_i = if is_wash { i } else { i - wash_count };
-        let label = match is_wash {
-            true => format!("Wash {}", light_i),
-            false => format!("Spot {}", light_i),
-        };
-        let v = match is_wash {
-            true => config.wash_dmx_addrs[light_i],
-            false => config.spot_dmx_addrs[light_i],
-        };
-        let min = 0.0;
-        let max = (crate::DMX_ADDRS_PER_UNIVERSE - 1) as f32;
-        let precision = 0;
-        let dialer = widget::NumberDialer::new(v as f32, min, max, precision)
-            .border(0.0)
-            .label(&label)
-            .label_color(color::WHITE)
-            .label_font_size(14)
-            .color(color::DARK_CHARCOAL);
-        for v in item.set(dialer, ui) {
-            match is_wash {
-                true => config.wash_dmx_addrs[light_i] = v as u8,
-                false => config.spot_dmx_addrs[light_i] = v as u8,
-            }
-        }
-    }
-
-    if let Some(s) = scrollbar {
-        s.set(ui)
-    }
-
-    set_presets_widgets(ui, &ids, config, &assets);
+    set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
 
     // Now that preset selection is done, get easier access to the selected preset.
     let preset = config.presets.selected_mut();
@@ -1233,7 +1260,7 @@ pub fn update(
         .collect();
     let shader_idx = preset.shader_left.to_index();
 
-    for selected_idx in widget::DropDownList::new(&shader_names, Some(shader_idx))
+    if let Some(selected_idx) = widget::DropDownList::new(&shader_names, Some(shader_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -1247,12 +1274,24 @@ pub fn update(
         preset.shader_left = Shader::from_index(selected_idx).unwrap();
     }
 
-    let mut slider_ix = 0;
+    let mut mod_slider_ix = 0;
+    let mut int_slider_ix = 0;
     let mut button_ix = 0;
 
     {
         let params = shader_params(preset.shader_left, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            ShaderWidgetState {
+                mod_slider_ix: &mut mod_slider_ix,
+                int_slider_ix: &mut int_slider_ix,
+                button_ix: &mut button_ix,
+                mod_amounts: &mut preset.shader_mod_amounts,
+                envelope: audio_input.envelope,
+            },
+        );
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -1267,7 +1306,7 @@ pub fn update(
         .collect();
     let colourise_idx = preset.colourise.to_index();
 
-    for selected_idx in widget::DropDownList::new(&colour_names, Some(colourise_idx))
+    if let Some(selected_idx) = widget::DropDownList::new(&colour_names, Some(colourise_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -1283,7 +1322,18 @@ pub fn update(
 
     {
         let params = shader_params(preset.colourise, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            ShaderWidgetState {
+                mod_slider_ix: &mut mod_slider_ix,
+                int_slider_ix: &mut int_slider_ix,
+                button_ix: &mut button_ix,
+                mod_amounts: &mut preset.shader_mod_amounts,
+                envelope: audio_input.envelope,
+            },
+        );
     }
 
     //---------------------- LED SHADER RIGHT
@@ -1294,7 +1344,7 @@ pub fn update(
         .set(ids.led_shader_right_text, ui);
 
     let shader_idx = preset.shader_right.to_index();
-    for selected_idx in widget::DropDownList::new(&shader_names, Some(shader_idx))
+    if let Some(selected_idx) = widget::DropDownList::new(&shader_names, Some(shader_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -1310,8 +1360,21 @@ pub fn update(
 
     {
         let params = shader_params(preset.shader_right, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            ShaderWidgetState {
+                mod_slider_ix: &mut mod_slider_ix,
+                int_slider_ix: &mut int_slider_ix,
+                button_ix: &mut button_ix,
+                mod_amounts: &mut preset.shader_mod_amounts,
+                envelope: audio_input.envelope,
+            },
+        );
     }
+
+    preset.shader_mod_amounts.truncate(mod_slider_ix);
 
     //---------------------- BLEND MODES
     text("LED Blend Mode")
@@ -1324,7 +1387,7 @@ pub fn update(
         .map(|blend_mode| blend_mode.name())
         .collect();
     let blend_mode_idx = preset.blend_mode as usize;
-    for selected_idx in widget::DropDownList::new(&blend_mode_names, Some(blend_mode_idx))
+    if let Some(selected_idx) = widget::DropDownList::new(&blend_mode_names, Some(blend_mode_idx))
         .w_h(COLUMN_W, PAD * 2.0)
         .down(10.0)
         .max_visible_items(15)
@@ -1338,7 +1401,7 @@ pub fn update(
         preset.blend_mode = BlendMode::from_index(selected_idx).unwrap();
     }
 
-    for value in slider(preset.left_right_mix, 1.0, -1.0)
+    if let Some(value) = slider(preset.left_right_mix, 1.0, -1.0)
         .down(10.0)
         .label("Left Right Mix")
         .set(ids.shader_mix_left_right, ui)
@@ -1346,7 +1409,7 @@ pub fn update(
         preset.left_right_mix = value;
     }
 
-    for value in slider(config.fade_to_black.led, 0.0, 1.0)
+    if let Some(value) = slider(config.fade_to_black.led, 0.0, 1.0)
         .down(10.0)
         .label("LED Fade to Black")
         .set(ids.led_fade_to_black, ui)
@@ -1354,33 +1417,34 @@ pub fn update(
         config.fade_to_black.led = value;
     }
 
-    for value in slider(config.fade_to_black.wash, 0.0, 1.0)
-        .down(10.0)
-        .label("Wash Fade to Black")
-        .set(ids.wash_fade_to_black, ui)
-    {
-        config.fade_to_black.wash = value;
-    }
-
-    let label = format!("Wash Lerp: {:.2} frames", 1.0 / preset.wash_lerp_amt);
-    for value in slider(preset.wash_lerp_amt, 0.0, 1.0)
-        .skew(2.0)
-        .down(10.0)
-        .label(&label)
-        .set(ids.lerp_amount, ui)
-    {
-        preset.wash_lerp_amt = value;
-    }
-
     // A scrollbar for the canvas.
     //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
 }
 
-pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, assets: &Path) {
+pub fn set_presets_widgets(
+    ui: &mut UiCell,
+    ids: &Ids,
+    config: &mut Config,
+    last_preset_change: &mut Option<crate::LastPresetChange>,
+    led_colors: &LedColors,
+    assets: &Path,
+) {
+    const PRESET_ACTION_GAP: Scalar = 2.0;
+
     widget::Text::new("PRESETS")
         .top_left_of(ids.column_2_id)
         .color(TEXT_COLOR)
         .set(ids.presets_text, ui);
+
+    let label = format!("Lerp Duration: {:.2} secs", config.preset_lerp_secs);
+    if let Some(v) = slider(config.preset_lerp_secs, 0.0, 6.0)
+        .down(10.0)
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .label(&label)
+        .set(ids.presets_lerp_slider, ui)
+    {
+        config.preset_lerp_secs = v;
+    }
 
     for _click in button()
         .down(10.0)
@@ -1390,11 +1454,11 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
         .set(ids.presets_save_button, ui)
     {
         config.presets.selected_mut().name = config.presets.selected_preset_name.clone();
-        super::save_config(&assets, config);
+        super::save_config(assets, config);
     }
 
     for _click in button()
-        .down(10.0)
+        .down(PRESET_ACTION_GAP)
         .label("Delete")
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .color(BUTTON_COLOR)
@@ -1420,7 +1484,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
     }
 
     for _click in button()
-        .down(10.0)
+        .down(PRESET_ACTION_GAP)
         .label("New")
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .color(BUTTON_COLOR)
@@ -1433,7 +1497,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
     }
 
     for _click in button()
-        .down(10.0)
+        .down(PRESET_ACTION_GAP)
         .label("Duplicate")
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .color(BUTTON_COLOR)
@@ -1464,7 +1528,7 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
             Event::Update(text) => config.presets.selected_preset_name = text,
             Event::Enter => {
                 config.presets.selected_mut().name = config.presets.selected_preset_name.clone();
-                super::save_config(&assets, config);
+                super::save_config(assets, config);
             }
         }
     }
@@ -1509,6 +1573,8 @@ pub fn set_presets_widgets(ui: &mut UiCell, ids: &Ids, config: &mut Config, asse
                 if selection < config.presets.list.len() {
                     config.presets.selected_preset_idx = selection;
                     config.presets.selected_preset_name = config.presets.selected().name.clone();
+                    let now = std::time::Instant::now();
+                    *last_preset_change = Some((now, Box::new(*led_colors)));
                 }
             }
             _ => (),
@@ -1524,35 +1590,53 @@ fn set_shader_widgets(
     ui: &mut UiCell,
     ids: &mut Ids,
     params: &mut dyn Params,
-    slider_ix: &mut usize,
-    button_ix: &mut usize,
+    state: ShaderWidgetState<'_>,
 ) {
+    use crate::mod_slider::ModSlider;
+    let ShaderWidgetState {
+        mod_slider_ix,
+        int_slider_ix,
+        button_ix,
+        mod_amounts,
+        envelope,
+    } = state;
+
     for ix in 0..params.param_count() {
         let ParamMut { name, kind } = params.param_mut(ix);
 
         match kind {
             ParamKindMut::F32 { value, max } => {
-                if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders
-                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                if ids.shader_mod_sliders.len() <= *mod_slider_ix {
+                    ids.shader_mod_sliders
+                        .resize(*mod_slider_ix + 1, &mut ui.widget_id_generator());
                 }
-                let id = ids.shader_sliders[*slider_ix];
+                if mod_amounts.len() <= *mod_slider_ix {
+                    mod_amounts.resize(*mod_slider_ix + 1, 0.0);
+                }
+                let id = ids.shader_mod_sliders[*mod_slider_ix];
+                let mod_amt = mod_amounts[*mod_slider_ix];
 
-                for v in slider(*value, 0.0, max).down(10.0).label(name).set(id, ui) {
+                if let Some((v, m)) = ModSlider::new(*value, mod_amt, envelope, 0.0, max)
+                    .label(name)
+                    .w_h(COLUMN_W, 30.0)
+                    .down(10.0)
+                    .set(id, ui)
+                {
                     *value = v;
+                    mod_amounts[*mod_slider_ix] = m;
                 }
 
-                *slider_ix += 1;
+                *mod_slider_ix += 1;
             }
 
             ParamKindMut::Usize { value, max } => {
-                if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders
-                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                if ids.shader_int_sliders.len() <= *int_slider_ix {
+                    ids.shader_int_sliders
+                        .resize(*int_slider_ix + 1, &mut ui.widget_id_generator());
                 }
-                let id = ids.shader_sliders[*slider_ix];
+                let id = ids.shader_int_sliders[*int_slider_ix];
 
-                for v in slider(*value as f32, 0.0, max as f32)
+                if let Some(v) = slider(*value as f32, 0.0, max as f32)
                     .down(10.0)
                     .label(name)
                     .set(id, ui)
@@ -1560,7 +1644,7 @@ fn set_shader_widgets(
                     *value = v as usize;
                 }
 
-                *slider_ix += 1;
+                *int_slider_ix += 1;
             }
 
             ParamKindMut::Bool(value) => {
@@ -1585,7 +1669,7 @@ fn set_shader_widgets(
     }
 }
 
-fn text(s: &str) -> widget::Text {
+fn text(s: &str) -> widget::Text<'_> {
     widget::Text::new(s).color(color::WHITE)
 }
 
@@ -1616,7 +1700,7 @@ fn toggle(b: bool) -> widget::Toggle<'static> {
 }
 
 // Shorthand for the slider style we'll use
-fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
+pub fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
     widget::Slider::new(val, min, max)
         .w_h(COLUMN_W, DEFAULT_SLIDER_H)
         .label_font_size(14)
@@ -1634,6 +1718,51 @@ fn column_canvas(background: widget::Id) -> widget::Canvas<'static> {
         .w(COLUMN_W)
         .h_of(background)
         .scroll_kids_vertically()
+}
+
+/// Apply envelope modulation to shader params, matching the same iteration
+/// order as set_shader_widgets so mod_slider_ix lines up with mod_amounts.
+pub fn apply_shader_modulation(
+    shader: Shader,
+    params: &mut ShaderParams,
+    mod_slider_ix: &mut usize,
+    mod_amounts: &[f32],
+    envelope: f32,
+) {
+    let p: &mut dyn Params = shader_params(shader, params);
+    for ix in 0..p.param_count() {
+        let ParamMut { kind, .. } = p.param_mut(ix);
+        match kind {
+            ParamKindMut::F32 { value, max } => {
+                if let Some(&mod_amt) = mod_amounts.get(*mod_slider_ix) {
+                    let offset = (envelope * mod_amt) - (mod_amt / 2.0);
+                    *value = (*value + offset).max(0.0).min(max);
+                }
+                *mod_slider_ix += 1;
+            }
+            ParamKindMut::Usize { .. } | ParamKindMut::Bool(_) => {}
+        }
+    }
+}
+
+pub fn normalise_preset_shader_mod_amounts(preset: &mut crate::conf::Preset) {
+    let left_count = shader_modulation_slot_count(preset.shader_left, &mut preset.shader_params);
+    let colourise_count = shader_modulation_slot_count(preset.colourise, &mut preset.shader_params);
+    let right_count = shader_modulation_slot_count(preset.shader_right, &mut preset.shader_params);
+    let mod_slot_count = left_count + colourise_count + right_count;
+    preset.shader_mod_amounts.resize(mod_slot_count, 0.0);
+}
+
+fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -> usize {
+    let p: &mut dyn Params = shader_params(shader, params);
+    let mut count = 0;
+    for ix in 0..p.param_count() {
+        let ParamMut { kind, .. } = p.param_mut(ix);
+        if let ParamKindMut::F32 { .. } = kind {
+            count += 1;
+        }
+    }
+    count
 }
 
 fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
@@ -1661,5 +1790,7 @@ fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
         Shader::ColourPalettes => &mut params.colour_palettes,
         Shader::MitchWash => &mut params.mitch_wash,
         Shader::ShapeEnvelopes => &mut params.shape_envelopes,
+        Shader::RowTest => &mut params.row_test,
+        Shader::BarTest => &mut params.bar_test,
     }
 }
