@@ -37,11 +37,6 @@ pub const RIGHT_X: f32 = 1.0;
 pub const FLOOR_Y: f32 = -1.0;
 pub const ROOF_Y: f32 = 1.0;
 
-pub const LED_PPM: f32 = 80.0; //144.0;
-
-pub const LED_SHADER_RESOLUTION_X: f32 = 720.0;
-pub const LED_SHADER_RESOLUTION_Y: f32 = 450.0;
-
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
@@ -60,9 +55,9 @@ struct Model {
     smoothing_speed: f32,
     // Colours output via the shader.
     // Starts from top left, one row at a time.
-    led_colors: Box<[LinSrgb; layout::LED_COUNT]>,
+    led_colors: Vec<LinSrgb>,
     // Shader output with fade-to-black applied.
-    led_outputs: Box<[LinSrgb; layout::LED_COUNT]>,
+    led_outputs: Vec<LinSrgb>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
@@ -70,7 +65,7 @@ struct Model {
     midi_cv_phase_amp: f32,
 }
 
-type LastPresetChange = (std::time::Instant, Box<[LinSrgb; layout::LED_COUNT]>);
+type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
 
 struct ButtonState {
     pub last_pressed: std::time::Instant,
@@ -111,6 +106,7 @@ fn model(app: &App) -> Model {
     let mut config: Config = load_from_json(config_path)
         .ok()
         .unwrap_or_else(Config::default);
+    config.led_layout.normalise();
     for preset in &mut config.presets.list {
         gui::normalise_preset_shader_mod_amounts(preset);
     }
@@ -161,8 +157,8 @@ fn model(app: &App) -> Model {
     let shader = None;
     let shader_rx = shader::spawn_watch();
 
-    let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
-    let led_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
+    let led_colors = black_led_buffer(config.led_layout.led_count());
+    let led_outputs = black_led_buffer(config.led_layout.led_count());
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -242,6 +238,27 @@ fn model(app: &App) -> Model {
     }
 }
 
+fn black_led_buffer(led_count: usize) -> Vec<LinSrgb> {
+    vec![lin_srgb(0.0, 0.0, 0.0); led_count]
+}
+
+fn normalised_led_coord(index: usize, count: usize) -> f32 {
+    if count <= 1 {
+        0.0
+    } else {
+        (index as f32 / (count - 1) as f32) * 2.0 - 1.0
+    }
+}
+
+fn sync_led_buffers(model: &mut Model) {
+    let led_count = model.config.led_layout.led_count();
+    if model.led_colors.len() != led_count {
+        model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.last_preset_change = None;
+    }
+}
+
 fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
     model.ui.handle_raw_event(app, event);
 }
@@ -267,12 +284,15 @@ fn update(app: &App, model: &mut Model, update: Update) {
             dmx_bind_error: model.dmx.bind_error.as_deref(),
             since_start: update.since_start,
             shader_activity: model.shader_rx.activity(),
-            led_colors: model.led_colors.as_ref(),
+            led_colors: model.led_colors.as_slice(),
             last_preset_change: &mut model.last_preset_change,
             assets: assets.as_path(),
             ids: &mut model.ids,
         },
     );
+    drop(ui);
+    model.config.led_layout.normalise();
+    sync_led_buffers(model);
 
     // Check for an update to the shader.
     if let Some(shader) = model.shader_rx.update() {
@@ -288,7 +308,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
     };
 
     // Topdown metres to shader coords.
-    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h);
+    let led_layout = &model.config.led_layout;
+    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h, led_layout);
 
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
@@ -467,7 +488,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         .collect();
     let uniforms = Uniforms {
         time: app.time + (env * model.midi_cv_phase_amp),
-        resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
+        resolution: layout::shader_resolution(led_layout),
         use_midi: model.config.midi_on,
         slider1: bw_param1,                // BW param 1
         slider2: bw_param2,                // BW param 2
@@ -484,13 +505,13 @@ fn update(app: &App, model: &mut Model, update: Update) {
     };
 
     // Apply the shader for the LEDs.
-    for (led_ix, (row, x, h)) in layout::led_positions_metres().enumerate() {
+    for (led_ix, (row, x, h)) in layout::led_positions_metres(led_layout).enumerate() {
         let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES[1]), h);
         let index = led_ix;
-        let col = led_ix % layout::LEDS_PER_ROW;
+        let col = led_ix % led_layout.leds_per_row();
         let col_row = [col, row];
-        let n_x = (col as f32 / (layout::LEDS_PER_ROW - 1) as f32) * 2.0 - 1.0;
-        let n_y = (row as f32 / (layout::LED_ROW_COUNT - 1) as f32) * 2.0 - 1.0;
+        let n_x = normalised_led_coord(col, led_layout.leds_per_row());
+        let n_y = normalised_led_coord(row, led_layout.row_count);
         let normalised_coords = vec2(n_x, n_y);
         let light = Light::Led {
             index,
@@ -648,24 +669,26 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     draw.background().color(BLACK);
 
     let w = app.window(model.led_strip_window).unwrap().rect();
+    let led_layout = &model.config.led_layout;
 
-    let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND)
-        .min(w.w() / layout::METRES_PER_LED_ROW as f32)
+    let metres_to_points_scale = (w.h() / layout::top_led_row_from_ground(led_layout))
+        .min(w.w() / led_layout.metres_per_row as f32)
         * 0.8;
     let m_to_p = |m| m * metres_to_points_scale;
     let p_to_m = |p| p / metres_to_points_scale;
     let x_offset_m = layout::SHADER_ORIGIN_METRES[0];
-    let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND * 0.5;
+    let y_offset_m = layout::top_led_row_from_ground(led_layout) * 0.5;
     let pm_to_pp = |x: f32, h: f32| pt2(m_to_p(x - x_offset_m), m_to_p(h - y_offset_m));
     let pp_to_pm = |pp: Point2| (p_to_m(pp.x) + x_offset_m, p_to_m(pp.y) + y_offset_m);
-    let pm_to_ps = |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h);
+    let pm_to_ps =
+        |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h, led_layout);
 
     // Draw the LEDs one row at a time.
-    let mut leds = layout::led_positions_metres().zip(model.led_outputs.iter());
-    for _ in 0..layout::LED_ROW_COUNT {
+    let mut leds = layout::led_positions_metres(led_layout).zip(model.led_outputs.iter());
+    for _ in 0..led_layout.row_count {
         let vs = leds
             .by_ref()
-            .take(layout::LEDS_PER_ROW)
+            .take(led_layout.leds_per_row())
             .map(|((_row, x, h), &c)| {
                 let pp = pm_to_pp(x, h);
                 (pp, c)

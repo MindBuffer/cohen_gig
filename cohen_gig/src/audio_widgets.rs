@@ -1,5 +1,5 @@
 use crate::audio_input::{AudioInput, MAX_INPUT_GAIN_DB};
-use crate::gui::{self, slider, COLUMN_W, PAD, TEXT_COLOR};
+use crate::gui::{self, slider, COLUMN_ONE_SECTION_GAP, COLUMN_W, TEXT_COLOR};
 use nannou_conrod::prelude::*;
 use std::collections::VecDeque;
 
@@ -8,7 +8,7 @@ const SCOPE_H: Scalar = 120.0;
 pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     widget::Text::new("AUDIO INPUT")
         .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
+        .down(COLUMN_ONE_SECTION_GAP)
         .color(TEXT_COLOR)
         .font_size(14)
         .set(ids.audio_input_text, ui);
