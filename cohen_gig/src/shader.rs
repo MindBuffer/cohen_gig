@@ -47,7 +47,7 @@ struct Incoming {
 impl ShaderReceiver {
     /// Whether or not the shader is currently incoming. If not, whether the last incoming shader
     /// built successfully or not.
-    pub fn activity(&self) -> Activity {
+    pub fn activity(&self) -> Activity<'_> {
         if self.incoming.is_some() {
             Activity::Incoming
         } else {
@@ -94,7 +94,7 @@ impl ShaderReceiver {
 
 impl Shader {
     /// Load the shader function.
-    pub fn get_fn(&self) -> libloading::Symbol<ShaderFnPtr> {
+    pub fn get_fn(&self) -> libloading::Symbol<'_, ShaderFnPtr> {
         unsafe {
             self.lib
                 .get("shader".as_bytes())
@@ -163,13 +163,12 @@ pub fn spawn_watch() -> ShaderReceiver {
     let last_incoming = LastIncoming::Succeeded;
     let incoming = None;
     let last_timestamp = std::time::Instant::now();
-    let shader_rx = ShaderReceiver {
+    ShaderReceiver {
         rx,
         incoming,
         last_timestamp,
         last_incoming,
-    };
-    shader_rx
+    }
 }
 
 // A function that matches the `ShaderFnPtr` that can be used as a fallback while the dylib is

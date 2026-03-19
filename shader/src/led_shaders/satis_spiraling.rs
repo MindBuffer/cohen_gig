@@ -34,7 +34,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let aspect = uniforms.resolution.x / uniforms.resolution.y;
     let w = 50.0 / (uniforms.resolution.x * aspect + uniforms.resolution.y).sqrt();
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let mut uv = normalised_coords;
     // let x = map_range(p.x, -0.18, 0.13, -1.0, 1.0);
     // let y = map_range(p.y, 0.3, 1.0, -1.0, 1.0);

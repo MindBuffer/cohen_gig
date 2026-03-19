@@ -30,7 +30,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     }
     let d = 0.3 * (params.offset * 10.0);
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let mut uv = normalised_coords;
 
     // let x = map_range(p.x, -0.13, 0.13, 0.0, 1.0);
@@ -40,9 +42,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;
 
     let z = 8.0 + (params.zoom * 64.0);
-    let mut g = uv * vec2(z, z);
-    uv = vec2(d, d) * (vec2(g.x.floor(), g.y.floor()) + vec2(0.5, 0.5)) / vec2(z, z);
-    g = vec2(g.x.fract(), g.y.fract()) * vec2(2.0, 2.0) - vec2(1.0, 1.0);
+    let grid = uv * vec2(z, z);
+    uv = vec2(d, d) * (vec2(grid.x.floor(), grid.y.floor()) + vec2(0.5, 0.5)) / vec2(z, z);
 
     let f = uv.dot(uv) - t;
 
@@ -61,8 +62,6 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let r2 = length(vec3(uv.x * -x2, uv.y * -x2, 0.0)).powf(10.5);
     let r3 = r1 * r2;
 
-    let mut e = (1.0 - g.dot(g)) * 0.2 / ((f.fract() - 0.5) * 8.0).abs();
-    e = map_range(e, -0.02, 0.02, 0.0, 1.0);
     let e = 1.0 - ((1.0) * 0.2 / ((f.fract() - 0.5) * 8.0).abs()).sqrt() * r3; //.powf(0.75);
                                                                                //dbg!(g);
 

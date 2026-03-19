@@ -18,8 +18,8 @@ impl Lerp for [f32; 3] {
     }
 }
 
-use nannou::color::LinSrgb;
 use nannou::color::lin_srgb;
+use nannou::color::LinSrgb;
 impl Lerp for LinSrgb {
     fn lerp(&self, other: &Self, amt: f32) -> Self {
         let (ax, ay, az) = self.into_components();

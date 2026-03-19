@@ -22,7 +22,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * params.speed;
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let p = normalised_coords;
 
     let x = map_range(p.x, -1.05, 1.05, 0.0, 1.0);
@@ -30,8 +32,6 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let uv = vec2(x, y);
 
     let r = uniforms.resolution;
-    let mut q = vec2(0.0, 0.0);
-    let mut d = vec2(0.0, 0.0);
     let s = 1.0 + (params.scale * 15.0);
     let mut v = vec2(s, s) * uv;
     v.y += t;
@@ -39,16 +39,16 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     //lin_srgb(v.x, v.y, 1.0)
     for k in 0..9 {
-        q = vec2(fmod(k as f32, 3.0) - 1.0, k as f32 / 3.0 - 1.0);
+        let q = vec2(fmod(k as f32, 3.0) - 1.0, k as f32 / 3.0 - 1.0);
         let c = ceil(v - q);
-        d = fract(
+        let d = fract(
             vec2(10000.0, 10000.0)
                 * sin(multiply_mat2_with_vec2(
                     Mat2::from_cols(r, Vec2::new(r.y, r.x)),
                     c,
                 )),
         ) - vec2(0.5, 0.5);
-        q = fract(v) - vec2(0.5, 0.5) + q + d;
+        let q = fract(v) - vec2(0.5, 0.5) + q + d;
         pt += smoothstep(1.3 * uv.y, 0.0, length(vec3(q.x, q.y, 0.0)));
     }
     let c = pt; // - 0.5;

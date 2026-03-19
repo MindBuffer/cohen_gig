@@ -61,7 +61,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * params.speed;
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let p = normalised_coords;
 
     let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
@@ -71,11 +73,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let i = 4.0 + params.scale * 35.0;
     uv = uv / vec2(uniforms.resolution.x, uniforms.resolution.x) * vec2(i, i);
     let mut d = uv.y;
-    let a = atan(uv.y, uv.x)
-        + (d * 0.4 + t * 0.3).sin() * (1.0 / uniforms.resolution.y * 2.0)
-        + t * 0.2;
     d = d.powf(1.5);
-    let j = (t * 0.4).powf(PI);
     let mut f;
     let ba = params.boarder_amp * 12.0;
     f = (((fmod(uv.x, 1.0) - 0.5).abs() - 0.45) * ba) * params.line_amp;

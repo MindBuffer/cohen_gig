@@ -7,7 +7,7 @@ use shader_shared::{Uniforms, Vertex};
 //     blue: f32,
 // }
 
-pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(_v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.solid_rgb_colour;
 
     if uniforms.use_midi {

@@ -79,7 +79,5 @@ pub fn topdown_metres_to_shader_coords(topdown_point_m: Point2, height_m: f32) -
     let z = -y;
     // Scale the height in metres by the top of the LED rows.
     let y = height_m / TOP_LED_ROW_FROM_GROUND;
-    let point = pt3(x, y, z);
-    point
+    pt3(x, y, z)
 }
-

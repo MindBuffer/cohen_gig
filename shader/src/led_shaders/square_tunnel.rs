@@ -22,7 +22,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * (params.speed * 2.0);
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let mut uv = normalised_coords;
 
     // let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);
@@ -38,7 +40,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut s;
     let mut col = 0.0;
 
-    for i in 0..49 {
+    for _ in 0..49 {
         c = t.cos();
         s = t.sin();
         let mat = Mat2::from_cols(Vec2::new(c, s), Vec2::new(-s, c));

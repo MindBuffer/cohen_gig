@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use shader_shared::{BlendMode, Shader, ShaderParams};
-use std::path::{Path, PathBuf};
 use std::net::{AddrParseError, Ipv4Addr};
+use std::path::{Path, PathBuf};
 
 /// Runtime configuration parameters.
 ///
@@ -29,7 +29,6 @@ pub struct Config {
     #[serde(default)]
     pub preset_lerp_secs: f32,
 }
-
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Presets {

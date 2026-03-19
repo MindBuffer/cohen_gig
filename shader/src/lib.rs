@@ -4,9 +4,9 @@ use nannou_core::prelude::*;
 use shader_shared::{BlendMode, Shader, Uniforms, Vertex};
 
 mod blend_modes;
-mod helpers;
-mod shaders;
-mod signals;
+pub mod helpers;
+pub mod shaders;
+pub mod signals;
 
 mod colour_palettes;
 mod solid_hsv_colour;
@@ -46,7 +46,7 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     };
 
     // Colourise.
-    col = col * colour;
+    col *= colour;
 
     col
 }

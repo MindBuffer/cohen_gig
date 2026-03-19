@@ -47,12 +47,14 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
             Direction::Horizontal
         };
 
-        params.mirror = if uniforms.slider2 > 0.5 { true } else { false };
+        params.mirror = uniforms.slider2 > 0.5;
     }
 
     let phase = uniforms.time * params.speed;
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let mut uv = normalised_coords;
 
     // let x = map_range(p.x, -0.13, 0.13, -1.0, 1.0);

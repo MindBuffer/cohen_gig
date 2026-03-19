@@ -2,9 +2,9 @@
 //! important in order to ensure types are laid out the same way between the dynamic library and
 //! the exe.
 
+use devault::Devault;
 use korg_nano_kontrol_2::{ButtonRow, MarkerButton, State, Strip, TrackButton, Transport};
 use nannou_core::prelude::*;
-use devault::Devault;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -474,7 +474,7 @@ pub struct BarTest {
     pub bar: f32,
 }
 
-pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
+pub const ALL_BLEND_MODES: &[BlendMode] = &[
     BlendMode::Add,
     BlendMode::Subtract,
     BlendMode::Multiply,
@@ -484,7 +484,7 @@ pub const ALL_BLEND_MODES: &'static [BlendMode] = &[
     BlendMode::Exclusion,
 ];
 
-pub const ALL_SHADERS: &'static [Shader] = &[
+pub const ALL_SHADERS: &[Shader] = &[
     Shader::SolidHsvColour,
     Shader::SolidRgbColour,
     Shader::ColourPalettes,
@@ -512,7 +512,7 @@ pub const ALL_SHADERS: &'static [Shader] = &[
     Shader::BarTest,
 ];
 
-pub const SOLID_COLOUR_SHADERS: &'static [Shader] = &[
+pub const SOLID_COLOUR_SHADERS: &[Shader] = &[
     Shader::SolidHsvColour,
     Shader::SolidRgbColour,
     Shader::ColourPalettes,

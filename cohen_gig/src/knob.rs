@@ -84,7 +84,11 @@ impl<'a> Widget for Knob<'a> {
 
     fn update(self, args: widget::UpdateArgs<Self>) -> Self::Event {
         let widget::UpdateArgs {
-            id, state, rect, ui, ..
+            id,
+            state,
+            rect,
+            ui,
+            ..
         } = args;
         let Knob {
             value,
@@ -103,7 +107,7 @@ impl<'a> Widget for Knob<'a> {
         let input = ui.widget_input(id);
 
         // On press: snapshot the current normalized value.
-        for press in input.presses().mouse().left() {
+        for _press in input.presses().mouse().left() {
             state.update(|s| s.drag_start_norm = Some(norm));
         }
 
@@ -111,7 +115,7 @@ impl<'a> Widget for Knob<'a> {
         for drag in input.drags().left() {
             if let Some(start_norm) = state.drag_start_norm {
                 let delta_norm = drag.total_delta_xy[1] * SCALAR;
-                let new_norm = (start_norm + delta_norm).max(0.0).min(1.0);
+                let new_norm = (start_norm + delta_norm).clamp(0.0, 1.0);
                 let v = min + new_norm as f32 * range;
                 new_value = Some(v);
             }

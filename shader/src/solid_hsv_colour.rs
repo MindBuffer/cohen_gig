@@ -25,7 +25,7 @@ fn hsv2rgb_smooth(c: Vec3) -> Vec3 {
     )
 }
 
-pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
+pub fn shader(_v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let mut params = uniforms.params.solid_hsv_colour;
 
     if uniforms.use_midi {

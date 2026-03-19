@@ -1,9 +1,6 @@
 use nannou_core::prelude::*;
 use shader_shared::Uniforms;
 
-use crate::helpers::*;
-use crate::signals::*;
-
 pub fn test(p: Vec3, uniforms: &Uniforms) -> LinSrgb {
     let t = uniforms.time;
     let b = (p.z + t).sin() * 0.5 + 0.5;

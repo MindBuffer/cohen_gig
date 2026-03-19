@@ -1,6 +1,5 @@
 use crate::audio_input::{AudioInput, MAX_INPUT_GAIN_DB};
 use crate::gui::{self, slider, COLUMN_W, PAD, TEXT_COLOR};
-use crate::mod_slider::ModSlider;
 use nannou_conrod::prelude::*;
 use std::collections::VecDeque;
 
@@ -55,7 +54,7 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     // --- Sliders ---
     let gain_multiplier = audio.gain_multiplier();
     let label = format!("Gain: +{:.1} dB ({:.2}x)", audio.gain_db, gain_multiplier);
-    for v in slider(audio.gain_db, 0.0, MAX_INPUT_GAIN_DB)
+    if let Some(v) = slider(audio.gain_db, 0.0, MAX_INPUT_GAIN_DB)
         .down_from(ids.audio_scope_bg, 5.0)
         .label(&label)
         .set(ids.audio_gain_slider, ui)
@@ -64,7 +63,7 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     }
 
     let label = format!("Threshold: {:.3}", audio.threshold);
-    for v in slider(audio.threshold, 0.0, 1.0)
+    if let Some(v) = slider(audio.threshold, 0.0, 1.0)
         .down_from(ids.audio_gain_slider, 5.0)
         .label(&label)
         .set(ids.audio_threshold_slider, ui)
@@ -73,7 +72,7 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     }
 
     let label = format!("Attack: {:.3}s", audio.attack);
-    for v in slider(audio.attack, 0.001, 1.0)
+    if let Some(v) = slider(audio.attack, 0.001, 1.0)
         .down(5.0)
         .label(&label)
         .set(ids.audio_attack_slider, ui)
@@ -82,7 +81,7 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     }
 
     let label = format!("Hold: {:.3}s", audio.hold);
-    for v in slider(audio.hold, 0.0, 1.0)
+    if let Some(v) = slider(audio.hold, 0.0, 1.0)
         .down(5.0)
         .label(&label)
         .set(ids.audio_hold_slider, ui)
@@ -91,7 +90,7 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
     }
 
     let label = format!("Release: {:.3}s", audio.release);
-    for v in slider(audio.release, 0.001, 2.0)
+    if let Some(v) = slider(audio.release, 0.001, 2.0)
         .down(5.0)
         .label(&label)
         .set(ids.audio_release_slider, ui)
@@ -111,20 +110,6 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         ids.audio_envelope_scope,
         &audio.envelope_history,
     );
-
-    // --- Test mod slider ---
-    static mut TEST_VAL: f32 = 0.5;
-    static mut TEST_MOD: f32 = 0.5;
-    let (tv, tm) = unsafe { (TEST_VAL, TEST_MOD) };
-    let label = format!("Test: {:.2}", tv);
-    for (v, m) in ModSlider::new(tv, tm, audio.envelope, 0.0, 1.0)
-        .label(&label)
-        .w_h(COLUMN_W, 40.0)
-        .down_from(ids.audio_envelope_scope_bg, 10.0)
-        .set(ids.test_mod_slider, ui)
-    {
-        unsafe { TEST_VAL = v; TEST_MOD = m; }
-    }
 }
 
 fn draw_waveform(

@@ -75,7 +75,11 @@ impl<'a> Widget for ModSlider<'a> {
 
     fn update(self, args: widget::UpdateArgs<Self>) -> Self::Event {
         let widget::UpdateArgs {
-            id, state, rect, ui, ..
+            id,
+            state,
+            rect,
+            ui,
+            ..
         } = args;
         let ModSlider {
             value,
@@ -100,7 +104,7 @@ impl<'a> Widget for ModSlider<'a> {
         let knob_cx = rect.left() + knob_size / 2.0;
 
         // Knob (mod depth)
-        for v in Knob::new(mod_amount, 0.0, 1.0)
+        if let Some(v) = Knob::new(mod_amount, 0.0, 1.0)
             .w_h(knob_size, knob_size)
             .x_y(knob_cx, slider_cy)
             .parent(id)
@@ -110,7 +114,7 @@ impl<'a> Widget for ModSlider<'a> {
         }
 
         // Slider (base value)
-        for v in widget::Slider::new(value, min, max)
+        if let Some(v) = widget::Slider::new(value, min, max)
             .w_h(slider_w, slider_h)
             .x_y(slider_cx, slider_cy)
             .label(label)

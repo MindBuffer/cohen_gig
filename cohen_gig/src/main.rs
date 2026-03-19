@@ -1,5 +1,5 @@
 use korg_nano_kontrol_2 as korg;
-use midir;
+use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::mpsc;
-use lerp::Lerp;
 
 mod audio_input;
 mod audio_widgets;
@@ -16,9 +15,9 @@ mod conf;
 mod gui;
 pub mod knob;
 mod layout;
+mod lerp;
 pub mod mod_slider;
 mod shader;
-mod lerp;
 
 use crate::conf::Config;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
@@ -38,7 +37,7 @@ pub const RIGHT_X: f32 = 1.0;
 pub const FLOOR_Y: f32 = -1.0;
 pub const ROOF_Y: f32 = 1.0;
 
-pub const LED_PPM: f32 = 80.0;//144.0;
+pub const LED_PPM: f32 = 80.0; //144.0;
 
 pub const LED_SHADER_RESOLUTION_X: f32 = 720.0;
 pub const LED_SHADER_RESOLUTION_Y: f32 = 450.0;
@@ -50,7 +49,7 @@ struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
     dmx: Dmx,
-    midi_inputs: Vec<midir::MidiInputConnection<()>>,
+    _midi_inputs: Vec<midir::MidiInputConnection<()>>,
     midi_rx: mpsc::Receiver<korg::Event>,
     shader_rx: ShaderReceiver,
     shader: Option<Shader>,
@@ -210,9 +209,9 @@ fn model(app: &App) -> Model {
         // pot3: 0.0,    // Colour param 1 (midi_cv amp)
         // pot4: 0.0,    // Colour param 2 (midi_cv amp)
         // pot5: 0.0,    // Reserved smoothing control
-        pot6: 1.0,    // Red / Hue
-        pot7: 0.0,    // Green / Saturation
-        pot8: 1.0,    // Blue / Value
+        pot6: 1.0, // Red / Hue
+        pot7: 0.0, // Green / Saturation
+        pot8: 1.0, // Blue / Value
         buttons: Default::default(),
     };
 
@@ -224,13 +223,13 @@ fn model(app: &App) -> Model {
         _gui_window: gui_window,
         led_strip_window,
         dmx,
-        midi_inputs,
+        _midi_inputs: midi_inputs,
         midi_rx,
         shader_rx,
         shader,
         config,
         controller,
-        target_slider_values: vec![0.5; 4],     // First 4 Sliders
+        target_slider_values: vec![0.5; 4], // First 4 Sliders
         target_pot_values: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
         led_colors,
@@ -247,13 +246,10 @@ fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
     model.ui.handle_raw_event(app, event);
 }
 
-fn key_pressed(app: &App, model: &mut Model, key: Key) {
-    match key {
-        Key::Space => {
-            let button = shader_shared::Button::Cycle;
-            update_korg_button(&mut model.controller, button, korg::State::On);
-        }
-        _ => (),
+fn key_pressed(_app: &App, model: &mut Model, key: Key) {
+    if key == Key::Space {
+        let button = shader_shared::Button::Cycle;
+        update_korg_button(&mut model.controller, button, korg::State::On);
     }
 }
 
@@ -261,19 +257,21 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.audio_input.update();
 
     // Apply the GUI update.
-    let ui = model.ui.set_widgets();
+    let mut ui = model.ui.set_widgets();
     let assets = app.assets_path().expect("failed to find assets directory");
     gui::update(
-        ui,
-        &mut model.config,
-        &mut model.audio_input,
-        model.dmx.bind_error.as_deref(),
-        update.since_start,
-        model.shader_rx.activity(),
-        &model.led_colors,
-        &mut model.last_preset_change,
-        &assets,
-        &mut model.ids,
+        &mut ui,
+        gui::UpdateContext {
+            config: &mut model.config,
+            audio_input: &mut model.audio_input,
+            dmx_bind_error: model.dmx.bind_error.as_deref(),
+            since_start: update.since_start,
+            shader_activity: model.shader_rx.activity(),
+            led_colors: model.led_colors.as_ref(),
+            last_preset_change: &mut model.last_preset_change,
+            assets: assets.as_path(),
+            ids: &mut model.ids,
+        },
     );
 
     // Check for an update to the shader.
@@ -431,7 +429,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let colour_param2 = clamp(model.controller.slider4 + piano_mod, 0.0, 1.0);
 
     // Clone shader params and apply envelope modulation from the mod sliders.
-    let mut shader_params = preset.shader_params.clone();
+    let mut shader_params = preset.shader_params;
     {
         let mut mod_slider_ix = 0;
         gui::apply_shader_modulation(
@@ -471,10 +469,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         time: app.time + (env * model.midi_cv_phase_amp),
         resolution: vec2(LED_SHADER_RESOLUTION_X, LED_SHADER_RESOLUTION_Y),
         use_midi: model.config.midi_on,
-        slider1: bw_param1, // BW param 1
-        slider2: bw_param2, // BW param 2
-        slider3: colour_param1, // Colour param 1
-        slider4: colour_param2, // Colour param 2
+        slider1: bw_param1,                // BW param 1
+        slider2: bw_param2,                // BW param 2
+        slider3: colour_param1,            // Colour param 1
+        slider4: colour_param2,            // Colour param 2
         slider5: model.controller.slider5, // Shader param 5
         slider6: model.controller.slider6, // Shader param 6
         pot6: model.controller.pot6,       // Red / Hue
@@ -527,7 +525,12 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Write the colours to the output buffer with the fade applied.
     let ftb = model.config.fade_to_black.led;
     let l_ftb = lin_srgb(ftb, ftb, ftb);
-    for (i, (output, &colour)) in model.led_outputs.iter_mut().zip(model.led_colors.iter()).enumerate() {
+    for (i, (output, &colour)) in model
+        .led_outputs
+        .iter_mut()
+        .zip(model.led_colors.iter())
+        .enumerate()
+    {
         let new = colour * l_ftb;
         *output = match prev_output.get(i) {
             None => new,
@@ -537,7 +540,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on {
-        if let Ok(desired_interface_ip) = conf::parse_sacn_interface_ip(&model.config.sacn_interface_ip) {
+        if let Ok(desired_interface_ip) =
+            conf::parse_sacn_interface_ip(&model.config.sacn_interface_ip)
+        {
             let should_refresh_source = model.dmx.source.is_none()
                 || model.dmx.requested_interface_ip != desired_interface_ip;
             if should_refresh_source {
@@ -567,7 +572,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     fn convert_channel(f: f32) -> u8 {
-        (f.min(1.0).max(0.0) * 255.0) as u8
+        (f.clamp(0.0, 1.0) * 255.0) as u8
     }
 
     // Convert the floating point f32 representation to bytes.
@@ -586,16 +591,16 @@ fn update(app: &App, model: &mut Model, update: Update) {
         for col in model.led_outputs.iter() {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
-            
+
             // If we've filled a universe, send it.
             if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
                 // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
                 model.dmx.buffer.push(0);
                 model.dmx.buffer.push(0);
-            // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
-            //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-            //     model.dmx.buffer.push(0);
-            //     model.dmx.buffer.push(0);
+                // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
+                //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
+                //     model.dmx.buffer.push(0);
+                //     model.dmx.buffer.push(0);
 
                 let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
                 dmx_source
@@ -606,12 +611,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
                 universe += 1;
             }
         }
-        
+
         dmx_source
             .send(universe, &model.dmx.buffer)
             .expect("failed to send LED DMX data");
     }
-
 }
 
 fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> std::io::Result<sacn::DmxSource> {
@@ -645,13 +649,13 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
 
     let w = app.window(model.led_strip_window).unwrap().rect();
 
-    let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND as f32)
+    let metres_to_points_scale = (w.h() / layout::TOP_LED_ROW_FROM_GROUND)
         .min(w.w() / layout::METRES_PER_LED_ROW as f32)
         * 0.8;
     let m_to_p = |m| m * metres_to_points_scale;
     let p_to_m = |p| p / metres_to_points_scale;
     let x_offset_m = layout::SHADER_ORIGIN_METRES[0];
-    let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND as f32 * 0.5;
+    let y_offset_m = layout::TOP_LED_ROW_FROM_GROUND * 0.5;
     let pm_to_pp = |x: f32, h: f32| pt2(m_to_p(x - x_offset_m), m_to_p(h - y_offset_m));
     let pp_to_pm = |pp: Point2| (p_to_m(pp.x) + x_offset_m, p_to_m(pp.y) + y_offset_m);
     let pm_to_ps = |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h);
@@ -712,7 +716,7 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &Draw, w: geom::Rect) {
             let color = YELLOW;
             let alpha = (app.time * 2.0 * PI).sin() * 0.35 + 0.5;
             let color = nannou::color::Alpha { color, alpha };
-            draw.text(&s)
+            draw.text(s)
                 .font_size(16)
                 .wh(r.wh())
                 .color(color)
@@ -735,7 +739,7 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &Draw, w: geom::Rect) {
 }
 
 fn save_config(assets: &Path, config: &Config) {
-    let config_path = conf::path(&assets);
+    let config_path = conf::path(assets);
     save_to_json(config_path, config).expect("failed to save config");
 }
 
@@ -743,7 +747,7 @@ fn exit(app: &App, model: Model) {
     let assets = app
         .assets_path()
         .expect("failed to find project `assets` directory");
-    save_config(&assets, &model.config);
+    save_config(assets.as_path(), &model.config);
 }
 
 // A function for updating the controller's button states based on a button event.

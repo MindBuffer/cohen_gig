@@ -21,7 +21,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let t = uniforms.time * (params.speed * 4.0);
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let p = normalised_coords;
 
     let x = map_range(p.x, -1.0, 1.0, -0.5, 0.5);

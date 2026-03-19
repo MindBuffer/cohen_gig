@@ -45,7 +45,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         params.colour_iter = uniforms.slider4;
     }
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let mut uv = normalised_coords;
 
     uv.x *= uniforms.resolution.x / uniforms.resolution.y;

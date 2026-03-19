@@ -24,7 +24,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let signal_type = Signal::TRIANGLE;
     let phase = (uniforms.time * params.speed).fract();
 
-    let Light::Led { normalised_coords, .. } = v.light;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
     let p = normalised_coords;
 
     let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
@@ -41,12 +43,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     rotated_uv += vec2(0.5, 0.5);
 
     let mut line_phase = signal_type.amp(phase);
-    match signal_type {
-        Signal::Lfo(_) => {
-            line_phase += HALF_PI * 0.496;
-            line_phase *= PI;
-        }
-        _ => (),
+    if let Signal::Lfo(_) = signal_type {
+        line_phase += HALF_PI * 0.496;
+        line_phase *= PI;
     };
 
     let mut stripe_uv = rotated_uv;

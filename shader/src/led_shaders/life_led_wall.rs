@@ -32,8 +32,10 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         params.colour_offset = uniforms.slider4 * 0.01;
     }
 
-    let Light::Led { normalised_coords, .. } = v.light;
-    let mut p = normalised_coords;
+    let Light::Led {
+        normalised_coords, ..
+    } = v.light;
+    let p = normalised_coords;
 
     let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(p.y, -1.05, 1.05, 0.0, 1.0);

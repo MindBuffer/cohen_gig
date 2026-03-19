@@ -1,8 +1,8 @@
 use nannou_core::prelude::*;
 
-pub const TWO_PI: f32 = 6.2831853072;
-pub const HALF_PI: f32 = 1.5707963267948966;
-pub const TAU: f32 = (2.0 * PI);
+pub const TWO_PI: f32 = std::f32::consts::TAU;
+pub const HALF_PI: f32 = std::f32::consts::FRAC_PI_2;
+pub const TAU: f32 = TWO_PI;
 
 ///---------------- CONVERSION HELPERS
 pub fn length(p: Vec3) -> f32 {
@@ -85,7 +85,7 @@ pub fn hex_to_float(hex: Vec3, amt: f32) -> f32 {
 }
 
 pub fn rand(uv: Vec2) -> f32 {
-    (uv.dot(vec2(12.9898, 78.233)).sin() * 43758.5453123).fract()
+    (uv.dot(vec2(12.9898, 78.233)).sin() * 43_758.547).fract()
 }
 
 pub fn lerp_lin_srgb(a: LinSrgb, b: LinSrgb, amt: f32) -> LinSrgb {

@@ -12,5 +12,4 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     } else {
         lin_srgb(0.0, 0.0, 0.0)
     }
-
 }

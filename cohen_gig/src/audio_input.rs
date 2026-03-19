@@ -134,8 +134,8 @@ fn apply_input_gain(sample: f32, gain: f32) -> f32 {
         boosted
     } else {
         let knee_range = 1.0 - INPUT_GAIN_SOFT_KNEE;
-        let compressed =
-            INPUT_GAIN_SOFT_KNEE + knee_range * (1.0 - (-(abs - INPUT_GAIN_SOFT_KNEE) / knee_range).exp());
+        let compressed = INPUT_GAIN_SOFT_KNEE
+            + knee_range * (1.0 - (-(abs - INPUT_GAIN_SOFT_KNEE) / knee_range).exp());
         boosted.signum() * compressed.min(1.0)
     }
 }
@@ -161,7 +161,7 @@ where
                         .map(|&s| <f32 as cpal::FromSample<T>>::from_sample_(s))
                         .sum::<f32>()
                         / frame.len() as f32;
-                    samples.push(sample.max(-1.0).min(1.0));
+                    samples.push(sample.clamp(-1.0, 1.0));
                 }
                 let _ = analysis_tx.send(AudioAnalysis { samples });
             },
