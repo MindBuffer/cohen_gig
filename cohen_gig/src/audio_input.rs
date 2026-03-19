@@ -2,12 +2,23 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::collections::VecDeque;
 use std::sync::mpsc;
 
+const WAVEFORM_HISTORY_MULTIPLIER: usize = 16;
+pub const MAX_INPUT_GAIN_DB: f32 = 24.0;
+const INPUT_GAIN_SOFT_KNEE: f32 = 0.85;
+
+struct AudioAnalysis {
+    samples: Vec<f32>,
+}
+
 pub struct AudioInput {
     _stream: cpal::Stream,
-    peak_rx: mpsc::Receiver<f32>,
+    analysis_rx: mpsc::Receiver<AudioAnalysis>,
     pub peak_history: VecDeque<f32>,
+    pub waveform_history: VecDeque<f32>,
     pub envelope_history: VecDeque<f32>,
     pub history_len: usize,
+    waveform_history_len: usize,
+    pub gain_db: f32,
     pub threshold: f32,
     pub attack: f32,
     pub hold: f32,
@@ -31,23 +42,27 @@ impl AudioInput {
             .default_input_config()
             .expect("no default input config");
 
-        let (peak_tx, peak_rx) = mpsc::channel();
+        let (analysis_tx, analysis_rx) = mpsc::channel();
         let config = supported_config.config();
+        let waveform_history_len = history_len * WAVEFORM_HISTORY_MULTIPLIER;
 
         let stream = match supported_config.sample_format() {
-            cpal::SampleFormat::F32 => build_stream::<f32>(&device, &config, peak_tx),
-            cpal::SampleFormat::I16 => build_stream::<i16>(&device, &config, peak_tx),
-            cpal::SampleFormat::U16 => build_stream::<u16>(&device, &config, peak_tx),
+            cpal::SampleFormat::F32 => build_stream::<f32>(&device, &config, analysis_tx),
+            cpal::SampleFormat::I16 => build_stream::<i16>(&device, &config, analysis_tx),
+            cpal::SampleFormat::U16 => build_stream::<u16>(&device, &config, analysis_tx),
             fmt => panic!("unsupported sample format: {:?}", fmt),
         };
         stream.play().expect("failed to start audio input stream");
 
         Self {
             _stream: stream,
-            peak_rx,
+            analysis_rx,
             peak_history: VecDeque::from(vec![0.0; history_len]),
+            waveform_history: VecDeque::from(vec![0.0; waveform_history_len]),
             envelope_history: VecDeque::from(vec![0.0; history_len]),
             history_len,
+            waveform_history_len,
+            gain_db: 0.0,
             threshold: 0.1,
             attack: 0.01,
             hold: 0.1,
@@ -64,13 +79,21 @@ impl AudioInput {
     pub fn update(&mut self) {
         // Take the max peak from all audio callbacks since last frame.
         let mut peak = 0.0f32;
-        for p in self.peak_rx.try_iter() {
-            peak = peak.max(p);
+        let gain = db_to_gain(self.gain_db);
+        for analysis in self.analysis_rx.try_iter() {
+            for sample in analysis.samples {
+                let sample = apply_input_gain(sample, gain);
+                peak = peak.max(sample.abs());
+                self.waveform_history.push_back(sample);
+            }
         }
 
         self.peak_history.push_back(peak);
         if self.peak_history.len() > self.history_len {
             self.peak_history.pop_front();
+        }
+        while self.waveform_history.len() > self.waveform_history_len {
+            self.waveform_history.pop_front();
         }
 
         // Envelope follower with hold: when peak crosses threshold, reset hold
@@ -94,26 +117,53 @@ impl AudioInput {
             self.envelope_history.pop_front();
         }
     }
+
+    pub fn gain_multiplier(&self) -> f32 {
+        db_to_gain(self.gain_db)
+    }
+}
+
+fn db_to_gain(gain_db: f32) -> f32 {
+    10.0f32.powf(gain_db.clamp(0.0, MAX_INPUT_GAIN_DB) / 20.0)
+}
+
+fn apply_input_gain(sample: f32, gain: f32) -> f32 {
+    let boosted = sample * gain;
+    let abs = boosted.abs();
+    if abs <= INPUT_GAIN_SOFT_KNEE {
+        boosted
+    } else {
+        let knee_range = 1.0 - INPUT_GAIN_SOFT_KNEE;
+        let compressed =
+            INPUT_GAIN_SOFT_KNEE + knee_range * (1.0 - (-(abs - INPUT_GAIN_SOFT_KNEE) / knee_range).exp());
+        boosted.signum() * compressed.min(1.0)
+    }
 }
 
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    peak_tx: mpsc::Sender<f32>,
+    analysis_tx: mpsc::Sender<AudioAnalysis>,
 ) -> cpal::Stream
 where
     T: cpal::Sample + cpal::SizedSample + Send + 'static,
     f32: cpal::FromSample<T>,
 {
+    let channels = config.channels as usize;
     device
         .build_input_stream(
             config,
             move |data: &[T], _: &cpal::InputCallbackInfo| {
-                let peak = data
-                    .iter()
-                    .map(|&s| <f32 as cpal::FromSample<T>>::from_sample_(s).abs())
-                    .fold(0.0f32, f32::max);
-                let _ = peak_tx.send(peak);
+                let mut samples = Vec::with_capacity(data.len() / channels.max(1));
+                for frame in data.chunks(channels.max(1)) {
+                    let sample = frame
+                        .iter()
+                        .map(|&s| <f32 as cpal::FromSample<T>>::from_sample_(s))
+                        .sum::<f32>()
+                        / frame.len() as f32;
+                    samples.push(sample.max(-1.0).min(1.0));
+                }
+                let _ = analysis_tx.send(AudioAnalysis { samples });
             },
             |err| eprintln!("audio input error: {}", err),
             None,
