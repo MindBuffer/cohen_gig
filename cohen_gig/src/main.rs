@@ -69,7 +69,6 @@ struct Model {
     ui: Ui,
     ids: gui::Ids,
     audio_input: audio_input::AudioInput,
-    shader_mod_amounts: Vec<f32>,
     midi_cv_phase_amp: f32,
 }
 
@@ -114,9 +113,12 @@ fn model(app: &App) -> Model {
         .expect("failed to find project `assets` directory");
 
     let config_path = conf::path(&assets);
-    let config: Config = load_from_json(config_path)
+    let mut config: Config = load_from_json(config_path)
         .ok()
         .unwrap_or_else(Config::default);
+    for preset in &mut config.presets.list {
+        gui::normalise_preset_shader_mod_amounts(preset);
+    }
 
     let gui_window = app
         .new_window()
@@ -245,7 +247,6 @@ fn model(app: &App) -> Model {
         ui,
         ids,
         audio_input,
-        shader_mod_amounts: Vec::new(),
         midi_cv_phase_amp: 0.0,
     }
 }
@@ -274,7 +275,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
         ui,
         &mut model.config,
         &mut model.audio_input,
-        &mut model.shader_mod_amounts,
         &mut model.osc,
         update.since_start,
         model.shader_rx.activity(),
@@ -441,10 +441,28 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Clone shader params and apply envelope modulation from the mod sliders.
     let mut shader_params = preset.shader_params.clone();
     {
-        let mut slider_ix = 0;
-        gui::apply_shader_modulation(preset.shader_left, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
-        gui::apply_shader_modulation(preset.colourise, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
-        gui::apply_shader_modulation(preset.shader_right, &mut shader_params, &mut slider_ix, &model.shader_mod_amounts, env);
+        let mut mod_slider_ix = 0;
+        gui::apply_shader_modulation(
+            preset.shader_left,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &preset.shader_mod_amounts,
+            env,
+        );
+        gui::apply_shader_modulation(
+            preset.colourise,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &preset.shader_mod_amounts,
+            env,
+        );
+        gui::apply_shader_modulation(
+            preset.shader_right,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &preset.shader_mod_amounts,
+            env,
+        );
     }
     let buttons = model
         .controller

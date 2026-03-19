@@ -66,7 +66,8 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
-        shader_sliders[],
+        shader_mod_sliders[],
+        shader_int_sliders[],
         shader_buttons[],
 
         colour_post_process_text,
@@ -1048,7 +1049,6 @@ pub fn update(
     ref mut ui: UiCell,
     config: &mut Config,
     audio_input: &mut crate::audio_input::AudioInput,
-    shader_mod_amounts: &mut Vec<f32>,
     osc: &mut Osc,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
@@ -1239,12 +1239,22 @@ pub fn update(
         preset.shader_left = Shader::from_index(selected_idx).unwrap();
     }
 
-    let mut slider_ix = 0;
+    let mut mod_slider_ix = 0;
+    let mut int_slider_ix = 0;
     let mut button_ix = 0;
 
     {
         let params = shader_params(preset.shader_left, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix, shader_mod_amounts, audio_input.envelope);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            &mut mod_slider_ix,
+            &mut int_slider_ix,
+            &mut button_ix,
+            &mut preset.shader_mod_amounts,
+            audio_input.envelope,
+        );
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -1275,7 +1285,16 @@ pub fn update(
 
     {
         let params = shader_params(preset.colourise, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix, shader_mod_amounts, audio_input.envelope);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            &mut mod_slider_ix,
+            &mut int_slider_ix,
+            &mut button_ix,
+            &mut preset.shader_mod_amounts,
+            audio_input.envelope,
+        );
     }
 
     //---------------------- LED SHADER RIGHT
@@ -1302,8 +1321,19 @@ pub fn update(
 
     {
         let params = shader_params(preset.shader_right, &mut preset.shader_params);
-        set_shader_widgets(ui, ids, params, &mut slider_ix, &mut button_ix, shader_mod_amounts, audio_input.envelope);
+        set_shader_widgets(
+            ui,
+            ids,
+            params,
+            &mut mod_slider_ix,
+            &mut int_slider_ix,
+            &mut button_ix,
+            &mut preset.shader_mod_amounts,
+            audio_input.envelope,
+        );
     }
+
+    preset.shader_mod_amounts.truncate(mod_slider_ix);
 
     //---------------------- BLEND MODES
     text("LED Blend Mode")
@@ -1509,7 +1539,8 @@ fn set_shader_widgets(
     ui: &mut UiCell,
     ids: &mut Ids,
     params: &mut dyn Params,
-    slider_ix: &mut usize,
+    mod_slider_ix: &mut usize,
+    int_slider_ix: &mut usize,
     button_ix: &mut usize,
     mod_amounts: &mut Vec<f32>,
     envelope: f32,
@@ -1521,15 +1552,15 @@ fn set_shader_widgets(
 
         match kind {
             ParamKindMut::F32 { value, max } => {
-                if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders
-                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                if ids.shader_mod_sliders.len() <= *mod_slider_ix {
+                    ids.shader_mod_sliders
+                        .resize(*mod_slider_ix + 1, &mut ui.widget_id_generator());
                 }
-                if mod_amounts.len() <= *slider_ix {
-                    mod_amounts.resize(*slider_ix + 1, 0.0);
+                if mod_amounts.len() <= *mod_slider_ix {
+                    mod_amounts.resize(*mod_slider_ix + 1, 0.0);
                 }
-                let id = ids.shader_sliders[*slider_ix];
-                let mod_amt = mod_amounts[*slider_ix];
+                let id = ids.shader_mod_sliders[*mod_slider_ix];
+                let mod_amt = mod_amounts[*mod_slider_ix];
 
                 for (v, m) in ModSlider::new(*value, mod_amt, envelope, 0.0, max)
                     .label(name)
@@ -1538,18 +1569,18 @@ fn set_shader_widgets(
                     .set(id, ui)
                 {
                     *value = v;
-                    mod_amounts[*slider_ix] = m;
+                    mod_amounts[*mod_slider_ix] = m;
                 }
 
-                *slider_ix += 1;
+                *mod_slider_ix += 1;
             }
 
             ParamKindMut::Usize { value, max } => {
-                if ids.shader_sliders.len() <= *slider_ix {
-                    ids.shader_sliders
-                        .resize(*slider_ix + 1, &mut ui.widget_id_generator());
+                if ids.shader_int_sliders.len() <= *int_slider_ix {
+                    ids.shader_int_sliders
+                        .resize(*int_slider_ix + 1, &mut ui.widget_id_generator());
                 }
-                let id = ids.shader_sliders[*slider_ix];
+                let id = ids.shader_int_sliders[*int_slider_ix];
 
                 for v in slider(*value as f32, 0.0, max as f32)
                     .down(10.0)
@@ -1559,7 +1590,7 @@ fn set_shader_widgets(
                     *value = v as usize;
                 }
 
-                *slider_ix += 1;
+                *int_slider_ix += 1;
             }
 
             ParamKindMut::Bool(value) => {
@@ -1636,11 +1667,11 @@ fn column_canvas(background: widget::Id) -> widget::Canvas<'static> {
 }
 
 /// Apply envelope modulation to shader params, matching the same iteration
-/// order as set_shader_widgets so slider_ix lines up with mod_amounts.
+/// order as set_shader_widgets so mod_slider_ix lines up with mod_amounts.
 pub fn apply_shader_modulation(
     shader: Shader,
     params: &mut ShaderParams,
-    slider_ix: &mut usize,
+    mod_slider_ix: &mut usize,
     mod_amounts: &[f32],
     envelope: f32,
 ) {
@@ -1649,18 +1680,36 @@ pub fn apply_shader_modulation(
         let ParamMut { kind, .. } = p.param_mut(ix);
         match kind {
             ParamKindMut::F32 { value, max } => {
-                if let Some(&mod_amt) = mod_amounts.get(*slider_ix) {
+                if let Some(&mod_amt) = mod_amounts.get(*mod_slider_ix) {
                     let offset = (envelope * mod_amt) - (mod_amt / 2.0);
                     *value = (*value + offset).max(0.0).min(max);
                 }
-                *slider_ix += 1;
+                *mod_slider_ix += 1;
             }
-            ParamKindMut::Usize { .. } => {
-                *slider_ix += 1;
-            }
-            ParamKindMut::Bool(_) => {}
+            ParamKindMut::Usize { .. } | ParamKindMut::Bool(_) => {}
         }
     }
+}
+
+pub fn normalise_preset_shader_mod_amounts(preset: &mut crate::conf::Preset) {
+    let left_count = shader_modulation_slot_count(preset.shader_left, &mut preset.shader_params);
+    let colourise_count =
+        shader_modulation_slot_count(preset.colourise, &mut preset.shader_params);
+    let right_count = shader_modulation_slot_count(preset.shader_right, &mut preset.shader_params);
+    let mod_slot_count = left_count + colourise_count + right_count;
+    preset.shader_mod_amounts.resize(mod_slot_count, 0.0);
+}
+
+fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -> usize {
+    let p: &mut dyn Params = shader_params(shader, params);
+    let mut count = 0;
+    for ix in 0..p.param_count() {
+        let ParamMut { kind, .. } = p.param_mut(ix);
+        if let ParamKindMut::F32 { .. } = kind {
+            count += 1;
+        }
+    }
+    count
 }
 
 fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {

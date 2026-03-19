@@ -59,6 +59,8 @@ pub struct Preset {
     pub blend_mode: BlendMode,
     #[serde(default)]
     pub shader_params: ShaderParams,
+    #[serde(default)]
+    pub shader_mod_amounts: Vec<f32>,
 }
 
 /// Fade to black parameters for each kind of fixture.
@@ -128,6 +130,7 @@ impl Default for Preset {
             colourise: default::preset::colourise(),
             blend_mode: default::preset::blend_mode(),
             shader_params: shader_shared::ShaderParams::default(),
+            shader_mod_amounts: Vec::new(),
         }
     }
 }
