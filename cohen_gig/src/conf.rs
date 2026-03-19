@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::path::{Path, PathBuf};
+use std::net::{AddrParseError, Ipv4Addr};
 
 /// Runtime configuration parameters.
 ///
@@ -10,9 +11,6 @@ use std::path::{Path, PathBuf};
 /// If no `assets/config.json` exists, a default one will be created.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-    /// Whether or not OSC is enabled.
-    #[serde(default)]
-    pub osc_on: bool,
     /// Whether or not DMX is enabled.
     #[serde(default)]
     pub dmx_on: bool,
@@ -24,8 +22,8 @@ pub struct Config {
     pub led_start_universe: u16,
     #[serde(default)]
     pub fade_to_black: FadeToBlack,
-    #[serde(default = "default::osc_addr_textbox_string")]
-    pub osc_addr_textbox_string: String,
+    #[serde(default = "default::sacn_interface_ip")]
+    pub sacn_interface_ip: String,
     #[serde(default)]
     pub presets: Presets,
     #[serde(default)]
@@ -90,12 +88,11 @@ impl Presets {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            osc_on: Default::default(),
             dmx_on: Default::default(),
             midi_on: Default::default(),
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
-            osc_addr_textbox_string: default::osc_addr_textbox_string(),
+            sacn_interface_ip: default::sacn_interface_ip(),
             presets: Default::default(),
             preset_lerp_secs: Default::default(),
         }
@@ -141,8 +138,8 @@ pub mod default {
         1
     }
 
-    pub fn osc_addr_textbox_string() -> String {
-        "127.0.0.1:8000".to_string()
+    pub fn sacn_interface_ip() -> String {
+        String::new()
     }
 
     pub mod presets {
@@ -180,5 +177,14 @@ pub mod default {
         pub fn led() -> f32 {
             1.0
         }
+    }
+}
+
+pub fn parse_sacn_interface_ip(value: &str) -> Result<Option<Ipv4Addr>, AddrParseError> {
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(None)
+    } else {
+        value.parse::<Ipv4Addr>().map(Some)
     }
 }

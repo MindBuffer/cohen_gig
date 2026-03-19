@@ -3,9 +3,9 @@ use midir;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
-use nannou_osc as osc;
 use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::mpsc;
 use lerp::Lerp;
@@ -50,7 +50,6 @@ struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
     dmx: Dmx,
-    osc: Osc,
     midi_inputs: Vec<midir::MidiInputConnection<()>>,
     midi_rx: mpsc::Receiver<korg::Event>,
     shader_rx: ShaderReceiver,
@@ -82,11 +81,8 @@ struct ButtonState {
 struct Dmx {
     source: Option<sacn::DmxSource>,
     buffer: Vec<u8>,
-}
-
-pub struct Osc {
-    tx: Option<osc::Sender>,
-    addr: std::net::SocketAddr,
+    requested_interface_ip: Option<Ipv4Addr>,
+    bind_error: Option<String>,
 }
 
 // The known state of the Korg at any point in time.
@@ -159,15 +155,12 @@ fn model(app: &App) -> Model {
     let dmx = Dmx {
         source: None,
         buffer: vec![],
+        requested_interface_ip: None,
+        bind_error: None,
     };
 
     let shader = None;
     let shader_rx = shader::spawn_watch();
-
-    // Bind an `osc::Sender` and connect it to the target address.
-    let tx = None;
-    let addr = conf::default::osc_addr_textbox_string().parse().unwrap();
-    let osc = Osc { tx, addr };
 
     let led_colors = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
     let led_outputs = Box::new([lin_srgb(0.0, 0.0, 0.0); layout::LED_COUNT]);
@@ -216,7 +209,7 @@ fn model(app: &App) -> Model {
         // pot2: 0.0,    // BW param 2 (midi_cv amp)
         // pot3: 0.0,    // Colour param 1 (midi_cv amp)
         // pot4: 0.0,    // Colour param 2 (midi_cv amp)
-        // pot5: 0.0,    // Midi Osc smoothing speed 
+        // pot5: 0.0,    // Reserved smoothing control
         pot6: 1.0,    // Red / Hue
         pot7: 0.0,    // Green / Saturation
         pot8: 1.0,    // Blue / Value
@@ -231,7 +224,6 @@ fn model(app: &App) -> Model {
         _gui_window: gui_window,
         led_strip_window,
         dmx,
-        osc,
         midi_inputs,
         midi_rx,
         shader_rx,
@@ -275,7 +267,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         ui,
         &mut model.config,
         &mut model.audio_input,
-        &mut model.osc,
+        model.dmx.bind_error.as_deref(),
         update.since_start,
         model.shader_rx.activity(),
         &model.led_colors,
@@ -544,20 +536,34 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // Ensure we are connected to a DMX source if enabled.
-    if model.config.dmx_on && model.dmx.source.is_none() {
-        let source =
-            sacn::DmxSource::new("Cohen Pre-vis").expect("failed to connect to DMX source");
-        model.dmx.source = Some(source);
-    } else if !model.config.dmx_on && model.dmx.source.is_some() {
+    if model.config.dmx_on {
+        if let Ok(desired_interface_ip) = conf::parse_sacn_interface_ip(&model.config.sacn_interface_ip) {
+            let should_refresh_source = model.dmx.source.is_none()
+                || model.dmx.requested_interface_ip != desired_interface_ip;
+            if should_refresh_source {
+                match create_dmx_source(desired_interface_ip) {
+                    Ok(source) => {
+                        model.dmx.source = Some(source);
+                        model.dmx.requested_interface_ip = desired_interface_ip;
+                        model.dmx.bind_error = None;
+                    }
+                    Err(err) => {
+                        model.dmx.requested_interface_ip = desired_interface_ip;
+                        model.dmx.bind_error = Some(match desired_interface_ip {
+                            Some(ip) => format!("Couldn't bind sACN to {}: {}", ip, err),
+                            None => format!("Couldn't auto-bind sACN: {}", err),
+                        });
+                    }
+                }
+            }
+        } else {
+            model.dmx.requested_interface_ip = None;
+            model.dmx.bind_error = None;
+        }
+    } else if model.dmx.source.is_some() {
         model.dmx.source.take();
-    }
-
-    // Ensure we are connected to an OSC source if enabled.
-    if model.config.osc_on && model.osc.tx.is_none() {
-        let tx = osc::sender().expect("failed to create OSC sender");
-        model.osc.tx = Some(tx);
-    } else if !model.config.osc_on && model.osc.tx.is_some() {
-        model.osc.tx.take();
+        model.dmx.requested_interface_ip = None;
+        model.dmx.bind_error = None;
     }
 
     fn convert_channel(f: f32) -> u8 {
@@ -606,6 +612,16 @@ fn update(app: &App, model: &mut Model, update: Update) {
             .expect("failed to send LED DMX data");
     }
 
+}
+
+fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> std::io::Result<sacn::DmxSource> {
+    match interface_ip {
+        Some(interface_ip) => {
+            let interface_ip = interface_ip.to_string();
+            sacn::DmxSource::with_ip("Cohen Pre-vis", &interface_ip)
+        }
+        None => sacn::DmxSource::new("Cohen Pre-vis"),
+    }
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {

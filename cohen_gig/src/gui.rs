@@ -1,5 +1,5 @@
 use crate::conf::Config;
-use crate::{shader, Osc};
+use crate::shader;
 use nannou::prelude::*;
 
 use nannou_conrod as ui;
@@ -8,7 +8,6 @@ use nannou_conrod::Color;
 
 use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::f64::consts::PI;
-use std::net::SocketAddr;
 use std::path::Path;
 
 pub const NUM_COLUMNS: u32 = 4;
@@ -21,8 +20,7 @@ pub const WINDOW_WIDTH: u32 =
     (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
-//pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
-pub const THIRD_WIDGET_W: Scalar = WIDGET_W * 0.33 - PAD * 0.25;
+pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
@@ -40,10 +38,11 @@ widget_ids! {
         scrollbar,
         title_text,
         dmx_button,
-        osc_button,
         midi_button,
-        osc_address_text,
-        osc_address_text_box,
+        sacn_interface_ip_text,
+        sacn_interface_ip_help_text,
+        sacn_interface_ip_text_box,
+        sacn_interface_ip_error_text,
         shader_title_text,
         shader_state_text,
 
@@ -1049,7 +1048,7 @@ pub fn update(
     ref mut ui: UiCell,
     config: &mut Config,
     audio_input: &mut crate::audio_input::AudioInput,
-    osc: &mut Osc,
+    dmx_bind_error: Option<&str>,
     since_start: std::time::Duration,
     shader_activity: shader::Activity,
     led_colors: &Box<[LinSrgb; crate::layout::LED_COUNT]>,
@@ -1091,7 +1090,7 @@ pub fn update(
     if button()
         .color(toggle_color(config.dmx_on))
         .label("DMX")
-        .w(THIRD_WIDGET_W)
+        .w(HALF_WIDGET_W)
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.dmx_button, ui)
@@ -1101,55 +1100,65 @@ pub fn update(
     }
 
     if button()
-        .color(toggle_color(config.osc_on))
-        .label("OSC")
-        .right(PAD * 0.5)
-        .w(THIRD_WIDGET_W)
-        .set(ids.osc_button, ui)
-        .was_clicked()
-    {
-        config.osc_on = !config.osc_on;
-    }
-
-    if button()
         .color(toggle_color(config.midi_on))
         .label("MIDI")
         .right(PAD * 0.5)
-        .w(THIRD_WIDGET_W)
+        .w(HALF_WIDGET_W)
         .set(ids.midi_button, ui)
         .was_clicked()
     {
         config.midi_on = !config.midi_on;
     }
 
-    text("OSC Address")
+    text("sACN Interface IP")
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
-        .set(ids.osc_address_text, ui);
+        .set(ids.sacn_interface_ip_text, ui);
 
-    let color = match config.osc_addr_textbox_string.parse::<SocketAddr>() {
-        Ok(socket) => match osc.addr == socket {
-            true => color::BLACK,
-            false => color::DARK_GREEN.with_luminance(0.1),
-        },
-        Err(_) => color::DARK_RED.with_luminance(0.1),
+    widget::Text::new(
+        "Use this computer's IP on the PixLite network, e.g. 10.0.0.100. Leave blank for Auto.",
+    )
+    .down(5.0)
+    .w(WIDGET_W)
+    .font_size(10)
+    .color(TEXT_COLOR)
+    .left_justify()
+    .set(ids.sacn_interface_ip_help_text, ui);
+
+    let color = if dmx_bind_error.is_some() {
+        color::DARK_RED.with_luminance(0.1)
+    } else {
+        match crate::conf::parse_sacn_interface_ip(&config.sacn_interface_ip) {
+            Ok(Some(_)) => color::DARK_GREEN.with_luminance(0.1),
+            Ok(None) => color::BLACK,
+            Err(_) => color::DARK_RED.with_luminance(0.1),
+        }
     };
-    for event in widget::TextBox::new(&config.osc_addr_textbox_string)
+    for event in widget::TextBox::new(&config.sacn_interface_ip)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .down(5.0)
         .border(0.0)
         .color(color)
         .text_color(color::WHITE)
         .font_size(14)
-        .set(ids.osc_address_text_box, ui)
+        .set(ids.sacn_interface_ip_text_box, ui)
     {
         match event {
-            widget::text_box::Event::Update(string) => config.osc_addr_textbox_string = string,
+            widget::text_box::Event::Update(string) => config.sacn_interface_ip = string,
             widget::text_box::Event::Enter => {
-                if let Ok(socket) = config.osc_addr_textbox_string.parse() {
-                    osc.addr = socket;
-                }
+                config.sacn_interface_ip = config.sacn_interface_ip.trim().to_string();
             }
         }
+    }
+
+    if let Some(error) = dmx_bind_error {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.sacn_interface_ip_error_text, ui);
     }
 
     text("Shader State")
