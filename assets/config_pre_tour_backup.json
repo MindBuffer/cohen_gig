@@ -1,11 +1,50 @@
 {
+  "osc_on": false,
   "dmx_on": false,
   "midi_on": true,
+  "wash_dmx_addrs": [
+    30,
+    37,
+    44,
+    51,
+    2,
+    9,
+    16,
+    23,
+    58,
+    65,
+    72,
+    79,
+    86,
+    93,
+    100,
+    107,
+    114,
+    121,
+    128,
+    135,
+    142,
+    149,
+    156,
+    163,
+    170,
+    177,
+    184,
+    191
+  ],
+  "spot_dmx_addrs": [
+    0,
+    1
+  ],
+  "wash_spot_universe": 51,
   "led_start_universe": 1,
   "fade_to_black": {
-    "led": 1.0
+    "led": 0.0,
+    "wash": 1.0,
+    "spot1": 1.0,
+    "spot2": 1.0
   },
-  "sacn_interface_ip": "",
+  "osc_addr_textbox_string": "127.0.0.1:8000",
   "presets": {
     "selected_preset_name": "No surprises breakdown time",
     "selected_preset_idx": 40,
@@ -16,6 +55,7 @@
         "shader_right": "AcidGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.07344514,
+        "wash_lerp_amt": 0.056288775,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -171,6 +211,7 @@
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.07228645,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -326,6 +367,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.79527557,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -481,6 +523,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.0,
+        "wash_lerp_amt": 1.0,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -636,6 +679,7 @@
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.37007874,
+        "wash_lerp_amt": 0.040208198,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -791,6 +835,7 @@
         "shader_right": "SolidHsvColour",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.65462244,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -946,6 +991,7 @@
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.025943995,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1101,6 +1147,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": 0.051367164,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1256,6 +1303,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.8144206,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -1411,6 +1459,7 @@
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.088932276,
+        "wash_lerp_amt": 0.40092558,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1566,6 +1615,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1721,6 +1771,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -1876,6 +1927,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2031,6 +2083,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.98909503,
+        "wash_lerp_amt": 0.123367414,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2186,6 +2239,7 @@
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.09967446,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2341,6 +2395,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.19078779,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2496,6 +2551,7 @@
         "shader_right": "ThePulse",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.075846374,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -2651,6 +2707,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.8425197,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -2806,6 +2863,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.9212598,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -2961,6 +3019,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3116,6 +3175,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3271,6 +3331,7 @@
         "shader_right": "LineGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.07613933,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3426,6 +3487,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3581,6 +3643,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.15686846,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3736,6 +3799,7 @@
         "shader_right": "RadialLines",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.088932276,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -3891,6 +3955,7 @@
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.6220703,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4046,6 +4111,7 @@
         "shader_right": "RadialLines",
         "colourise": "ColourPalettes",
         "left_right_mix": -1.0,
+        "wash_lerp_amt": 0.03289878,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4201,6 +4267,7 @@
         "shader_right": "SolidHsvColour",
         "colourise": "SolidHsvColour",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4356,6 +4423,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.53046876,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4511,6 +4579,7 @@
         "shader_right": "BwGradient",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.8267717,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4666,6 +4735,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": -0.9212598,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4821,6 +4891,7 @@
         "shader_right": "JustRelax",
         "colourise": "ColourPalettes",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -4976,6 +5047,7 @@
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.984252,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5131,6 +5203,7 @@
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.5696289,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5286,6 +5359,7 @@
         "shader_right": "SpiralIntersect",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.6692913,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5441,6 +5515,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.24409449,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5596,6 +5671,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.79527557,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5751,6 +5827,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.03937008,
+        "wash_lerp_amt": 0.015748031,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -5906,6 +5983,7 @@
         "shader_right": "MitchWash",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.984252,
+        "wash_lerp_amt": 0.015748031,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6061,6 +6139,7 @@
         "shader_right": "SolidHsvColour",
         "colourise": "ColourPalettes",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6216,6 +6295,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "ColourPalettes",
         "left_right_mix": 0.24409449,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -6371,6 +6451,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.4006511,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Difference",
         "shader_params": {
           "acid_gradient": {
@@ -6526,6 +6607,7 @@
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.09967446,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -6681,6 +6763,7 @@
         "shader_right": "JustRelax",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.47291666,
+        "wash_lerp_amt": 0.07228645,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6836,6 +6919,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.16535433,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -6991,6 +7075,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.27559054,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7146,6 +7231,7 @@
         "shader_right": "EscherTilings",
         "colourise": "SolidHsvColour",
         "left_right_mix": 1.0,
+        "wash_lerp_amt": 0.5,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7301,6 +7387,7 @@
         "shader_right": "ColourPalettes",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.98909503,
+        "wash_lerp_amt": 0.123367414,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7456,6 +7543,7 @@
         "shader_right": "SquareTunnel",
         "colourise": "SolidHsvColour",
         "left_right_mix": -0.24409449,
+        "wash_lerp_amt": 0.03746972,
         "blend_mode": "Multiply",
         "shader_params": {
           "acid_gradient": {
@@ -7611,6 +7699,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.28489584,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
@@ -7766,6 +7855,7 @@
         "shader_right": "SatisSpiraling",
         "colourise": "SolidHsvColour",
         "left_right_mix": 0.1878255,
+        "wash_lerp_amt": 0.1052656,
         "blend_mode": "Add",
         "shader_params": {
           "acid_gradient": {
