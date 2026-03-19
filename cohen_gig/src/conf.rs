@@ -25,9 +25,21 @@ pub struct Config {
     #[serde(default = "default::sacn_interface_ip")]
     pub sacn_interface_ip: String,
     #[serde(default)]
+    pub led_layout: LedLayout,
+    #[serde(default)]
     pub presets: Presets,
     #[serde(default)]
     pub preset_lerp_secs: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LedLayout {
+    #[serde(default = "default::led_layout::leds_per_metre")]
+    pub leds_per_metre: usize,
+    #[serde(default = "default::led_layout::metres_per_row")]
+    pub metres_per_row: usize,
+    #[serde(default = "default::led_layout::row_count")]
+    pub row_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -92,9 +104,26 @@ impl Default for Config {
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
             sacn_interface_ip: default::sacn_interface_ip(),
+            led_layout: Default::default(),
             presets: Default::default(),
             preset_lerp_secs: Default::default(),
         }
+    }
+}
+
+impl LedLayout {
+    pub fn normalise(&mut self) {
+        self.leds_per_metre = self.leds_per_metre.max(1);
+        self.metres_per_row = self.metres_per_row.max(1);
+        self.row_count = self.row_count.max(1);
+    }
+
+    pub fn leds_per_row(&self) -> usize {
+        self.leds_per_metre * self.metres_per_row
+    }
+
+    pub fn led_count(&self) -> usize {
+        self.leds_per_row() * self.row_count
     }
 }
 
@@ -103,6 +132,18 @@ impl Default for FadeToBlack {
         FadeToBlack {
             led: default::fade_to_black::led(),
         }
+    }
+}
+
+impl Default for LedLayout {
+    fn default() -> Self {
+        let mut led_layout = LedLayout {
+            leds_per_metre: default::led_layout::leds_per_metre(),
+            metres_per_row: default::led_layout::metres_per_row(),
+            row_count: default::led_layout::row_count(),
+        };
+        led_layout.normalise();
+        led_layout
     }
 }
 
@@ -139,6 +180,20 @@ pub mod default {
 
     pub fn sacn_interface_ip() -> String {
         String::new()
+    }
+
+    pub mod led_layout {
+        pub fn leds_per_metre() -> usize {
+            100
+        }
+
+        pub fn metres_per_row() -> usize {
+            6
+        }
+
+        pub fn row_count() -> usize {
+            7
+        }
     }
 
     pub mod presets {

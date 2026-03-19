@@ -16,6 +16,7 @@ pub const DEFAULT_WIDGET_H: Scalar = 30.0;
 pub const DEFAULT_SLIDER_H: Scalar = 20.0;
 pub const TEXT_BOX_H: Scalar = DEFAULT_WIDGET_H / 1.5;
 pub const PAD: Scalar = 20.0;
+pub const COLUMN_ONE_SECTION_GAP: Scalar = 6.0;
 pub const WINDOW_WIDTH: u32 =
     (COLUMN_W as u32 * NUM_COLUMNS) + (PAD * 2.0 + PAD * (NUM_COLUMNS - 1) as Scalar) as u32;
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
@@ -58,6 +59,11 @@ widget_ids! {
 
         universe_starts_text,
         led_start_universe_dialer,
+        led_layout_text,
+        led_pixels_per_metre_dialer,
+        led_metres_per_row_dialer,
+        led_row_count_dialer,
+        led_layout_stats_text,
 
         led_shader_left_text,
         led_shader_left_ddl,
@@ -96,7 +102,7 @@ widget_ids! {
     }
 }
 
-type LedColors = [LinSrgb; crate::layout::LED_COUNT];
+type LedColors = [LinSrgb];
 
 pub struct UpdateContext<'a> {
     pub config: &'a mut Config,
@@ -1138,7 +1144,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 
     text("sACN Interface IP")
         .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
+        .down(COLUMN_ONE_SECTION_GAP)
         .set(ids.sacn_interface_ip_text, ui);
 
     widget::Text::new(
@@ -1189,7 +1195,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 
     text("Shader State")
         .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
+        .down(COLUMN_ONE_SECTION_GAP)
         .set(ids.shader_title_text, ui);
 
     let (string, color) = match shader_activity {
@@ -1219,7 +1225,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 
     text("Universes")
         .mid_left_of(ids.column_1_id)
-        .down(PAD * 1.5)
+        .down(COLUMN_ONE_SECTION_GAP)
         .set(ids.universe_starts_text, ui);
 
     let min_universe = 1.0;
@@ -1228,7 +1234,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     let v = config.led_start_universe;
     if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
         .border(0.0)
-        .label("LEDs")
+        .label("Start Universe")
         .label_color(color::WHITE)
         .label_font_size(14)
         .down(PAD)
@@ -1239,6 +1245,85 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     {
         config.led_start_universe = v as u16;
     }
+
+    text("LED Layout")
+        .mid_left_of(ids.column_1_id)
+        .down(COLUMN_ONE_SECTION_GAP)
+        .set(ids.led_layout_text, ui);
+
+    let precision = 0;
+    if let Some(v) = widget::NumberDialer::new(
+        config.led_layout.leds_per_metre as f32,
+        1.0,
+        288.0,
+        precision,
+    )
+    .border(0.0)
+    .label("LEDs / Metre")
+    .label_color(color::WHITE)
+    .label_font_size(14)
+    .down(PAD)
+    .w(WIDGET_W)
+    .h(DEFAULT_WIDGET_H)
+    .color(color::DARK_CHARCOAL)
+    .set(ids.led_pixels_per_metre_dialer, ui)
+    {
+        config.led_layout.leds_per_metre = v as usize;
+    }
+
+    if let Some(v) = widget::NumberDialer::new(
+        config.led_layout.metres_per_row as f32,
+        1.0,
+        32.0,
+        precision,
+    )
+    .border(0.0)
+    .label("Row Length (m)")
+    .label_color(color::WHITE)
+    .label_font_size(14)
+    .down(5.0)
+    .w(WIDGET_W)
+    .h(DEFAULT_WIDGET_H)
+    .color(color::DARK_CHARCOAL)
+    .set(ids.led_metres_per_row_dialer, ui)
+    {
+        config.led_layout.metres_per_row = v as usize;
+    }
+
+    if let Some(v) =
+        widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
+            .border(0.0)
+            .label("Rows")
+            .label_color(color::WHITE)
+            .label_font_size(14)
+            .down(5.0)
+            .w(WIDGET_W)
+            .h(DEFAULT_WIDGET_H)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.led_row_count_dialer, ui)
+    {
+        config.led_layout.row_count = v as usize;
+    }
+
+    config.led_layout.normalise();
+
+    let total_leds = config.led_layout.led_count();
+    let leds_per_universe =
+        (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
+    let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
+    let start_universe = config.led_start_universe;
+    let end_universe = start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
+    let layout_stats = format!(
+        "{} LEDs across {} universes (U{}-U{})",
+        total_leds, universe_count, start_universe, end_universe
+    );
+    widget::Text::new(&layout_stats)
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.led_layout_stats_text, ui);
 
     crate::audio_widgets::set_widgets(ui, ids, audio_input);
 
@@ -1574,7 +1659,7 @@ pub fn set_presets_widgets(
                     config.presets.selected_preset_idx = selection;
                     config.presets.selected_preset_name = config.presets.selected().name.clone();
                     let now = std::time::Instant::now();
-                    *last_preset_change = Some((now, Box::new(*led_colors)));
+                    *last_preset_change = Some((now, led_colors.to_vec()));
                 }
             }
             _ => (),
