@@ -211,7 +211,7 @@ fn model(app: &App) -> Model {
         buttons: Default::default(),
     };
 
-    let audio_input = audio_input::AudioInput::new(128);
+    let audio_input = audio_input::AudioInput::new(128, config.audio_input_device.clone());
 
     let last_preset_change = None;
 

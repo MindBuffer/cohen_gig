@@ -17,6 +17,9 @@ pub struct Config {
     /// Whether or not MIDI is enabled.
     #[serde(default)]
     pub midi_on: bool,
+    /// The preferred audio input device name to restore on startup when available.
+    #[serde(default = "default::audio_input_device")]
+    pub audio_input_device: String,
     /// The starting universe from which LED data is sent.
     #[serde(default = "default::led_start_universe")]
     pub led_start_universe: u16,
@@ -101,6 +104,7 @@ impl Default for Config {
         Config {
             dmx_on: Default::default(),
             midi_on: Default::default(),
+            audio_input_device: default::audio_input_device(),
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
             sacn_interface_ip: default::sacn_interface_ip(),
@@ -173,6 +177,10 @@ impl Default for Preset {
 }
 
 pub mod default {
+    pub fn audio_input_device() -> String {
+        String::new()
+    }
+
     /// The default universe to which LED data is sent.
     pub fn led_start_universe() -> u16 {
         1

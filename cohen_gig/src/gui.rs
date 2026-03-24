@@ -40,6 +40,9 @@ widget_ids! {
         title_text,
         dmx_button,
         midi_button,
+        audio_device_text,
+        audio_device_ddl,
+        audio_device_error_text,
         sacn_interface_ip_text,
         sacn_interface_ip_help_text,
         sacn_interface_ip_text_box,
@@ -1140,6 +1143,47 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         config.midi_on = !config.midi_on;
+    }
+
+    text("Audio Input Device")
+        .mid_left_of(ids.column_1_id)
+        .down(COLUMN_ONE_SECTION_GAP)
+        .set(ids.audio_device_text, ui);
+
+    let audio_device_labels = audio_input.available_device_labels();
+    let selected_audio_device = audio_input.selected_device_index();
+    if !audio_device_labels.is_empty() {
+        if let Some(selected_idx) =
+            widget::DropDownList::new(&audio_device_labels, selected_audio_device)
+                .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+                .down(5.0)
+                .max_visible_items(8)
+                .rgb(0.176, 0.513, 0.639)
+                .label("Audio Input")
+                .label_font_size(14)
+                .label_rgb(1.0, 1.0, 1.0)
+                .scrollbar_on_top()
+                .set(ids.audio_device_ddl, ui)
+        {
+            if let Some(selected_name) = audio_input.select_device(selected_idx) {
+                config.audio_input_device = selected_name;
+            }
+        }
+    } else {
+        widget::Rectangle::fill([WIDGET_W, DEFAULT_WIDGET_H])
+            .down(5.0)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.audio_device_ddl, ui);
+    }
+
+    if let Some(error) = audio_input.device_error() {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.audio_device_error_text, ui);
     }
 
     text("sACN Interface IP")
