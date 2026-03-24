@@ -3,6 +3,7 @@ use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
+use rayon::prelude::*;
 use sacn::packet::{ACN_SDT_MULTICAST_PORT, E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
 use sacn::source::SacnSource;
 use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
@@ -62,6 +63,8 @@ struct Model {
     led_colors: Vec<LinSrgb>,
     // Shader output with fade-to-black applied.
     led_outputs: Vec<LinSrgb>,
+    led_shader_inputs: Vec<CachedLedShaderInput>,
+    cached_led_layout: conf::LedLayout,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
@@ -72,6 +75,12 @@ struct Model {
 }
 
 type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
+
+#[derive(Copy, Clone)]
+struct CachedLedShaderInput {
+    position: Point3,
+    light: Light,
+}
 
 struct ButtonState {
     pub last_pressed: std::time::Instant,
@@ -193,8 +202,12 @@ impl SacnOutputMonitor {
             .find(|snapshot| snapshot.universe == selected_universe)
     }
 
-    fn record_successful_frame(&mut self, payloads: &[(u16, Vec<u8>)]) {
-        let now = Instant::now();
+    fn record_successful_frame_stats(
+        &mut self,
+        packet_count: usize,
+        payload_bytes_sent: usize,
+        now: Instant,
+    ) {
         if let Some(previous_frame_at) = self.last_sent_at {
             if let Some(sample) = fps_from_duration(now.duration_since(previous_frame_at)) {
                 self.smoothed_frame_fps = smooth_fps(self.smoothed_frame_fps, sample);
@@ -202,14 +215,13 @@ impl SacnOutputMonitor {
         }
 
         self.total_frames_sent += 1;
-        self.total_packets_sent += payloads.len() as u64;
-        self.total_payload_bytes_sent += payloads
-            .iter()
-            .map(|(_, payload)| payload.len() as u64)
-            .sum::<u64>();
+        self.total_packets_sent += packet_count as u64;
+        self.total_payload_bytes_sent += payload_bytes_sent as u64;
         self.last_sent_at = Some(now);
         self.last_send_error = None;
+    }
 
+    fn record_universe_snapshots(&mut self, payloads: &[(u16, Vec<u8>)], now: Instant) {
         self.universes.retain(|snapshot| {
             payloads
                 .iter()
@@ -300,6 +312,10 @@ fn model(app: &App) -> Model {
         .new_window()
         .title("COHEN GIG - GUI")
         .size(gui::WINDOW_WIDTH, gui::WINDOW_HEIGHT)
+        .surface_conf_builder(
+            nannou::window::SurfaceConfigurationBuilder::new()
+                .present_mode(nannou::wgpu::PresentMode::Immediate),
+        )
         .raw_event(raw_window_event)
         .key_pressed(key_pressed)
         .view(gui_view)
@@ -310,6 +326,10 @@ fn model(app: &App) -> Model {
         .new_window()
         .title("COHEN GIG - PREVIS")
         .size(LED_STRIP_WINDOW_W, LED_STRIP_WINDOW_H)
+        .surface_conf_builder(
+            nannou::window::SurfaceConfigurationBuilder::new()
+                .present_mode(nannou::wgpu::PresentMode::Immediate),
+        )
         .key_pressed(key_pressed)
         .view(led_strip_view)
         .build()
@@ -346,6 +366,8 @@ fn model(app: &App) -> Model {
 
     let led_colors = black_led_buffer(config.led_layout.led_count());
     let led_outputs = black_led_buffer(config.led_layout.led_count());
+    let led_shader_inputs = rebuild_led_shader_inputs(&config.led_layout);
+    let cached_led_layout = config.led_layout.clone();
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -417,6 +439,8 @@ fn model(app: &App) -> Model {
         smoothing_speed: 0.05,
         led_colors,
         led_outputs,
+        led_shader_inputs,
+        cached_led_layout,
         last_preset_change,
         ui,
         ids,
@@ -484,11 +508,40 @@ fn normalised_led_coord(index: usize, count: usize) -> f32 {
     }
 }
 
+fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedShaderInput> {
+    layout::led_positions_metres(led_layout)
+        .enumerate()
+        .map(|(led_ix, (row, x, h))| {
+            let position = layout::topdown_metres_to_shader_coords(
+                pt2(x, layout::SHADER_ORIGIN_METRES[1]),
+                h,
+                led_layout,
+            );
+            let col = led_ix % led_layout.leds_per_row();
+            let light = Light::Led {
+                index: led_ix,
+                col_row: [col, row],
+                normalised_coords: vec2(
+                    normalised_led_coord(col, led_layout.leds_per_row()),
+                    normalised_led_coord(row, led_layout.row_count),
+                ),
+            };
+            CachedLedShaderInput { position, light }
+        })
+        .collect()
+}
+
 fn sync_led_buffers(model: &mut Model) {
     let led_count = model.config.led_layout.led_count();
+    let layout_changed = model.cached_led_layout != model.config.led_layout;
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.last_preset_change = None;
+    }
+    if layout_changed || model.led_shader_inputs.len() != led_count {
+        model.led_shader_inputs = rebuild_led_shader_inputs(&model.config.led_layout);
+        model.cached_led_layout = model.config.led_layout.clone();
         model.last_preset_change = None;
     }
 }
@@ -539,16 +592,13 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // Retrieve the shader or fall back to black if its not ready.
-    let maybe_shader = model.shader.as_ref().map(|s| s.get_fn());
-    let black_shader: ShaderFnPtr = shader::black;
-    let shader: &ShaderFnPtr = match maybe_shader {
-        Some(ref symbol) => symbol,
-        None => &black_shader,
-    };
+    let shader: ShaderFnPtr = model
+        .shader
+        .as_ref()
+        .map(|shader| *shader.get_fn())
+        .unwrap_or(shader::black);
 
-    // Topdown metres to shader coords.
     let led_layout = &model.config.led_layout;
-    let pm_to_ps = |pm: Point2, h: f32| layout::topdown_metres_to_shader_coords(pm, h, led_layout);
 
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
@@ -743,29 +793,21 @@ fn update(app: &App, model: &mut Model, update: Update) {
         buttons,
     };
 
-    // Apply the shader for the LEDs.
-    for (led_ix, (row, x, h)) in layout::led_positions_metres(led_layout).enumerate() {
-        let ps = pm_to_ps(pt2(x, layout::SHADER_ORIGIN_METRES[1]), h);
-        let index = led_ix;
-        let col = led_ix % led_layout.leds_per_row();
-        let col_row = [col, row];
-        let n_x = normalised_led_coord(col, led_layout.leds_per_row());
-        let n_y = normalised_led_coord(row, led_layout.row_count);
-        let normalised_coords = vec2(n_x, n_y);
-        let light = Light::Led {
-            index,
-            col_row,
-            normalised_coords,
-        };
-        let last_color = model.led_colors[led_ix];
-        let position = ps;
-        let vertex = Vertex {
-            position,
-            light,
-            last_color,
-        };
-        model.led_colors[led_ix] = shader(vertex, &uniforms);
-    }
+    // Apply the shader for the LEDs in parallel using cached per-LED geometry.
+    let previous_led_colors = model.led_colors.clone();
+    model
+        .led_colors
+        .par_iter_mut()
+        .zip(model.led_shader_inputs.par_iter())
+        .zip(previous_led_colors.par_iter())
+        .for_each(|((color, led_input), &last_color)| {
+            let vertex = Vertex {
+                position: led_input.position,
+                light: led_input.light,
+                last_color,
+            };
+            *color = shader(vertex, &uniforms);
+        });
 
     // If we recently changed presets, interpolate from the previous state.
     let (prev_output, lerp_amt) = match model.last_preset_change {
@@ -785,18 +827,18 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Write the colours to the output buffer with the fade applied.
     let ftb = model.config.fade_to_black.led;
     let l_ftb = lin_srgb(ftb, ftb, ftb);
-    for (i, (output, &colour)) in model
+    model
         .led_outputs
-        .iter_mut()
-        .zip(model.led_colors.iter())
+        .par_iter_mut()
+        .zip(model.led_colors.par_iter())
         .enumerate()
-    {
-        let new = colour * l_ftb;
-        *output = match prev_output.get(i) {
-            None => new,
-            Some(prev) => prev.lerp(&new, lerp_amt),
-        };
-    }
+        .for_each(|(i, (output, &colour))| {
+            let new = colour * l_ftb;
+            *output = match prev_output.get(i) {
+                None => new,
+                Some(prev) => prev.lerp(&new, lerp_amt),
+            };
+        });
 
     // Ensure we are connected to a DMX source if enabled.
     if model.config.dmx_on {
@@ -854,11 +896,18 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
     if should_send_output {
         if let Some(ref mut dmx_source) = model.dmx.source {
+            let capture_output_monitor = model.left_panel_tab == gui::LeftPanelTab::Output;
             let payloads = build_led_sacn_payloads(
                 model.config.led_start_universe,
                 model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
             );
-            let mut sent_payloads = Vec::with_capacity(payloads.len());
+            let mut sent_packet_count = 0usize;
+            let mut sent_payload_bytes = 0usize;
+            let mut sent_payloads = if capture_output_monitor {
+                Some(Vec::with_capacity(payloads.len()))
+            } else {
+                None
+            };
             let mut last_send_route = None;
             let mut send_error = None;
 
@@ -866,7 +915,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
                 match dmx_source.send(universe, &payload) {
                     Ok(route) => {
                         last_send_route = Some(route);
-                        sent_payloads.push((universe, payload));
+                        sent_packet_count += 1;
+                        sent_payload_bytes += payload.len();
+                        if let Some(ref mut snapshots) = sent_payloads {
+                            snapshots.push((universe, payload));
+                        }
                     }
                     Err(error) => {
                         send_error = Some(error);
@@ -876,15 +929,26 @@ fn update(app: &App, model: &mut Model, update: Update) {
                 }
             }
 
-            if !sent_payloads.is_empty() {
-                model.dmx.monitor.record_successful_frame(&sent_payloads);
+            if sent_packet_count > 0 {
+                let sent_at = Instant::now();
+                model.dmx.monitor.record_successful_frame_stats(
+                    sent_packet_count,
+                    sent_payload_bytes,
+                    sent_at,
+                );
+                if let Some(ref snapshots) = sent_payloads {
+                    model
+                        .dmx
+                        .monitor
+                        .record_universe_snapshots(snapshots, sent_at);
+                }
             }
 
             if let Some(error) = send_error {
                 model.dmx.monitor.record_send_error(error.clone());
                 model.dmx.error = Some(error);
                 model.dmx.last_send_route = None;
-            } else if !sent_payloads.is_empty() {
+            } else if sent_packet_count > 0 {
                 model.dmx.error = None;
                 model.dmx.last_send_route = last_send_route;
             }
