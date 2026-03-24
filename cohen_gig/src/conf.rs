@@ -17,6 +17,9 @@ pub struct Config {
     /// Whether or not MIDI is enabled.
     #[serde(default)]
     pub midi_on: bool,
+    /// Whether or not the LED previs window is visible.
+    #[serde(default = "default::preview_window_on")]
+    pub preview_window_on: bool,
     /// The preferred audio input device name to restore on startup when available.
     #[serde(default = "default::audio_input_device")]
     pub audio_input_device: String,
@@ -117,6 +120,7 @@ impl Default for Config {
         Config {
             dmx_on: Default::default(),
             midi_on: Default::default(),
+            preview_window_on: default::preview_window_on(),
             audio_input_device: default::audio_input_device(),
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
@@ -244,6 +248,10 @@ impl Default for Preset {
 }
 
 pub mod default {
+    pub fn preview_window_on() -> bool {
+        true
+    }
+
     pub fn audio_input_device() -> String {
         String::new()
     }

@@ -55,7 +55,6 @@ pub fn set_widgets(
             .set(ids.audio_device_error_text, ui);
     }
 
-    // --- Waveform scope ---
     widget::Rectangle::fill([COLUMN_W, SCOPE_H])
         .down(5.0)
         .color(color::rgb(0.05, 0.05, 0.1))
@@ -69,7 +68,6 @@ pub fn set_widgets(
         &audio.waveform_history,
     );
 
-    // Center and threshold lines
     if let Some(bg) = ui.rect_of(ids.audio_scope_bg) {
         let centre_y = bg.y();
         let thresh_offset = audio.threshold as Scalar * bg.h() * 0.5;
@@ -93,7 +91,6 @@ pub fn set_widgets(
         .set(ids.audio_threshold_line_neg, ui);
     }
 
-    // --- Sliders ---
     let gain_multiplier = audio.gain_multiplier();
     let label = format!("Gain: +{:.1} dB ({:.2}x)", audio.gain_db, gain_multiplier);
     if let Some(v) = slider(audio.gain_db, 0.0, MAX_INPUT_GAIN_DB)
@@ -140,7 +137,6 @@ pub fn set_widgets(
         audio.release = v;
     }
 
-    // --- Envelope scope ---
     widget::Rectangle::fill([COLUMN_W, SCOPE_H])
         .down_from(ids.audio_release_slider, 5.0)
         .color(color::rgb(0.05, 0.05, 0.1))
@@ -224,7 +220,6 @@ fn draw_positive_scope(
     let w = bg_rect.w();
     let h = bg_rect.h();
 
-    // Points in absolute coordinates: bottom of scope = bg bottom, top = bg top.
     let points: Vec<[Scalar; 2]> = history
         .iter()
         .enumerate()

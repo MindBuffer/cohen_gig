@@ -42,6 +42,7 @@ widget_ids! {
         output_tab_button,
         dmx_button,
         midi_button,
+        preview_window_button,
         output_fps_text,
         output_fps_ddl,
         output_fps_status_text,
@@ -1407,9 +1408,21 @@ fn set_live_sidebar_widgets(
         config.midi_on = !config.midi_on;
     }
 
+    if button()
+        .color(toggle_color(config.preview_window_on))
+        .label("PREVIEW")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.dmx_button, PAD * 0.5)
+        .w(WIDGET_W)
+        .set(ids.preview_window_button, ui)
+        .was_clicked()
+    {
+        config.preview_window_on = !config.preview_window_on;
+    }
+
     text("Shader State")
         .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
+        .down_from(ids.preview_window_button, COLUMN_ONE_SECTION_GAP)
         .set(ids.shader_title_text, ui);
 
     let (string, color) = match shader_activity {

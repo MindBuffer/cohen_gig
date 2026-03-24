@@ -10,7 +10,8 @@ use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 
 mod audio_input;
@@ -48,11 +49,12 @@ pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
+    preview_window_visible: bool,
+    led_worker: LedWorker,
     dmx: Dmx,
     _midi_inputs: Vec<midir::MidiInputConnection<()>>,
     midi_rx: mpsc::Receiver<korg::Event>,
     shader_rx: ShaderReceiver,
-    shader: Option<Shader>,
     config: Config,
     controller: Controller,
     target_slider_values: Vec<f32>,
@@ -63,8 +65,6 @@ struct Model {
     led_colors: Vec<LinSrgb>,
     // Shader output with fade-to-black applied.
     led_outputs: Vec<LinSrgb>,
-    led_shader_inputs: Vec<CachedLedShaderInput>,
-    cached_led_layout: conf::LedLayout,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
@@ -82,12 +82,19 @@ struct CachedLedShaderInput {
     light: Light,
 }
 
+#[derive(Clone)]
 struct ButtonState {
     pub last_pressed: std::time::Instant,
     pub state: korg::State,
 }
 
 struct Dmx {
+    error: Option<String>,
+    last_send_route: Option<DmxSendRoute>,
+    monitor: SacnOutputMonitor,
+}
+
+struct DmxRuntime {
     source: Option<DmxOutputTransport>,
     requested_interface_ip: Option<Ipv4Addr>,
     error: Option<String>,
@@ -98,6 +105,65 @@ struct Dmx {
 
 struct RuntimeStats {
     app_fps: f32,
+}
+
+struct LedWorker {
+    shared_input: Arc<Mutex<LedWorkerSharedInput>>,
+    shared_output: Arc<Mutex<LedWorkerSharedOutput>>,
+    last_applied_frame_id: u64,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+struct LedWorkerSharedInput {
+    latest_state: LedWorkerInputState,
+    pending_preset_change: Option<LastPresetChange>,
+    pending_shader: Option<Shader>,
+    shutdown: bool,
+}
+
+struct LedWorkerSharedOutput {
+    frame_id: u64,
+    led_colors: Vec<LinSrgb>,
+    led_outputs: Vec<LinSrgb>,
+    monitor: LedWorkerMonitorSnapshot,
+    dmx_error: Option<String>,
+    last_send_route: Option<DmxSendRoute>,
+}
+
+#[derive(Clone)]
+struct LedWorkerInputState {
+    app_time: f32,
+    snapshot_at: Instant,
+    config: LedWorkerConfig,
+    controller: Controller,
+    audio_envelope: f32,
+    audio_mod_amps: [f32; 4],
+    midi_cv_phase_amp: f32,
+    capture_output_monitor: bool,
+}
+
+#[derive(Clone, PartialEq)]
+struct LedWorkerConfig {
+    dmx_on: bool,
+    midi_on: bool,
+    sacn_interface_ip: String,
+    led_output_fps: conf::LedOutputFps,
+    led_start_universe: u16,
+    fade_to_black_led: f32,
+    preset_lerp_secs: f32,
+    led_layout: conf::LedLayout,
+    preset: conf::Preset,
+}
+
+#[derive(Clone, Default)]
+struct LedWorkerMonitorSnapshot {
+    universes: Vec<SacnUniverseSnapshot>,
+    total_frames_sent: u64,
+    total_packets_sent: u64,
+    total_payload_bytes_sent: u64,
+    smoothed_frame_fps: f32,
+    last_sent_at: Option<Instant>,
+    last_send_error: Option<String>,
 }
 
 enum DmxOutputTransport {
@@ -155,6 +221,7 @@ impl DmxOutputTransport {
     }
 }
 
+#[derive(Clone)]
 pub struct SacnUniverseSnapshot {
     pub universe: u16,
     pub payload: Vec<u8>,
@@ -268,6 +335,50 @@ impl SacnOutputMonitor {
     }
 }
 
+impl LedWorkerMonitorSnapshot {
+    fn from_monitor(monitor: &SacnOutputMonitor) -> Self {
+        Self {
+            universes: monitor.universes.clone(),
+            total_frames_sent: monitor.total_frames_sent,
+            total_packets_sent: monitor.total_packets_sent,
+            total_payload_bytes_sent: monitor.total_payload_bytes_sent,
+            smoothed_frame_fps: monitor.smoothed_frame_fps,
+            last_sent_at: monitor.last_sent_at,
+            last_send_error: monitor.last_send_error.clone(),
+        }
+    }
+}
+
+impl LedWorker {
+    fn new(initial_state: LedWorkerInputState) -> Self {
+        let shared_input = Arc::new(Mutex::new(LedWorkerSharedInput {
+            latest_state: initial_state,
+            pending_preset_change: None,
+            pending_shader: None,
+            shutdown: false,
+        }));
+        let shared_output = Arc::new(Mutex::new(LedWorkerSharedOutput {
+            frame_id: 0,
+            led_colors: Vec::new(),
+            led_outputs: Vec::new(),
+            monitor: LedWorkerMonitorSnapshot::default(),
+            dmx_error: None,
+            last_send_route: None,
+        }));
+
+        let worker_input = Arc::clone(&shared_input);
+        let worker_output = Arc::clone(&shared_output);
+        let thread = thread::spawn(move || run_led_worker(worker_input, worker_output));
+
+        Self {
+            shared_input,
+            shared_output,
+            last_applied_frame_id: 0,
+            thread: Some(thread),
+        }
+    }
+}
+
 impl RuntimeStats {
     fn record_app_frame(&mut self, since_last: Duration) {
         if let Some(sample) = fps_from_duration(since_last) {
@@ -277,6 +388,7 @@ impl RuntimeStats {
 }
 
 // The known state of the Korg at any point in time.
+#[derive(Clone)]
 struct Controller {
     slider1: f32, // BW param 1
     slider2: f32, // BW param 2
@@ -350,24 +462,19 @@ fn model(app: &App) -> Model {
             .window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
         w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
+        w.set_visible(config.preview_window_on);
     }
 
     let dmx = Dmx {
-        source: None,
-        requested_interface_ip: None,
         error: None,
         last_send_route: None,
-        last_send_attempt_at: None,
         monitor: SacnOutputMonitor::default(),
     };
 
-    let shader = None;
     let shader_rx = shader::spawn_watch();
 
     let led_colors = black_led_buffer(config.led_layout.led_count());
     let led_outputs = black_led_buffer(config.led_layout.led_count());
-    let led_shader_inputs = rebuild_led_shader_inputs(&config.led_layout);
-    let cached_led_layout = config.led_layout.clone();
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -423,15 +530,24 @@ fn model(app: &App) -> Model {
     let audio_input = audio_input::AudioInput::new(128, config.audio_input_device.clone());
 
     let last_preset_change = None;
+    let led_worker = LedWorker::new(build_led_worker_input_state(
+        0.0,
+        &config,
+        &controller,
+        &audio_input,
+        0.0,
+        gui::LeftPanelTab::Live,
+    ));
 
     Model {
         _gui_window: gui_window,
         led_strip_window,
+        preview_window_visible: config.preview_window_on,
+        led_worker,
         dmx,
         _midi_inputs: midi_inputs,
         midi_rx,
         shader_rx,
-        shader,
         config,
         controller,
         target_slider_values: vec![0.5; 4], // First 4 Sliders
@@ -439,8 +555,6 @@ fn model(app: &App) -> Model {
         smoothing_speed: 0.05,
         led_colors,
         led_outputs,
-        led_shader_inputs,
-        cached_led_layout,
         last_preset_change,
         ui,
         ids,
@@ -531,19 +645,501 @@ fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedShade
         .collect()
 }
 
+fn build_led_worker_input_state(
+    app_time: f32,
+    config: &Config,
+    controller: &Controller,
+    audio_input: &audio_input::AudioInput,
+    midi_cv_phase_amp: f32,
+    left_panel_tab: gui::LeftPanelTab,
+) -> LedWorkerInputState {
+    LedWorkerInputState {
+        app_time,
+        snapshot_at: Instant::now(),
+        config: LedWorkerConfig {
+            dmx_on: config.dmx_on,
+            midi_on: config.midi_on,
+            sacn_interface_ip: config.sacn_interface_ip.clone(),
+            led_output_fps: config.led_output_fps,
+            led_start_universe: config.led_start_universe,
+            fade_to_black_led: config.fade_to_black.led,
+            preset_lerp_secs: config.preset_lerp_secs,
+            led_layout: config.led_layout.clone(),
+            preset: config.presets.selected().clone(),
+        },
+        controller: controller.clone(),
+        audio_envelope: audio_input.envelope,
+        audio_mod_amps: [
+            audio_input.mod_amp1,
+            audio_input.mod_amp2,
+            audio_input.mod_amp3,
+            audio_input.mod_amp4,
+        ],
+        midi_cv_phase_amp,
+        capture_output_monitor: left_panel_tab == gui::LeftPanelTab::Output,
+    }
+}
+
 fn sync_led_buffers(model: &mut Model) {
     let led_count = model.config.led_layout.led_count();
-    let layout_changed = model.cached_led_layout != model.config.led_layout;
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
-    if layout_changed || model.led_shader_inputs.len() != led_count {
-        model.led_shader_inputs = rebuild_led_shader_inputs(&model.config.led_layout);
-        model.cached_led_layout = model.config.led_layout.clone();
-        model.last_preset_change = None;
+}
+
+fn queue_led_worker_update(app: &App, model: &mut Model) {
+    if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
+        shared_input.latest_state = build_led_worker_input_state(
+            app.time,
+            &model.config,
+            &model.controller,
+            &model.audio_input,
+            model.midi_cv_phase_amp,
+            model.left_panel_tab,
+        );
+
+        if let Some(last_preset_change) = model.last_preset_change.take() {
+            shared_input.pending_preset_change = Some(last_preset_change);
+        }
     }
+}
+
+fn apply_led_worker_output(model: &mut Model) {
+    let Ok(shared_output) = model.led_worker.shared_output.lock() else {
+        return;
+    };
+
+    if shared_output.frame_id == model.led_worker.last_applied_frame_id {
+        return;
+    }
+
+    model.led_worker.last_applied_frame_id = shared_output.frame_id;
+    model.led_colors.clone_from(&shared_output.led_colors);
+    model.led_outputs.clone_from(&shared_output.led_outputs);
+    model.dmx.error = shared_output.dmx_error.clone();
+    model.dmx.last_send_route = shared_output.last_send_route;
+
+    let selected_universe = model.dmx.monitor.selected_universe;
+    model
+        .dmx
+        .monitor
+        .universes
+        .clone_from(&shared_output.monitor.universes);
+    model.dmx.monitor.total_frames_sent = shared_output.monitor.total_frames_sent;
+    model.dmx.monitor.total_packets_sent = shared_output.monitor.total_packets_sent;
+    model.dmx.monitor.total_payload_bytes_sent = shared_output.monitor.total_payload_bytes_sent;
+    model.dmx.monitor.smoothed_frame_fps = shared_output.monitor.smoothed_frame_fps;
+    model.dmx.monitor.last_sent_at = shared_output.monitor.last_sent_at;
+    model.dmx.monitor.last_send_error = shared_output.monitor.last_send_error.clone();
+
+    model.dmx.monitor.selected_universe = selected_universe
+        .filter(|selected| {
+            model
+                .dmx
+                .monitor
+                .universes
+                .iter()
+                .any(|snapshot| snapshot.universe == *selected)
+        })
+        .or_else(|| {
+            model
+                .dmx
+                .monitor
+                .universes
+                .first()
+                .map(|snapshot| snapshot.universe)
+        });
+}
+
+struct LedWorkerRuntime {
+    shader: Option<Shader>,
+    led_colors: Vec<LinSrgb>,
+    led_color_buffer: Vec<LinSrgb>,
+    led_outputs: Vec<LinSrgb>,
+    led_shader_inputs: Vec<CachedLedShaderInput>,
+    cached_led_layout: conf::LedLayout,
+    last_preset_change: Option<LastPresetChange>,
+    dmx: DmxRuntime,
+}
+
+impl LedWorkerRuntime {
+    fn new(config: &LedWorkerConfig) -> Self {
+        let led_count = config.led_layout.led_count();
+        Self {
+            shader: None,
+            led_colors: black_led_buffer(led_count),
+            led_color_buffer: black_led_buffer(led_count),
+            led_outputs: black_led_buffer(led_count),
+            led_shader_inputs: rebuild_led_shader_inputs(&config.led_layout),
+            cached_led_layout: config.led_layout.clone(),
+            last_preset_change: None,
+            dmx: DmxRuntime {
+                source: None,
+                requested_interface_ip: None,
+                error: None,
+                last_send_route: None,
+                last_send_attempt_at: None,
+                monitor: SacnOutputMonitor::default(),
+            },
+        }
+    }
+}
+
+fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, led_layout: &conf::LedLayout) {
+    let led_count = led_layout.led_count();
+    let layout_changed = runtime.cached_led_layout != *led_layout;
+    if runtime.led_colors.len() != led_count {
+        runtime
+            .led_colors
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_color_buffer
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_outputs
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime.last_preset_change = None;
+    }
+    if layout_changed || runtime.led_shader_inputs.len() != led_count {
+        runtime.led_shader_inputs = rebuild_led_shader_inputs(led_layout);
+        runtime.cached_led_layout = led_layout.clone();
+        runtime.last_preset_change = None;
+    }
+}
+
+fn run_led_worker(
+    shared_input: Arc<Mutex<LedWorkerSharedInput>>,
+    shared_output: Arc<Mutex<LedWorkerSharedOutput>>,
+) {
+    let initial_state = {
+        let input = shared_input
+            .lock()
+            .expect("led worker input lock poisoned during startup");
+        input.latest_state.clone()
+    };
+    let mut runtime = LedWorkerRuntime::new(&initial_state.config);
+    let mut frame_id = 0u64;
+
+    loop {
+        let (state, pending_shader, pending_preset_change, shutdown) = {
+            let mut input = match shared_input.lock() {
+                Ok(input) => input,
+                Err(_) => break,
+            };
+            (
+                input.latest_state.clone(),
+                input.pending_shader.take(),
+                input.pending_preset_change.take(),
+                input.shutdown,
+            )
+        };
+
+        if shutdown {
+            break;
+        }
+
+        if let Some(shader) = pending_shader {
+            runtime.shader = Some(shader);
+        }
+        if let Some(last_preset_change) = pending_preset_change {
+            runtime.last_preset_change = Some(last_preset_change);
+        }
+
+        sync_led_worker_buffers(&mut runtime, &state.config.led_layout);
+        render_led_worker_frame(&state, &mut runtime);
+
+        frame_id = frame_id.wrapping_add(1);
+        if let Ok(mut output) = shared_output.lock() {
+            output.frame_id = frame_id;
+            output.led_colors.clone_from(&runtime.led_colors);
+            output.led_outputs.clone_from(&runtime.led_outputs);
+            output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
+            output.dmx_error = runtime.dmx.error.clone();
+            output.last_send_route = runtime.dmx.last_send_route;
+        }
+
+        thread::yield_now();
+    }
+}
+
+fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerRuntime) {
+    let shader: ShaderFnPtr = runtime
+        .shader
+        .as_ref()
+        .map(|shader| *shader.get_fn())
+        .unwrap_or(shader::black);
+    let led_layout = &state.config.led_layout;
+
+    /*
+    when t is -1, volumes[0] = 0, volumes[1] = 1
+    when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
+    when t = 1, volumes[0] = 1, volumes[1] = 0
+    // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
+    */
+    let lr_mix = state.config.preset.left_right_mix;
+    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
+    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
+    let mix_info = MixingInfo {
+        left: state.config.preset.shader_left,
+        right: state.config.preset.shader_right,
+        colourise: state.config.preset.colourise,
+        blend_mode: state.config.preset.blend_mode,
+        xfade_left,
+        xfade_right,
+    };
+
+    let env = state.audio_envelope;
+
+    let piano_mod = (env * state.audio_mod_amps[0]) - (state.audio_mod_amps[0] / 2.0);
+    let bw_param1 = clamp(state.controller.slider1 + piano_mod, 0.0, 1.0);
+
+    let piano_mod = (env * state.audio_mod_amps[1]) - (state.audio_mod_amps[1] / 2.0);
+    let bw_param2 = clamp(state.controller.slider2 + piano_mod, 0.0, 1.0);
+
+    let piano_mod = (env * state.audio_mod_amps[2]) - (state.audio_mod_amps[2] / 2.0);
+    let colour_param1 = clamp(state.controller.slider3 + piano_mod, 0.0, 1.0);
+
+    let piano_mod = (env * state.audio_mod_amps[3]) - (state.audio_mod_amps[3] / 2.0);
+    let colour_param2 = clamp(state.controller.slider4 + piano_mod, 0.0, 1.0);
+
+    let mut shader_params = state.config.preset.shader_params;
+    {
+        let mut mod_slider_ix = 0;
+        gui::apply_shader_modulation(
+            state.config.preset.shader_left,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &state.config.preset.shader_mod_amounts,
+            env,
+        );
+        gui::apply_shader_modulation(
+            state.config.preset.colourise,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &state.config.preset.shader_mod_amounts,
+            env,
+        );
+        gui::apply_shader_modulation(
+            state.config.preset.shader_right,
+            &mut shader_params,
+            &mut mod_slider_ix,
+            &state.config.preset.shader_mod_amounts,
+            env,
+        );
+    }
+
+    let buttons = state
+        .controller
+        .buttons
+        .iter()
+        .map(|(&button, button_state)| {
+            let secs = button_state.last_pressed.elapsed().secs() as f32;
+            let state = shader_shared::ButtonState {
+                secs,
+                state: button_state.state,
+            };
+            (button, state)
+        })
+        .collect();
+    let time = state.app_time + state.snapshot_at.elapsed().as_secs_f32();
+    let uniforms = Uniforms {
+        time: time + (env * state.midi_cv_phase_amp),
+        resolution: layout::shader_resolution(led_layout),
+        use_midi: state.config.midi_on,
+        slider1: bw_param1,
+        slider2: bw_param2,
+        slider3: colour_param1,
+        slider4: colour_param2,
+        slider5: state.controller.slider5,
+        slider6: state.controller.slider6,
+        pot6: state.controller.pot6,
+        pot7: state.controller.pot7,
+        pot8: state.controller.pot8,
+        params: shader_params,
+        mix: mix_info,
+        buttons,
+    };
+
+    let previous_led_colors = &runtime.led_colors;
+    runtime
+        .led_color_buffer
+        .par_iter_mut()
+        .zip(runtime.led_shader_inputs.par_iter())
+        .zip(previous_led_colors.par_iter())
+        .for_each(|((color, led_input), &last_color)| {
+            let vertex = Vertex {
+                position: led_input.position,
+                light: led_input.light,
+                last_color,
+            };
+            *color = shader(vertex, &uniforms);
+        });
+    std::mem::swap(&mut runtime.led_colors, &mut runtime.led_color_buffer);
+
+    let (prev_output, lerp_amt) = match runtime.last_preset_change {
+        None => (&[][..], 1.0),
+        Some((ref inst, ref prev_output)) => {
+            let elapsed_secs = inst.elapsed().as_secs_f32();
+            if elapsed_secs < state.config.preset_lerp_secs {
+                let diff = state.config.preset_lerp_secs - elapsed_secs;
+                let amt = 1.0 - diff / state.config.preset_lerp_secs;
+                (&prev_output[..], amt)
+            } else {
+                runtime.last_preset_change = None;
+                (&[][..], 1.0)
+            }
+        }
+    };
+
+    let ftb = state.config.fade_to_black_led;
+    let l_ftb = lin_srgb(ftb, ftb, ftb);
+    runtime
+        .led_outputs
+        .par_iter_mut()
+        .zip(runtime.led_colors.par_iter())
+        .enumerate()
+        .for_each(|(i, (output, &colour))| {
+            let new = colour * l_ftb;
+            *output = match prev_output.get(i) {
+                None => new,
+                Some(prev) => prev.lerp(&new, lerp_amt),
+            };
+        });
+
+    update_led_worker_dmx(state, runtime);
+}
+
+fn update_led_worker_dmx(state: &LedWorkerInputState, runtime: &mut LedWorkerRuntime) {
+    if state.config.dmx_on {
+        if let Ok(desired_interface_ip) =
+            conf::parse_sacn_interface_ip(&state.config.sacn_interface_ip)
+        {
+            let should_refresh_source = runtime.dmx.source.is_none()
+                || runtime.dmx.requested_interface_ip != desired_interface_ip;
+            if should_refresh_source {
+                match create_dmx_source(desired_interface_ip) {
+                    Ok(source) => {
+                        runtime.dmx.source = Some(source);
+                        runtime.dmx.requested_interface_ip = desired_interface_ip;
+                        runtime.dmx.error = None;
+                        runtime.dmx.last_send_route = None;
+                        runtime.dmx.last_send_attempt_at = None;
+                    }
+                    Err(err) => {
+                        runtime.dmx.requested_interface_ip = desired_interface_ip;
+                        let error = match desired_interface_ip {
+                            Some(ip) => format!("Couldn't bind sACN to {}: {}", ip, err),
+                            None => format!("Couldn't auto-bind sACN: {}", err),
+                        };
+                        runtime.dmx.monitor.record_send_error(error.clone());
+                        runtime.dmx.error = Some(error);
+                        runtime.dmx.last_send_route = None;
+                        runtime.dmx.last_send_attempt_at = None;
+                    }
+                }
+            }
+        } else {
+            runtime.dmx.requested_interface_ip = None;
+            runtime.dmx.error = None;
+            runtime.dmx.last_send_route = None;
+            runtime.dmx.last_send_attempt_at = None;
+        }
+    } else if runtime.dmx.source.is_some() {
+        runtime.dmx.source.take();
+        runtime.dmx.requested_interface_ip = None;
+        runtime.dmx.error = None;
+        runtime.dmx.last_send_route = None;
+        runtime.dmx.last_send_attempt_at = None;
+    }
+
+    let now = Instant::now();
+    let should_send_output = should_send_led_output(
+        state.config.led_output_fps,
+        runtime.dmx.last_send_attempt_at,
+        now,
+    );
+    let mut disconnect_source = false;
+    if should_send_output {
+        runtime.dmx.last_send_attempt_at = Some(now);
+    }
+    if should_send_output {
+        if let Some(ref mut dmx_source) = runtime.dmx.source {
+            let payloads = build_led_sacn_payloads(
+                state.config.led_start_universe,
+                runtime.led_outputs.iter().map(lin_srgb_f32_to_bytes),
+            );
+            let mut sent_packet_count = 0usize;
+            let mut sent_payload_bytes = 0usize;
+            let mut sent_payloads = if state.capture_output_monitor {
+                Some(Vec::with_capacity(payloads.len()))
+            } else {
+                None
+            };
+            let mut last_send_route = None;
+            let mut send_error = None;
+
+            for (universe, payload) in payloads {
+                match dmx_source.send(universe, &payload) {
+                    Ok(route) => {
+                        last_send_route = Some(route);
+                        sent_packet_count += 1;
+                        sent_payload_bytes += payload.len();
+                        if let Some(ref mut snapshots) = sent_payloads {
+                            snapshots.push((universe, payload));
+                        }
+                    }
+                    Err(error) => {
+                        send_error = Some(error);
+                        disconnect_source = true;
+                        break;
+                    }
+                }
+            }
+
+            if sent_packet_count > 0 {
+                let sent_at = Instant::now();
+                runtime.dmx.monitor.record_successful_frame_stats(
+                    sent_packet_count,
+                    sent_payload_bytes,
+                    sent_at,
+                );
+                if let Some(ref snapshots) = sent_payloads {
+                    runtime
+                        .dmx
+                        .monitor
+                        .record_universe_snapshots(snapshots, sent_at);
+                }
+            }
+
+            if let Some(error) = send_error {
+                runtime.dmx.monitor.record_send_error(error.clone());
+                runtime.dmx.error = Some(error);
+                runtime.dmx.last_send_route = None;
+            } else if sent_packet_count > 0 {
+                runtime.dmx.error = None;
+                runtime.dmx.last_send_route = last_send_route;
+            }
+        }
+    }
+
+    if disconnect_source {
+        runtime.dmx.source.take();
+        runtime.dmx.last_send_route = None;
+        runtime.dmx.last_send_attempt_at = None;
+    }
+}
+
+fn sync_preview_window_visibility(app: &App, model: &mut Model) {
+    if model.preview_window_visible == model.config.preview_window_on {
+        return;
+    }
+
+    if let Some(window) = app.window(model.led_strip_window) {
+        window.set_visible(model.config.preview_window_on);
+    }
+    model.preview_window_visible = model.config.preview_window_on;
 }
 
 fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
@@ -559,6 +1155,7 @@ fn key_pressed(_app: &App, model: &mut Model, key: Key) {
 
 fn update(app: &App, model: &mut Model, update: Update) {
     model.audio_input.update();
+    apply_led_worker_output(model);
     model.runtime_stats.record_app_frame(update.since_last);
 
     // Apply the GUI update.
@@ -582,23 +1179,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
         },
     );
     drop(ui);
+    sync_preview_window_visibility(app, model);
     update_gui_window_title(app, model);
     model.config.led_layout.normalise();
     sync_led_buffers(model);
 
     // Check for an update to the shader.
     if let Some(shader) = model.shader_rx.update() {
-        model.shader = Some(shader);
+        if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
+            shared_input.pending_shader = Some(shader);
+        }
     }
-
-    // Retrieve the shader or fall back to black if its not ready.
-    let shader: ShaderFnPtr = model
-        .shader
-        .as_ref()
-        .map(|shader| *shader.get_fn())
-        .unwrap_or(shader::black);
-
-    let led_layout = &model.config.led_layout;
 
     for event in model.midi_rx.try_iter() {
         //println!("{:?}", &event);
@@ -704,262 +1295,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     model.controller.pot8 = model.controller.pot8 * (1.0 - model.smoothing_speed)
         + model.target_pot_values[7] * model.smoothing_speed;
 
-    /*
-    when t is -1, volumes[0] = 0, volumes[1] = 1
-    when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
-    when t = 1, volumes[0] = 1, volumes[1] = 0
-    // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
-    */
-
-    let lr_mix = model.config.presets.selected().left_right_mix;
-    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
-    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
-    let preset = model.config.presets.selected();
-    let mix_info = MixingInfo {
-        left: preset.shader_left,
-        right: preset.shader_right,
-        colourise: preset.colourise,
-        blend_mode: preset.blend_mode,
-        xfade_left,
-        xfade_right,
-    };
-
-    let env = model.audio_input.envelope;
-
-    let piano_mod = (env * model.audio_input.mod_amp1) - (model.audio_input.mod_amp1 / 2.0);
-    let bw_param1 = clamp(model.controller.slider1 + piano_mod, 0.0, 1.0);
-
-    let piano_mod = (env * model.audio_input.mod_amp2) - (model.audio_input.mod_amp2 / 2.0);
-    let bw_param2 = clamp(model.controller.slider2 + piano_mod, 0.0, 1.0);
-
-    let piano_mod = (env * model.audio_input.mod_amp3) - (model.audio_input.mod_amp3 / 2.0);
-    let colour_param1 = clamp(model.controller.slider3 + piano_mod, 0.0, 1.0);
-
-    let piano_mod = (env * model.audio_input.mod_amp4) - (model.audio_input.mod_amp4 / 2.0);
-    let colour_param2 = clamp(model.controller.slider4 + piano_mod, 0.0, 1.0);
-
-    // Clone shader params and apply envelope modulation from the mod sliders.
-    let mut shader_params = preset.shader_params;
-    {
-        let mut mod_slider_ix = 0;
-        gui::apply_shader_modulation(
-            preset.shader_left,
-            &mut shader_params,
-            &mut mod_slider_ix,
-            &preset.shader_mod_amounts,
-            env,
-        );
-        gui::apply_shader_modulation(
-            preset.colourise,
-            &mut shader_params,
-            &mut mod_slider_ix,
-            &preset.shader_mod_amounts,
-            env,
-        );
-        gui::apply_shader_modulation(
-            preset.shader_right,
-            &mut shader_params,
-            &mut mod_slider_ix,
-            &preset.shader_mod_amounts,
-            env,
-        );
-    }
-    let buttons = model
-        .controller
-        .buttons
-        .iter()
-        .map(|(&b, b_state)| {
-            let secs = b_state.last_pressed.elapsed().secs() as f32;
-            let state = b_state.state;
-            let state = shader_shared::ButtonState { secs, state };
-            (b, state)
-        })
-        .collect();
-    let uniforms = Uniforms {
-        time: app.time + (env * model.midi_cv_phase_amp),
-        resolution: layout::shader_resolution(led_layout),
-        use_midi: model.config.midi_on,
-        slider1: bw_param1,                // BW param 1
-        slider2: bw_param2,                // BW param 2
-        slider3: colour_param1,            // Colour param 1
-        slider4: colour_param2,            // Colour param 2
-        slider5: model.controller.slider5, // Shader param 5
-        slider6: model.controller.slider6, // Shader param 6
-        pot6: model.controller.pot6,       // Red / Hue
-        pot7: model.controller.pot7,       // Green / Saturation
-        pot8: model.controller.pot8,       // Blue / Value
-        params: shader_params,
-        mix: mix_info,
-        buttons,
-    };
-
-    // Apply the shader for the LEDs in parallel using cached per-LED geometry.
-    let previous_led_colors = model.led_colors.clone();
-    model
-        .led_colors
-        .par_iter_mut()
-        .zip(model.led_shader_inputs.par_iter())
-        .zip(previous_led_colors.par_iter())
-        .for_each(|((color, led_input), &last_color)| {
-            let vertex = Vertex {
-                position: led_input.position,
-                light: led_input.light,
-                last_color,
-            };
-            *color = shader(vertex, &uniforms);
-        });
-
-    // If we recently changed presets, interpolate from the previous state.
-    let (prev_output, lerp_amt) = match model.last_preset_change {
-        None => (&[][..], 1.0),
-        Some((ref inst, ref prev_output)) => {
-            let elapsed_secs = inst.elapsed().as_secs_f32();
-            if elapsed_secs < model.config.preset_lerp_secs {
-                let diff = model.config.preset_lerp_secs - elapsed_secs;
-                let amt = 1.0 - diff / model.config.preset_lerp_secs;
-                (&prev_output[..], amt)
-            } else {
-                (&[][..], 1.0)
-            }
-        }
-    };
-
-    // Write the colours to the output buffer with the fade applied.
-    let ftb = model.config.fade_to_black.led;
-    let l_ftb = lin_srgb(ftb, ftb, ftb);
-    model
-        .led_outputs
-        .par_iter_mut()
-        .zip(model.led_colors.par_iter())
-        .enumerate()
-        .for_each(|(i, (output, &colour))| {
-            let new = colour * l_ftb;
-            *output = match prev_output.get(i) {
-                None => new,
-                Some(prev) => prev.lerp(&new, lerp_amt),
-            };
-        });
-
-    // Ensure we are connected to a DMX source if enabled.
-    if model.config.dmx_on {
-        if let Ok(desired_interface_ip) =
-            conf::parse_sacn_interface_ip(&model.config.sacn_interface_ip)
-        {
-            let should_refresh_source = model.dmx.source.is_none()
-                || model.dmx.requested_interface_ip != desired_interface_ip;
-            if should_refresh_source {
-                match create_dmx_source(desired_interface_ip) {
-                    Ok(source) => {
-                        model.dmx.source = Some(source);
-                        model.dmx.requested_interface_ip = desired_interface_ip;
-                        model.dmx.error = None;
-                        model.dmx.last_send_route = None;
-                        model.dmx.last_send_attempt_at = None;
-                    }
-                    Err(err) => {
-                        model.dmx.requested_interface_ip = desired_interface_ip;
-                        let error = match desired_interface_ip {
-                            Some(ip) => format!("Couldn't bind sACN to {}: {}", ip, err),
-                            None => format!("Couldn't auto-bind sACN: {}", err),
-                        };
-                        model.dmx.monitor.record_send_error(error.clone());
-                        model.dmx.error = Some(error);
-                        model.dmx.last_send_route = None;
-                        model.dmx.last_send_attempt_at = None;
-                    }
-                }
-            }
-        } else {
-            model.dmx.requested_interface_ip = None;
-            model.dmx.error = None;
-            model.dmx.last_send_route = None;
-            model.dmx.last_send_attempt_at = None;
-        }
-    } else if model.dmx.source.is_some() {
-        model.dmx.source.take();
-        model.dmx.requested_interface_ip = None;
-        model.dmx.error = None;
-        model.dmx.last_send_route = None;
-        model.dmx.last_send_attempt_at = None;
-    }
-
-    // If we have a DMX source, send data over it!
-    let now = Instant::now();
-    let should_send_output = should_send_led_output(
-        model.config.led_output_fps,
-        model.dmx.last_send_attempt_at,
-        now,
-    );
-    let mut disconnect_source = false;
-    if should_send_output {
-        model.dmx.last_send_attempt_at = Some(now);
-    }
-    if should_send_output {
-        if let Some(ref mut dmx_source) = model.dmx.source {
-            let capture_output_monitor = model.left_panel_tab == gui::LeftPanelTab::Output;
-            let payloads = build_led_sacn_payloads(
-                model.config.led_start_universe,
-                model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
-            );
-            let mut sent_packet_count = 0usize;
-            let mut sent_payload_bytes = 0usize;
-            let mut sent_payloads = if capture_output_monitor {
-                Some(Vec::with_capacity(payloads.len()))
-            } else {
-                None
-            };
-            let mut last_send_route = None;
-            let mut send_error = None;
-
-            for (universe, payload) in payloads {
-                match dmx_source.send(universe, &payload) {
-                    Ok(route) => {
-                        last_send_route = Some(route);
-                        sent_packet_count += 1;
-                        sent_payload_bytes += payload.len();
-                        if let Some(ref mut snapshots) = sent_payloads {
-                            snapshots.push((universe, payload));
-                        }
-                    }
-                    Err(error) => {
-                        send_error = Some(error);
-                        disconnect_source = true;
-                        break;
-                    }
-                }
-            }
-
-            if sent_packet_count > 0 {
-                let sent_at = Instant::now();
-                model.dmx.monitor.record_successful_frame_stats(
-                    sent_packet_count,
-                    sent_payload_bytes,
-                    sent_at,
-                );
-                if let Some(ref snapshots) = sent_payloads {
-                    model
-                        .dmx
-                        .monitor
-                        .record_universe_snapshots(snapshots, sent_at);
-                }
-            }
-
-            if let Some(error) = send_error {
-                model.dmx.monitor.record_send_error(error.clone());
-                model.dmx.error = Some(error);
-                model.dmx.last_send_route = None;
-            } else if sent_packet_count > 0 {
-                model.dmx.error = None;
-                model.dmx.last_send_route = last_send_route;
-            }
-        }
-    }
-
-    if disconnect_source {
-        model.dmx.source.take();
-        model.dmx.last_send_route = None;
-        model.dmx.last_send_attempt_at = None;
-    }
+    queue_led_worker_update(app, model);
 }
 
 fn should_send_led_output(
@@ -1081,6 +1417,11 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
 
+    if !model.config.preview_window_on {
+        draw.to_frame(app, &frame).unwrap();
+        return;
+    }
+
     let w = app.window(model.led_strip_window).unwrap().rect();
     let led_layout = &model.config.led_layout;
 
@@ -1179,7 +1520,14 @@ fn save_config(assets: &Path, config: &Config) {
     save_to_json(config_path, config).expect("failed to save config");
 }
 
-fn exit(app: &App, model: Model) {
+fn exit(app: &App, mut model: Model) {
+    if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
+        shared_input.shutdown = true;
+    }
+    if let Some(thread) = model.led_worker.thread.take() {
+        let _ = thread.join();
+    }
+
     let assets = app
         .assets_path()
         .expect("failed to find project `assets` directory");

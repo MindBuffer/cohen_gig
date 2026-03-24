@@ -1,6 +1,6 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::collections::VecDeque;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const WAVEFORM_HISTORY_MULTIPLIER: usize = 16;
@@ -8,13 +8,33 @@ pub const MAX_INPUT_GAIN_DB: f32 = 24.0;
 const INPUT_GAIN_SOFT_KNEE: f32 = 0.85;
 const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 
-struct AudioAnalysis {
-    samples: Vec<f32>,
-}
-
 struct AudioRuntime {
     _stream: cpal::Stream,
-    analysis_rx: mpsc::Receiver<AudioAnalysis>,
+    analysis: Arc<Mutex<AudioAnalysisBuffer>>,
+}
+
+struct AudioAnalysisBuffer {
+    pending_peak: f32,
+    pending_samples: VecDeque<f32>,
+    capacity: usize,
+}
+
+impl AudioAnalysisBuffer {
+    fn new(capacity: usize) -> Self {
+        Self {
+            pending_peak: 0.0,
+            pending_samples: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    fn push_sample(&mut self, sample: f32) {
+        self.pending_peak = self.pending_peak.max(sample.abs());
+        self.pending_samples.push_back(sample);
+        while self.pending_samples.len() > self.capacity {
+            self.pending_samples.pop_front();
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,6 +53,7 @@ pub struct AudioInput {
     pub peak_history: VecDeque<f32>,
     pub waveform_history: VecDeque<f32>,
     pub envelope_history: VecDeque<f32>,
+    pending_waveform_samples: VecDeque<f32>,
     pub history_len: usize,
     waveform_history_len: usize,
     pub gain_db: f32,
@@ -61,6 +82,7 @@ impl AudioInput {
             peak_history: VecDeque::from(vec![0.0; history_len]),
             waveform_history: VecDeque::from(vec![0.0; waveform_history_len]),
             envelope_history: VecDeque::from(vec![0.0; history_len]),
+            pending_waveform_samples: VecDeque::with_capacity(waveform_history_len),
             history_len,
             waveform_history_len,
             gain_db: 0.0,
@@ -94,13 +116,19 @@ impl AudioInput {
         let mut peak = 0.0f32;
         let gain = db_to_gain(self.gain_db);
         if let Some(runtime) = self.runtime.as_mut() {
-            for analysis in runtime.analysis_rx.try_iter() {
-                for sample in analysis.samples {
-                    let sample = apply_input_gain(sample, gain);
-                    peak = peak.max(sample.abs());
-                    self.waveform_history.push_back(sample);
-                }
+            if let Ok(mut analysis) = runtime.analysis.lock() {
+                peak = apply_input_gain(analysis.pending_peak.min(1.0), gain).abs();
+                analysis.pending_peak = 0.0;
+                std::mem::swap(
+                    &mut self.pending_waveform_samples,
+                    &mut analysis.pending_samples,
+                );
             }
+        }
+
+        while let Some(sample) = self.pending_waveform_samples.pop_front() {
+            self.waveform_history
+                .push_back(apply_input_gain(sample, gain));
         }
 
         self.peak_history.push_back(peak);
@@ -210,7 +238,7 @@ impl AudioInput {
     }
 
     fn switch_to_device(&mut self, device_name: String) -> Result<(), String> {
-        let runtime = match build_runtime_for_device(&device_name) {
+        let runtime = match build_runtime_for_device(&device_name, self.waveform_history_len) {
             Ok(runtime) => runtime,
             Err(err) => {
                 self.device_error = Some(err.clone());
@@ -228,6 +256,7 @@ impl AudioInput {
         self.peak_history = VecDeque::from(vec![0.0; self.history_len]);
         self.waveform_history = VecDeque::from(vec![0.0; self.waveform_history_len]);
         self.envelope_history = VecDeque::from(vec![0.0; self.history_len]);
+        self.pending_waveform_samples.clear();
         self.envelope = 0.0;
         self.hold_remaining = 0.0;
     }
@@ -316,7 +345,10 @@ fn is_builtin_microphone(device_name: &str) -> bool {
         || (device_name.contains("microphone") && device_name.contains("macbook"))
 }
 
-fn build_runtime_for_device(device_name: &str) -> Result<AudioRuntime, String> {
+fn build_runtime_for_device(
+    device_name: &str,
+    waveform_history_len: usize,
+) -> Result<AudioRuntime, String> {
     let host = cpal::default_host();
     let device = find_input_device_by_name(&host, device_name)
         .ok_or_else(|| format!("Audio input '{}' is no longer available", device_name))?;
@@ -324,12 +356,12 @@ fn build_runtime_for_device(device_name: &str) -> Result<AudioRuntime, String> {
         .default_input_config()
         .map_err(|err| format!("Couldn't read audio config for '{}': {}", device_name, err))?;
 
-    let (analysis_tx, analysis_rx) = mpsc::channel();
     let config = supported_config.config();
+    let analysis = Arc::new(Mutex::new(AudioAnalysisBuffer::new(waveform_history_len)));
     let stream = match supported_config.sample_format() {
-        cpal::SampleFormat::F32 => build_stream::<f32>(&device, &config, analysis_tx),
-        cpal::SampleFormat::I16 => build_stream::<i16>(&device, &config, analysis_tx),
-        cpal::SampleFormat::U16 => build_stream::<u16>(&device, &config, analysis_tx),
+        cpal::SampleFormat::F32 => build_stream::<f32>(&device, &config, Arc::clone(&analysis)),
+        cpal::SampleFormat::I16 => build_stream::<i16>(&device, &config, Arc::clone(&analysis)),
+        cpal::SampleFormat::U16 => build_stream::<u16>(&device, &config, Arc::clone(&analysis)),
         fmt => {
             return Err(format!(
                 "Audio input '{}' uses unsupported sample format {:?}",
@@ -345,7 +377,7 @@ fn build_runtime_for_device(device_name: &str) -> Result<AudioRuntime, String> {
 
     Ok(AudioRuntime {
         _stream: stream,
-        analysis_rx,
+        analysis,
     })
 }
 
@@ -365,7 +397,7 @@ fn find_input_device_by_name(host: &cpal::Host, device_name: &str) -> Option<cpa
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    analysis_tx: mpsc::Sender<AudioAnalysis>,
+    analysis: Arc<Mutex<AudioAnalysisBuffer>>,
 ) -> Result<cpal::Stream, cpal::BuildStreamError>
 where
     T: cpal::Sample + cpal::SizedSample + Send + 'static,
@@ -375,16 +407,17 @@ where
     device.build_input_stream(
         config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
-            let mut samples = Vec::with_capacity(data.len() / channels.max(1));
+            let Ok(mut analysis) = analysis.lock() else {
+                return;
+            };
             for frame in data.chunks(channels.max(1)) {
                 let sample = frame
                     .iter()
                     .map(|&s| <f32 as cpal::FromSample<T>>::from_sample_(s))
                     .sum::<f32>()
                     / frame.len() as f32;
-                samples.push(sample.clamp(-1.0, 1.0));
+                analysis.push_sample(sample.clamp(-1.0, 1.0));
             }
-            let _ = analysis_tx.send(AudioAnalysis { samples });
         },
         |err| eprintln!("audio input error: {}", err),
         None,
