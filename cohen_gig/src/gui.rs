@@ -38,8 +38,17 @@ widget_ids! {
 
         scrollbar,
         title_text,
+        live_tab_button,
+        output_tab_button,
         dmx_button,
         midi_button,
+        preview_window_button,
+        output_fps_text,
+        output_fps_ddl,
+        output_fps_status_text,
+        audio_device_ddl,
+        audio_device_placeholder,
+        audio_device_error_text,
         sacn_interface_ip_text,
         sacn_interface_ip_help_text,
         sacn_interface_ip_text_box,
@@ -99,15 +108,36 @@ widget_ids! {
         audio_envelope_scope_bg,
         audio_envelope_scope,
 
+        sacn_output_title_text,
+        sacn_output_status_text,
+        sacn_output_universe_text,
+        sacn_output_universe_ddl,
+        sacn_output_universe_placeholder,
+        sacn_output_grid_help_text,
+        sacn_output_grid_bg,
+        sacn_output_grid_cells[],
+        sacn_output_grid_cell_values[],
+        sacn_output_grid_summary_text,
+        sacn_output_slot_preview_text,
+
     }
 }
 
 type LedColors = [LinSrgb];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeftPanelTab {
+    Live,
+    Output,
+}
+
 pub struct UpdateContext<'a> {
     pub config: &'a mut Config,
     pub audio_input: &'a mut crate::audio_input::AudioInput,
-    pub dmx_bind_error: Option<&'a str>,
+    pub left_panel_tab: &'a mut LeftPanelTab,
+    pub sacn_output_monitor: &'a mut crate::SacnOutputMonitor,
+    pub sacn_error: Option<&'a str>,
+    pub sacn_transport_label: Option<&'a str>,
     pub since_start: std::time::Duration,
     pub shader_activity: shader::Activity<'a>,
     pub led_colors: &'a LedColors,
@@ -1079,7 +1109,10 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     let UpdateContext {
         config,
         audio_input,
-        dmx_bind_error,
+        left_panel_tab,
+        sacn_output_monitor,
+        sacn_error,
+        sacn_transport_label,
         since_start,
         shader_activity,
         led_colors,
@@ -1120,214 +1153,53 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .set(ids.title_text, ui);
 
     if button()
-        .color(toggle_color(config.dmx_on))
-        .label("DMX")
+        .color(tab_button_color(*left_panel_tab == LeftPanelTab::Live))
+        .label("Live")
         .w(HALF_WIDGET_W)
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
-        .set(ids.dmx_button, ui)
+        .set(ids.live_tab_button, ui)
         .was_clicked()
     {
-        config.dmx_on = !config.dmx_on;
+        *left_panel_tab = LeftPanelTab::Live;
     }
 
     if button()
-        .color(toggle_color(config.midi_on))
-        .label("MIDI")
+        .color(tab_button_color(*left_panel_tab == LeftPanelTab::Output))
+        .label("Output")
         .right(PAD * 0.5)
         .w(HALF_WIDGET_W)
-        .set(ids.midi_button, ui)
+        .set(ids.output_tab_button, ui)
         .was_clicked()
     {
-        config.midi_on = !config.midi_on;
+        *left_panel_tab = LeftPanelTab::Output;
     }
 
-    text("sACN Interface IP")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.sacn_interface_ip_text, ui);
-
-    widget::Text::new(
-        "Use this computer's IP on the PixLite network, e.g. 10.0.0.100. Leave blank for Auto.",
-    )
-    .down(5.0)
-    .w(WIDGET_W)
-    .font_size(10)
-    .color(TEXT_COLOR)
-    .left_justify()
-    .set(ids.sacn_interface_ip_help_text, ui);
-
-    let color = if dmx_bind_error.is_some() {
-        color::DARK_RED.with_luminance(0.1)
-    } else {
-        match crate::conf::parse_sacn_interface_ip(&config.sacn_interface_ip) {
-            Ok(Some(_)) => color::DARK_GREEN.with_luminance(0.1),
-            Ok(None) => color::BLACK,
-            Err(_) => color::DARK_RED.with_luminance(0.1),
+    match *left_panel_tab {
+        LeftPanelTab::Live => {
+            let audio_anchor =
+                set_live_sidebar_widgets(ui, ids, config, since_start, shader_activity);
+            crate::audio_widgets::set_widgets(
+                ui,
+                ids,
+                audio_input,
+                &mut config.audio_input_device,
+                audio_anchor,
+            );
+            set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
         }
-    };
-    for event in widget::TextBox::new(&config.sacn_interface_ip)
-        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
-        .down(5.0)
-        .border(0.0)
-        .color(color)
-        .text_color(color::WHITE)
-        .font_size(14)
-        .set(ids.sacn_interface_ip_text_box, ui)
-    {
-        match event {
-            widget::text_box::Event::Update(string) => config.sacn_interface_ip = string,
-            widget::text_box::Event::Enter => {
-                config.sacn_interface_ip = config.sacn_interface_ip.trim().to_string();
-            }
+        LeftPanelTab::Output => {
+            set_output_sidebar_widgets(ui, ids, config, sacn_error, sacn_output_monitor);
+            set_output_monitor_widgets(
+                ui,
+                ids,
+                config,
+                sacn_output_monitor,
+                sacn_error,
+                sacn_transport_label,
+            );
         }
     }
-
-    if let Some(error) = dmx_bind_error {
-        widget::Text::new(error)
-            .down(5.0)
-            .w(WIDGET_W)
-            .font_size(10)
-            .color(color::LIGHT_RED)
-            .left_justify()
-            .set(ids.sacn_interface_ip_error_text, ui);
-    }
-
-    text("Shader State")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.shader_title_text, ui);
-
-    let (string, color) = match shader_activity {
-        shader::Activity::Incoming => {
-            let s = "Compiling".into();
-            let l = (since_start.secs() * 2.0 * PI).sin() * 0.35 + 0.5;
-            let c = ui::color::YELLOW.with_luminance(l as _);
-            (s, c)
-        }
-        shader::Activity::LastIncoming(last) => match last {
-            shader::LastIncoming::Succeeded => {
-                let s = "Succeeded".into();
-                let c = ui::color::GREEN;
-                (s, c)
-            }
-            shader::LastIncoming::Failed(_err) => {
-                let s = "Compilation Failed".to_string();
-                let c = ui::color::RED;
-                (s, c)
-            }
-        },
-    };
-    text(&string)
-        .color(color)
-        .down(PAD)
-        .set(ids.shader_state_text, ui);
-
-    text("Universes")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.universe_starts_text, ui);
-
-    let min_universe = 1.0;
-    let max_universe = 99.0;
-    let precision = 0;
-    let v = config.led_start_universe;
-    if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
-        .border(0.0)
-        .label("Start Universe")
-        .label_color(color::WHITE)
-        .label_font_size(14)
-        .down(PAD)
-        .w(WIDGET_W)
-        .h(DEFAULT_WIDGET_H)
-        .color(color::DARK_CHARCOAL)
-        .set(ids.led_start_universe_dialer, ui)
-    {
-        config.led_start_universe = v as u16;
-    }
-
-    text("LED Layout")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.led_layout_text, ui);
-
-    let precision = 0;
-    if let Some(v) = widget::NumberDialer::new(
-        config.led_layout.leds_per_metre as f32,
-        1.0,
-        288.0,
-        precision,
-    )
-    .border(0.0)
-    .label("LEDs / Metre")
-    .label_color(color::WHITE)
-    .label_font_size(14)
-    .down(PAD)
-    .w(WIDGET_W)
-    .h(DEFAULT_WIDGET_H)
-    .color(color::DARK_CHARCOAL)
-    .set(ids.led_pixels_per_metre_dialer, ui)
-    {
-        config.led_layout.leds_per_metre = v as usize;
-    }
-
-    if let Some(v) = widget::NumberDialer::new(
-        config.led_layout.metres_per_row as f32,
-        1.0,
-        32.0,
-        precision,
-    )
-    .border(0.0)
-    .label("Row Length (m)")
-    .label_color(color::WHITE)
-    .label_font_size(14)
-    .down(5.0)
-    .w(WIDGET_W)
-    .h(DEFAULT_WIDGET_H)
-    .color(color::DARK_CHARCOAL)
-    .set(ids.led_metres_per_row_dialer, ui)
-    {
-        config.led_layout.metres_per_row = v as usize;
-    }
-
-    if let Some(v) =
-        widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
-            .border(0.0)
-            .label("Rows")
-            .label_color(color::WHITE)
-            .label_font_size(14)
-            .down(5.0)
-            .w(WIDGET_W)
-            .h(DEFAULT_WIDGET_H)
-            .color(color::DARK_CHARCOAL)
-            .set(ids.led_row_count_dialer, ui)
-    {
-        config.led_layout.row_count = v as usize;
-    }
-
-    config.led_layout.normalise();
-
-    let total_leds = config.led_layout.led_count();
-    let leds_per_universe =
-        (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
-    let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
-    let start_universe = config.led_start_universe;
-    let end_universe = start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
-    let layout_stats = format!(
-        "{} LEDs across {} universes (U{}-U{})",
-        total_leds, universe_count, start_universe, end_universe
-    );
-    widget::Text::new(&layout_stats)
-        .down(5.0)
-        .w(WIDGET_W)
-        .font_size(10)
-        .color(TEXT_COLOR)
-        .left_justify()
-        .set(ids.led_layout_stats_text, ui);
-
-    crate::audio_widgets::set_widgets(ui, ids, audio_input);
-
-    set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
 
     // Now that preset selection is done, get easier access to the selected preset.
     let preset = config.presets.selected_mut();
@@ -1504,6 +1376,519 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 
     // A scrollbar for the canvas.
     //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
+}
+
+fn set_live_sidebar_widgets(
+    ui: &mut UiCell,
+    ids: &Ids,
+    config: &mut Config,
+    since_start: std::time::Duration,
+    shader_activity: shader::Activity<'_>,
+) -> widget::Id {
+    if button()
+        .color(toggle_color(config.dmx_on))
+        .label("DMX")
+        .w(HALF_WIDGET_W)
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.live_tab_button, PAD * 0.5)
+        .set(ids.dmx_button, ui)
+        .was_clicked()
+    {
+        config.dmx_on = !config.dmx_on;
+    }
+
+    if button()
+        .color(toggle_color(config.midi_on))
+        .label("MIDI")
+        .right(PAD * 0.5)
+        .w(HALF_WIDGET_W)
+        .set(ids.midi_button, ui)
+        .was_clicked()
+    {
+        config.midi_on = !config.midi_on;
+    }
+
+    if button()
+        .color(toggle_color(config.preview_window_on))
+        .label("PREVIEW")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.dmx_button, PAD * 0.5)
+        .w(WIDGET_W)
+        .set(ids.preview_window_button, ui)
+        .was_clicked()
+    {
+        config.preview_window_on = !config.preview_window_on;
+    }
+
+    text("Shader State")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.preview_window_button, COLUMN_ONE_SECTION_GAP)
+        .set(ids.shader_title_text, ui);
+
+    let (string, color) = match shader_activity {
+        shader::Activity::Incoming => {
+            let s = "Compiling".into();
+            let l = (since_start.secs() * 2.0 * PI).sin() * 0.35 + 0.5;
+            let c = ui::color::YELLOW.with_luminance(l as _);
+            (s, c)
+        }
+        shader::Activity::LastIncoming(last) => match last {
+            shader::LastIncoming::Succeeded => {
+                let s = "Succeeded".into();
+                let c = ui::color::GREEN;
+                (s, c)
+            }
+            shader::LastIncoming::Failed(_err) => {
+                let s = "Compilation Failed".to_string();
+                let c = ui::color::RED;
+                (s, c)
+            }
+        },
+    };
+    text(&string)
+        .color(color)
+        .down(PAD)
+        .set(ids.shader_state_text, ui);
+
+    ids.shader_state_text
+}
+
+fn set_output_sidebar_widgets(
+    ui: &mut UiCell,
+    ids: &Ids,
+    config: &mut Config,
+    sacn_error: Option<&str>,
+    sacn_output_monitor: &crate::SacnOutputMonitor,
+) {
+    text("LED Output FPS")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.live_tab_button, PAD * 0.5)
+        .set(ids.output_fps_text, ui);
+
+    let output_fps_labels: Vec<_> = crate::conf::LedOutputFps::ALL
+        .iter()
+        .map(|mode| mode.label())
+        .collect();
+    let selected_output_fps = Some(config.led_output_fps.to_index());
+    if let Some(selected_idx) = widget::DropDownList::new(&output_fps_labels, selected_output_fps)
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .down(5.0)
+        .max_visible_items(output_fps_labels.len())
+        .rgb(0.176, 0.513, 0.639)
+        .label("LED Output")
+        .label_font_size(14)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.output_fps_ddl, ui)
+    {
+        if let Some(output_fps) = crate::conf::LedOutputFps::from_index(selected_idx) {
+            config.led_output_fps = output_fps;
+        }
+    }
+
+    let measured_output_fps = if config.dmx_on {
+        format_measured_fps(
+            sacn_output_monitor.smoothed_frame_fps,
+            sacn_output_monitor.total_frames_sent,
+        )
+    } else {
+        "Disabled".to_string()
+    };
+    let output_fps_status = format!(
+        "LED Output: {} (Cap {})",
+        measured_output_fps,
+        config.led_output_fps.label()
+    );
+    widget::Text::new(&output_fps_status)
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.output_fps_status_text, ui);
+
+    text("sACN Interface IP")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.output_fps_status_text, COLUMN_ONE_SECTION_GAP)
+        .set(ids.sacn_interface_ip_text, ui);
+
+    widget::Text::new(
+        "Use this computer's IP on the PixLite network, e.g. 10.0.0.100. Leave blank for Auto; it falls back to localhost preview if multicast is unavailable.",
+    )
+    .down(5.0)
+    .w(WIDGET_W)
+    .font_size(10)
+    .color(TEXT_COLOR)
+    .left_justify()
+    .set(ids.sacn_interface_ip_help_text, ui);
+
+    let color = if sacn_error.is_some() {
+        color::DARK_RED.with_luminance(0.1)
+    } else {
+        match crate::conf::parse_sacn_interface_ip(&config.sacn_interface_ip) {
+            Ok(Some(_)) => color::DARK_GREEN.with_luminance(0.1),
+            Ok(None) => color::BLACK,
+            Err(_) => color::DARK_RED.with_luminance(0.1),
+        }
+    };
+    for event in widget::TextBox::new(&config.sacn_interface_ip)
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .down(5.0)
+        .border(0.0)
+        .color(color)
+        .text_color(color::WHITE)
+        .font_size(14)
+        .set(ids.sacn_interface_ip_text_box, ui)
+    {
+        match event {
+            widget::text_box::Event::Update(string) => config.sacn_interface_ip = string,
+            widget::text_box::Event::Enter => {
+                config.sacn_interface_ip = config.sacn_interface_ip.trim().to_string();
+            }
+        }
+    }
+
+    if let Some(error) = sacn_error {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.sacn_interface_ip_error_text, ui);
+    }
+
+    text("Universes")
+        .mid_left_of(ids.column_1_id)
+        .down(COLUMN_ONE_SECTION_GAP)
+        .set(ids.universe_starts_text, ui);
+
+    let min_universe = 1.0;
+    let max_universe = 99.0;
+    let precision = 0;
+    let v = config.led_start_universe;
+    if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+        .border(0.0)
+        .label("Start Universe")
+        .label_color(color::WHITE)
+        .label_font_size(14)
+        .down(PAD)
+        .w(WIDGET_W)
+        .h(DEFAULT_WIDGET_H)
+        .color(color::DARK_CHARCOAL)
+        .set(ids.led_start_universe_dialer, ui)
+    {
+        config.led_start_universe = v as u16;
+    }
+
+    text("LED Layout")
+        .mid_left_of(ids.column_1_id)
+        .down(COLUMN_ONE_SECTION_GAP)
+        .set(ids.led_layout_text, ui);
+
+    if let Some(v) = widget::NumberDialer::new(
+        config.led_layout.leds_per_metre as f32,
+        1.0,
+        288.0,
+        precision,
+    )
+    .border(0.0)
+    .label("LEDs / Metre")
+    .label_color(color::WHITE)
+    .label_font_size(14)
+    .down(PAD)
+    .w(WIDGET_W)
+    .h(DEFAULT_WIDGET_H)
+    .color(color::DARK_CHARCOAL)
+    .set(ids.led_pixels_per_metre_dialer, ui)
+    {
+        config.led_layout.leds_per_metre = v as usize;
+    }
+
+    if let Some(v) = widget::NumberDialer::new(
+        config.led_layout.metres_per_row as f32,
+        1.0,
+        32.0,
+        precision,
+    )
+    .border(0.0)
+    .label("Row Length (m)")
+    .label_color(color::WHITE)
+    .label_font_size(14)
+    .down(5.0)
+    .w(WIDGET_W)
+    .h(DEFAULT_WIDGET_H)
+    .color(color::DARK_CHARCOAL)
+    .set(ids.led_metres_per_row_dialer, ui)
+    {
+        config.led_layout.metres_per_row = v as usize;
+    }
+
+    if let Some(v) =
+        widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
+            .border(0.0)
+            .label("Rows")
+            .label_color(color::WHITE)
+            .label_font_size(14)
+            .down(5.0)
+            .w(WIDGET_W)
+            .h(DEFAULT_WIDGET_H)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.led_row_count_dialer, ui)
+    {
+        config.led_layout.row_count = v as usize;
+    }
+
+    config.led_layout.normalise();
+
+    let total_leds = config.led_layout.led_count();
+    let leds_per_universe =
+        (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
+    let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
+    let start_universe = config.led_start_universe;
+    let end_universe = start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
+    let layout_stats = format!(
+        "{} LEDs across {} universes (U{}-U{})",
+        total_leds, universe_count, start_universe, end_universe
+    );
+    widget::Text::new(&layout_stats)
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.led_layout_stats_text, ui);
+}
+
+fn set_output_monitor_widgets(
+    ui: &mut UiCell,
+    ids: &mut Ids,
+    config: &Config,
+    sacn_output_monitor: &mut crate::SacnOutputMonitor,
+    sacn_error: Option<&str>,
+    sacn_transport_label: Option<&str>,
+) {
+    widget::Text::new("sACN OUTPUT")
+        .top_left_of(ids.column_2_id)
+        .color(TEXT_COLOR)
+        .set(ids.sacn_output_title_text, ui);
+
+    let status_text = if !config.dmx_on {
+        "DMX output is disabled on the Live tab.".to_string()
+    } else if let Some(error) = sacn_error.or(sacn_output_monitor.last_send_error.as_deref()) {
+        format!(
+            "LED output: {} (Cap {})\nsACN error:\n{}",
+            format_measured_fps(
+                sacn_output_monitor.smoothed_frame_fps,
+                sacn_output_monitor.total_frames_sent
+            ),
+            config.led_output_fps.label(),
+            error
+        )
+    } else if let Some(last_sent_at) = sacn_output_monitor.last_sent_at {
+        format!(
+            "Route: {}\nLED output: {} (Cap {})\nLast send: {:.2}s ago\nFrames sent: {}\nPackets sent: {}\nPayload bytes: {}",
+            sacn_transport_label.unwrap_or("Unknown"),
+            format_measured_fps(
+                sacn_output_monitor.smoothed_frame_fps,
+                sacn_output_monitor.total_frames_sent
+            ),
+            config.led_output_fps.label(),
+            last_sent_at.elapsed().as_secs_f32(),
+            sacn_output_monitor.total_frames_sent,
+            sacn_output_monitor.total_packets_sent,
+            sacn_output_monitor.total_payload_bytes_sent
+        )
+    } else {
+        format!(
+            "LED output: Waiting (Cap {})\nWaiting for the first successful sACN packet.",
+            config.led_output_fps.label()
+        )
+    };
+    widget::Text::new(&status_text)
+        .down(10.0)
+        .w(WIDGET_W)
+        .font_size(11)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.sacn_output_status_text, ui);
+
+    widget::Text::new("Universe View")
+        .down(10.0)
+        .color(TEXT_COLOR)
+        .font_size(12)
+        .set(ids.sacn_output_universe_text, ui);
+
+    let universe_labels = sacn_output_monitor.available_universe_labels();
+    let selected_universe = sacn_output_monitor.selected_universe_index();
+    if !universe_labels.is_empty() {
+        if let Some(selected_idx) = widget::DropDownList::new(&universe_labels, selected_universe)
+            .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+            .down(5.0)
+            .max_visible_items(8)
+            .rgb(0.176, 0.513, 0.639)
+            .label("Last Sent Universe")
+            .label_font_size(14)
+            .label_rgb(1.0, 1.0, 1.0)
+            .scrollbar_on_top()
+            .set(ids.sacn_output_universe_ddl, ui)
+        {
+            let _ = sacn_output_monitor.select_universe(selected_idx);
+        }
+    } else {
+        widget::Rectangle::fill([WIDGET_W, DEFAULT_WIDGET_H])
+            .down(5.0)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.sacn_output_universe_placeholder, ui);
+    }
+
+    widget::Text::new("Channels 1-512 run left to right, top to bottom. Start code omitted.")
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.sacn_output_grid_help_text, ui);
+
+    widget::Rectangle::fill([WIDGET_W, 390.0])
+        .down(5.0)
+        .color(color::rgb(0.05, 0.05, 0.1))
+        .set(ids.sacn_output_grid_bg, ui);
+
+    let selected_snapshot = sacn_output_monitor.selected_universe_snapshot();
+    let data_slots = selected_snapshot
+        .map(|snapshot| snapshot.payload.get(1..).unwrap_or(&[]))
+        .unwrap_or(&[]);
+    draw_sacn_output_grid(ui, ids, data_slots);
+
+    let summary = match selected_snapshot {
+        Some(snapshot) => {
+            let data_slot_count = snapshot.payload.len().saturating_sub(1);
+            let pad_bytes = if data_slot_count == crate::DMX_ADDRS_PER_UNIVERSE as usize {
+                2
+            } else {
+                0
+            };
+            let rgb_pixels = data_slot_count.saturating_sub(pad_bytes) / 3;
+            let non_zero_slots = data_slots.iter().filter(|&&value| value != 0).count();
+            format!(
+                "U{}: {} packets, {} slots, {} RGB pixels, {} non-zero slots{}",
+                snapshot.universe,
+                snapshot.packets_sent,
+                data_slot_count,
+                rgb_pixels,
+                non_zero_slots,
+                if pad_bytes > 0 {
+                    ", 2 pad bytes reserved for RGB alignment"
+                } else {
+                    ""
+                }
+            )
+        }
+        None => "No successful sACN payload captured yet.".to_string(),
+    };
+    widget::Text::new(&summary)
+        .down_from(ids.sacn_output_grid_bg, 5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.sacn_output_grid_summary_text, ui);
+
+    let slot_preview = format_slot_preview(data_slots);
+    widget::Text::new(&slot_preview)
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.sacn_output_slot_preview_text, ui);
+}
+
+fn draw_sacn_output_grid(ui: &mut UiCell, ids: &mut Ids, data_slots: &[u8]) {
+    const GRID_COLS: usize = 16;
+    const GRID_ROWS: usize = 32;
+    const GRID_CELL_GAP: Scalar = 1.0;
+
+    let Some(bg_rect) = ui.rect_of(ids.sacn_output_grid_bg) else {
+        return;
+    };
+
+    let cell_w = (bg_rect.w() - GRID_CELL_GAP * (GRID_COLS as Scalar + 1.0)) / GRID_COLS as Scalar;
+    let cell_h = (bg_rect.h() - GRID_CELL_GAP * (GRID_ROWS as Scalar + 1.0)) / GRID_ROWS as Scalar;
+
+    if ids.sacn_output_grid_cells.len() < GRID_COLS * GRID_ROWS {
+        ids.sacn_output_grid_cells
+            .resize(GRID_COLS * GRID_ROWS, &mut ui.widget_id_generator());
+    }
+    if ids.sacn_output_grid_cell_values.len() < GRID_COLS * GRID_ROWS {
+        ids.sacn_output_grid_cell_values
+            .resize(GRID_COLS * GRID_ROWS, &mut ui.widget_id_generator());
+    }
+
+    let font_size = 7;
+
+    for idx in 0..(GRID_COLS * GRID_ROWS) {
+        let value = data_slots.get(idx).copied().unwrap_or(0);
+        let norm = value as f32 / 255.0;
+        let color = color::rgb(0.08 + norm * 0.82, 0.08 + norm * 0.5, 0.12 + norm * 0.2);
+        let text_color = if norm > 0.55 {
+            color::BLACK
+        } else {
+            color::WHITE
+        };
+        let row = idx / GRID_COLS;
+        let col = idx % GRID_COLS;
+        let x = bg_rect.left()
+            + GRID_CELL_GAP
+            + cell_w * 0.5
+            + col as Scalar * (cell_w + GRID_CELL_GAP);
+        let y =
+            bg_rect.top() - GRID_CELL_GAP - cell_h * 0.5 - row as Scalar * (cell_h + GRID_CELL_GAP);
+
+        widget::Rectangle::fill([cell_w, cell_h])
+            .x_y(x, y)
+            .color(color)
+            .set(ids.sacn_output_grid_cells[idx], ui);
+
+        widget::Text::new(&value.to_string())
+            .x_y(x, y)
+            .w_h(cell_w, cell_h)
+            .font_size(font_size)
+            .color(text_color)
+            .center_justify()
+            .set(ids.sacn_output_grid_cell_values[idx], ui);
+    }
+}
+
+fn format_slot_preview(data_slots: &[u8]) -> String {
+    if data_slots.is_empty() {
+        return "Slots 1-16: waiting for sACN output.".to_string();
+    }
+
+    let first_eight = data_slots
+        .iter()
+        .take(8)
+        .map(|value| format!("{:03}", value))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let second_eight = data_slots
+        .iter()
+        .skip(8)
+        .take(8)
+        .map(|value| format!("{:03}", value))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    format!("Slots 1-8: {}\nSlots 9-16: {}", first_eight, second_eight)
+}
+
+fn format_measured_fps(smoothed_fps: f32, total_frames: u64) -> String {
+    match total_frames {
+        0 => "Waiting".to_string(),
+        1 => "Measuring...".to_string(),
+        _ => format!("{:.1} FPS", smoothed_fps),
+    }
 }
 
 pub fn set_presets_widgets(
@@ -1762,6 +2147,13 @@ fn toggle_color(on: bool) -> ui::Color {
     match on {
         true => color::BLUE,
         false => color::BLACK,
+    }
+}
+
+fn tab_button_color(selected: bool) -> ui::Color {
+    match selected {
+        true => PRESET_LIST_SELECTED_COLOR,
+        false => color::DARK_CHARCOAL,
     }
 }
 

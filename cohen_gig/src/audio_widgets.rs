@@ -5,15 +5,56 @@ use std::collections::VecDeque;
 
 const SCOPE_H: Scalar = 120.0;
 
-pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
+pub fn set_widgets(
+    ui: &mut UiCell,
+    ids: &gui::Ids,
+    audio: &mut AudioInput,
+    preferred_device_name: &mut String,
+    anchor_id: widget::Id,
+) {
     widget::Text::new("AUDIO INPUT")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
+        .down_from(anchor_id, COLUMN_ONE_SECTION_GAP)
+        .align_left_of(ids.column_1_id)
         .color(TEXT_COLOR)
         .font_size(14)
         .set(ids.audio_input_text, ui);
 
-    // --- Waveform scope ---
+    let audio_device_labels = audio.available_device_labels();
+    let selected_audio_device = audio.selected_device_index();
+    if !audio_device_labels.is_empty() {
+        if let Some(selected_idx) =
+            widget::DropDownList::new(&audio_device_labels, selected_audio_device)
+                .w_h(COLUMN_W, gui::DEFAULT_WIDGET_H)
+                .down(5.0)
+                .max_visible_items(8)
+                .rgb(0.176, 0.513, 0.639)
+                .label("Audio Input")
+                .label_font_size(14)
+                .label_rgb(1.0, 1.0, 1.0)
+                .scrollbar_on_top()
+                .set(ids.audio_device_ddl, ui)
+        {
+            if let Some(selected_name) = audio.select_device(selected_idx) {
+                *preferred_device_name = selected_name;
+            }
+        }
+    } else {
+        widget::Rectangle::fill([COLUMN_W, gui::DEFAULT_WIDGET_H])
+            .down(5.0)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.audio_device_placeholder, ui);
+    }
+
+    if let Some(error) = audio.device_error() {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(COLUMN_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.audio_device_error_text, ui);
+    }
+
     widget::Rectangle::fill([COLUMN_W, SCOPE_H])
         .down(5.0)
         .color(color::rgb(0.05, 0.05, 0.1))
@@ -27,7 +68,6 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         &audio.waveform_history,
     );
 
-    // Center and threshold lines
     if let Some(bg) = ui.rect_of(ids.audio_scope_bg) {
         let centre_y = bg.y();
         let thresh_offset = audio.threshold as Scalar * bg.h() * 0.5;
@@ -51,7 +91,6 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         .set(ids.audio_threshold_line_neg, ui);
     }
 
-    // --- Sliders ---
     let gain_multiplier = audio.gain_multiplier();
     let label = format!("Gain: +{:.1} dB ({:.2}x)", audio.gain_db, gain_multiplier);
     if let Some(v) = slider(audio.gain_db, 0.0, MAX_INPUT_GAIN_DB)
@@ -98,7 +137,6 @@ pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
         audio.release = v;
     }
 
-    // --- Envelope scope ---
     widget::Rectangle::fill([COLUMN_W, SCOPE_H])
         .down_from(ids.audio_release_slider, 5.0)
         .color(color::rgb(0.05, 0.05, 0.1))
@@ -182,7 +220,6 @@ fn draw_positive_scope(
     let w = bg_rect.w();
     let h = bg_rect.h();
 
-    // Points in absolute coordinates: bottom of scope = bg bottom, top = bg top.
     let points: Vec<[Scalar; 2]> = history
         .iter()
         .enumerate()
