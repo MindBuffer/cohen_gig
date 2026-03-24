@@ -3,9 +3,11 @@ use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
+use sacn::packet::{E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
+use sacn::source::SacnSource;
 use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::mpsc;
 
@@ -73,8 +75,7 @@ struct ButtonState {
 }
 
 struct Dmx {
-    source: Option<sacn::DmxSource>,
-    buffer: Vec<u8>,
+    source: Option<SacnSource>,
     requested_interface_ip: Option<Ipv4Addr>,
     bind_error: Option<String>,
 }
@@ -149,7 +150,6 @@ fn model(app: &App) -> Model {
 
     let dmx = Dmx {
         source: None,
-        buffer: vec![],
         requested_interface_ip: None,
         bind_error: None,
     };
@@ -240,6 +240,51 @@ fn model(app: &App) -> Model {
 
 fn black_led_buffer(led_count: usize) -> Vec<LinSrgb> {
     vec![lin_srgb(0.0, 0.0, 0.0); led_count]
+}
+
+fn convert_channel(f: f32) -> u8 {
+    (f.clamp(0.0, 1.0) * 255.0) as u8
+}
+
+// Convert the floating point f32 representation to bytes.
+fn lin_srgb_f32_to_bytes(lin_srgb: &LinSrgb) -> [u8; 3] {
+    let r = convert_channel(lin_srgb.red);
+    let g = convert_channel(lin_srgb.green);
+    let b = convert_channel(lin_srgb.blue);
+    [r, g, b]
+}
+
+fn build_led_sacn_payloads(
+    start_universe: u16,
+    rgb_triplets: impl IntoIterator<Item = [u8; 3]>,
+) -> Vec<(u16, Vec<u8>)> {
+    let mut payloads = Vec::new();
+    let mut universe = start_universe;
+    let mut payload = vec![0];
+
+    for rgb in rgb_triplets {
+        payload.extend(rgb);
+
+        // Full universes carry 170 RGB pixels = 510 DMX slots. Reserve the
+        // last 2 slots as zeros so the next RGB triplet always starts on a new
+        // universe boundary instead of being split 2/1 across universes.
+        if payload.len() >= (UNIVERSE_CHANNEL_CAPACITY - 2) {
+            payload.push(0);
+            payload.push(0);
+            payloads.push((universe, payload));
+            universe += 1;
+            payload = vec![0];
+        }
+    }
+
+    // Intentionally do not emit a trailing empty universe when the LED data
+    // lands exactly on a 170-pixel boundary. The old loop did that
+    // accidentally by always sending after draining the last full packet.
+    if payload.len() > 1 {
+        payloads.push((universe, payload));
+    }
+
+    payloads
 }
 
 fn normalised_led_coord(index: usize, count: usize) -> f32 {
@@ -592,61 +637,35 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.dmx.bind_error = None;
     }
 
-    fn convert_channel(f: f32) -> u8 {
-        (f.clamp(0.0, 1.0) * 255.0) as u8
-    }
-
-    // Convert the floating point f32 representation to bytes.
-    fn lin_srgb_f32_to_bytes(lin_srgb: &LinSrgb) -> [u8; 3] {
-        let r = convert_channel(lin_srgb.red);
-        let g = convert_channel(lin_srgb.green);
-        let b = convert_channel(lin_srgb.blue);
-        [r, g, b]
-    }
-
     // If we have a DMX source, send data over it!
-    if let Some(ref dmx_source) = model.dmx.source {
-        // Collect and send LED data.
-        model.dmx.buffer.clear();
-        let mut universe = model.config.led_start_universe;
-        for col in model.led_outputs.iter() {
-            let col = lin_srgb_f32_to_bytes(col);
-            model.dmx.buffer.extend(col.iter().cloned());
-
-            // If we've filled a universe, send it.
-            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
-                // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-                model.dmx.buffer.push(0);
-                model.dmx.buffer.push(0);
-                // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
-                //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-                //     model.dmx.buffer.push(0);
-                //     model.dmx.buffer.push(0);
-
-                let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
-                dmx_source
-                    .send(universe, data)
-                    .expect("failed to send LED DMX data");
-
-                model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
-                universe += 1;
-            }
+    if let Some(ref mut dmx_source) = model.dmx.source {
+        for (universe, payload) in build_led_sacn_payloads(
+            model.config.led_start_universe,
+            model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
+        ) {
+            dmx_source
+                .register_universe(universe)
+                .expect("failed to register LED sACN universe");
+            dmx_source
+                .send(
+                    &[universe],
+                    &payload,
+                    Some(E131_DEFAULT_PRIORITY),
+                    None,
+                    None,
+                )
+                .expect("failed to send LED DMX data");
         }
-
-        dmx_source
-            .send(universe, &model.dmx.buffer)
-            .expect("failed to send LED DMX data");
     }
 }
 
-fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> std::io::Result<sacn::DmxSource> {
-    match interface_ip {
-        Some(interface_ip) => {
-            let interface_ip = interface_ip.to_string();
-            sacn::DmxSource::with_ip("Cohen Pre-vis", &interface_ip)
-        }
-        None => sacn::DmxSource::new("Cohen Pre-vis"),
-    }
+fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> sacn::error::errors::Result<SacnSource> {
+    let bind_ip = interface_ip.unwrap_or(Ipv4Addr::UNSPECIFIED);
+    let bind_addr = SocketAddr::new(IpAddr::V4(bind_ip), 0);
+    let mut source = SacnSource::with_ip("Cohen Pre-vis", bind_addr)?;
+    // Preserve the old sender behaviour: data only, no source discovery chatter.
+    source.set_is_sending_discovery(false);
+    Ok(source)
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {
@@ -790,5 +809,70 @@ fn update_korg_button(
     b_state.state = state;
     if state == korg::State::On {
         b_state.last_pressed = now;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_led_sacn_payloads, UNIVERSE_CHANNEL_CAPACITY};
+
+    fn test_rgb_triplets(count: usize) -> Vec<[u8; 3]> {
+        (0..count)
+            .map(|i| {
+                let base = (i * 3) as u8;
+                [base, base.wrapping_add(1), base.wrapping_add(2)]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn payloads_include_dmx_start_code_at_byte_zero() {
+        let payloads = build_led_sacn_payloads(7, vec![[12, 34, 56]]);
+
+        assert_eq!(payloads, vec![(7, vec![0, 12, 34, 56])]);
+    }
+
+    #[test]
+    fn full_universes_are_padded_with_two_zero_bytes_for_rgb_alignment() {
+        let pixels = test_rgb_triplets(170);
+        let payloads = build_led_sacn_payloads(1, pixels.iter().copied());
+
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0].0, 1);
+        assert_eq!(payloads[0].1.len(), UNIVERSE_CHANNEL_CAPACITY);
+
+        let expected: Vec<u8> = std::iter::once(0)
+            .chain(pixels.iter().flat_map(|rgb| rgb.iter().copied()))
+            .chain([0, 0])
+            .collect();
+        assert_eq!(payloads[0].1, expected);
+    }
+
+    #[test]
+    fn rgb_data_splits_across_multiple_universes_without_splitting_triplets() {
+        let pixels = test_rgb_triplets(171);
+        let payloads = build_led_sacn_payloads(4, pixels.iter().copied());
+
+        assert_eq!(payloads.len(), 2);
+        assert_eq!(payloads[0].0, 4);
+        assert_eq!(payloads[1].0, 5);
+        assert_eq!(payloads[0].1.len(), UNIVERSE_CHANNEL_CAPACITY);
+        assert_eq!(payloads[0].1[UNIVERSE_CHANNEL_CAPACITY - 2..], [0, 0]);
+        assert_eq!(
+            payloads[1].1,
+            vec![0, pixels[170][0], pixels[170][1], pixels[170][2]]
+        );
+    }
+
+    #[test]
+    fn exact_universe_boundaries_do_not_emit_a_trailing_empty_universe() {
+        let pixels = test_rgb_triplets(340);
+        let payloads = build_led_sacn_payloads(9, pixels.iter().copied());
+
+        assert_eq!(payloads.len(), 2);
+        assert_eq!(payloads[0].0, 9);
+        assert_eq!(payloads[1].0, 10);
+        assert!(payloads.iter().all(|(_, payload)| !payload.is_empty()));
+        assert!(payloads.iter().all(|(_, payload)| payload.len() > 1));
     }
 }
