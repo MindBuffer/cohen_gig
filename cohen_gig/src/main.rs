@@ -3,9 +3,11 @@ use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
+use sacn::packet::{E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
+use sacn::source::SacnSource;
 use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::mpsc;
 
@@ -73,7 +75,7 @@ struct ButtonState {
 }
 
 struct Dmx {
-    source: Option<sacn::DmxSource>,
+    source: Option<SacnSource>,
     buffer: Vec<u8>,
     requested_interface_ip: Option<Ipv4Addr>,
     bind_error: Option<String>,
@@ -605,48 +607,64 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // If we have a DMX source, send data over it!
-    if let Some(ref dmx_source) = model.dmx.source {
+    if let Some(ref mut dmx_source) = model.dmx.source {
         // Collect and send LED data.
         model.dmx.buffer.clear();
+        model.dmx.buffer.push(0);
         let mut universe = model.config.led_start_universe;
         for col in model.led_outputs.iter() {
             let col = lin_srgb_f32_to_bytes(col);
             model.dmx.buffer.extend(col.iter().cloned());
 
             // If we've filled a universe, send it.
-            if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize - 2) {
+            if model.dmx.buffer.len() >= (UNIVERSE_CHANNEL_CAPACITY - 2) {
                 // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
                 model.dmx.buffer.push(0);
                 model.dmx.buffer.push(0);
-                // if model.dmx.buffer.len() >= (DMX_ADDRS_PER_UNIVERSE as usize) {
-                //     // We need to pack in 2 empty bytes so colour values aren't spilit over universes!
-                //     model.dmx.buffer.push(0);
-                //     model.dmx.buffer.push(0);
 
-                let data = &model.dmx.buffer[..DMX_ADDRS_PER_UNIVERSE as usize];
                 dmx_source
-                    .send(universe, data)
+                    .register_universe(universe)
+                    .expect("failed to register LED sACN universe");
+                dmx_source
+                    .send(
+                        &[universe],
+                        &model.dmx.buffer,
+                        Some(E131_DEFAULT_PRIORITY),
+                        None,
+                        None,
+                    )
                     .expect("failed to send LED DMX data");
 
-                model.dmx.buffer.drain(..DMX_ADDRS_PER_UNIVERSE as usize);
+                model.dmx.buffer.clear();
+                model.dmx.buffer.push(0);
                 universe += 1;
             }
         }
 
-        dmx_source
-            .send(universe, &model.dmx.buffer)
-            .expect("failed to send LED DMX data");
+        if model.dmx.buffer.len() > 1 {
+            dmx_source
+                .register_universe(universe)
+                .expect("failed to register LED sACN universe");
+            dmx_source
+                .send(
+                    &[universe],
+                    &model.dmx.buffer,
+                    Some(E131_DEFAULT_PRIORITY),
+                    None,
+                    None,
+                )
+                .expect("failed to send LED DMX data");
+        }
     }
 }
 
-fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> std::io::Result<sacn::DmxSource> {
-    match interface_ip {
-        Some(interface_ip) => {
-            let interface_ip = interface_ip.to_string();
-            sacn::DmxSource::with_ip("Cohen Pre-vis", &interface_ip)
-        }
-        None => sacn::DmxSource::new("Cohen Pre-vis"),
-    }
+fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> sacn::error::errors::Result<SacnSource> {
+    let bind_ip = interface_ip.unwrap_or(Ipv4Addr::UNSPECIFIED);
+    let bind_addr = SocketAddr::new(IpAddr::V4(bind_ip), 0);
+    let mut source = SacnSource::with_ip("Cohen Pre-vis", bind_addr)?;
+    // Preserve the old sender behaviour: data only, no source discovery chatter.
+    source.set_is_sending_discovery(false);
+    Ok(source)
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {
