@@ -5,13 +5,55 @@ use std::collections::VecDeque;
 
 const SCOPE_H: Scalar = 120.0;
 
-pub fn set_widgets(ui: &mut UiCell, ids: &gui::Ids, audio: &mut AudioInput) {
+pub fn set_widgets(
+    ui: &mut UiCell,
+    ids: &gui::Ids,
+    audio: &mut AudioInput,
+    preferred_device_name: &mut String,
+    anchor_id: widget::Id,
+) {
     widget::Text::new("AUDIO INPUT")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
+        .down_from(anchor_id, COLUMN_ONE_SECTION_GAP)
+        .align_left_of(ids.column_1_id)
         .color(TEXT_COLOR)
         .font_size(14)
         .set(ids.audio_input_text, ui);
+
+    let audio_device_labels = audio.available_device_labels();
+    let selected_audio_device = audio.selected_device_index();
+    if !audio_device_labels.is_empty() {
+        if let Some(selected_idx) =
+            widget::DropDownList::new(&audio_device_labels, selected_audio_device)
+                .w_h(COLUMN_W, gui::DEFAULT_WIDGET_H)
+                .down(5.0)
+                .max_visible_items(8)
+                .rgb(0.176, 0.513, 0.639)
+                .label("Audio Input")
+                .label_font_size(14)
+                .label_rgb(1.0, 1.0, 1.0)
+                .scrollbar_on_top()
+                .set(ids.audio_device_ddl, ui)
+        {
+            if let Some(selected_name) = audio.select_device(selected_idx) {
+                *preferred_device_name = selected_name;
+            }
+        }
+    } else {
+        widget::Rectangle::fill([COLUMN_W, gui::DEFAULT_WIDGET_H])
+            .down(5.0)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.audio_device_placeholder, ui);
+    }
+
+    if let Some(error) = audio.device_error() {
+        widget::Text::new(error)
+            .down(5.0)
+            .w(COLUMN_W)
+            .font_size(10)
+            .color(color::LIGHT_RED)
+            .left_justify()
+            .set(ids.audio_device_error_text, ui);
+    }
 
     // --- Waveform scope ---
     widget::Rectangle::fill([COLUMN_W, SCOPE_H])

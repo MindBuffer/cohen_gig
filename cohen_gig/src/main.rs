@@ -3,13 +3,14 @@ use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
 use nannou_conrod::Ui;
-use sacn::packet::{E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
+use sacn::packet::{ACN_SDT_MULTICAST_PORT, E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
 use sacn::source::SacnSource;
 use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::mpsc;
+use std::time::Instant;
 
 mod audio_input;
 mod audio_widgets;
@@ -19,6 +20,7 @@ pub mod knob;
 mod layout;
 mod lerp;
 pub mod mod_slider;
+mod sacn_sender;
 mod shader;
 
 use crate::conf::Config;
@@ -63,6 +65,7 @@ struct Model {
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
+    left_panel_tab: gui::LeftPanelTab,
     audio_input: audio_input::AudioInput,
     midi_cv_phase_amp: f32,
 }
@@ -75,9 +78,168 @@ struct ButtonState {
 }
 
 struct Dmx {
-    source: Option<SacnSource>,
+    source: Option<DmxOutputTransport>,
     requested_interface_ip: Option<Ipv4Addr>,
-    bind_error: Option<String>,
+    error: Option<String>,
+    last_send_route: Option<DmxSendRoute>,
+    monitor: SacnOutputMonitor,
+}
+
+enum DmxOutputTransport {
+    Network(SacnSource),
+    Localhost(sacn_sender::LocalhostSacnSender),
+    Auto {
+        multicast: Option<SacnSource>,
+        localhost: sacn_sender::LocalhostSacnSender,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DmxSendRoute {
+    Multicast,
+    Localhost,
+}
+
+impl DmxOutputTransport {
+    fn send(&mut self, universe: u16, payload: &[u8]) -> Result<DmxSendRoute, String> {
+        match self {
+            Self::Network(source) => send_multicast_payload(source, universe, payload),
+            Self::Localhost(sender) => sender
+                .send_property_values(universe, payload)
+                .map(|()| DmxSendRoute::Localhost)
+                .map_err(|err| {
+                    format!(
+                        "Couldn't send localhost sACN universe {}: {}",
+                        universe, err
+                    )
+                }),
+            Self::Auto {
+                multicast,
+                localhost,
+            } => {
+                if let Some(source) = multicast.as_mut() {
+                    match send_multicast_payload(source, universe, payload) {
+                        Ok(route) => return Ok(route),
+                        Err(_) => {
+                            *multicast = None;
+                        }
+                    }
+                }
+
+                localhost
+                    .send_property_values(universe, payload)
+                    .map(|()| DmxSendRoute::Localhost)
+                    .map_err(|err| {
+                        format!(
+                            "Couldn't send localhost sACN universe {}: {}",
+                            universe, err
+                        )
+                    })
+            }
+        }
+    }
+}
+
+pub struct SacnUniverseSnapshot {
+    pub universe: u16,
+    pub payload: Vec<u8>,
+    pub packets_sent: u64,
+    pub last_sent_at: Option<Instant>,
+}
+
+#[derive(Default)]
+pub struct SacnOutputMonitor {
+    pub universes: Vec<SacnUniverseSnapshot>,
+    pub selected_universe: Option<u16>,
+    pub total_packets_sent: u64,
+    pub total_payload_bytes_sent: u64,
+    pub last_sent_at: Option<Instant>,
+    pub last_send_error: Option<String>,
+}
+
+impl SacnOutputMonitor {
+    pub fn available_universe_labels(&self) -> Vec<String> {
+        self.universes
+            .iter()
+            .map(|snapshot| format!("Universe {}", snapshot.universe))
+            .collect()
+    }
+
+    pub fn selected_universe_index(&self) -> Option<usize> {
+        let selected_universe = self.selected_universe?;
+        self.universes
+            .iter()
+            .position(|snapshot| snapshot.universe == selected_universe)
+    }
+
+    pub fn select_universe(&mut self, index: usize) -> Option<u16> {
+        let universe = self.universes.get(index)?.universe;
+        self.selected_universe = Some(universe);
+        Some(universe)
+    }
+
+    pub fn selected_universe_snapshot(&self) -> Option<&SacnUniverseSnapshot> {
+        let selected_universe = self.selected_universe?;
+        self.universes
+            .iter()
+            .find(|snapshot| snapshot.universe == selected_universe)
+    }
+
+    fn record_successful_frame(&mut self, payloads: &[(u16, Vec<u8>)]) {
+        let now = Instant::now();
+
+        self.total_packets_sent += payloads.len() as u64;
+        self.total_payload_bytes_sent += payloads
+            .iter()
+            .map(|(_, payload)| payload.len() as u64)
+            .sum::<u64>();
+        self.last_sent_at = Some(now);
+        self.last_send_error = None;
+
+        self.universes.retain(|snapshot| {
+            payloads
+                .iter()
+                .any(|(universe, _)| *universe == snapshot.universe)
+        });
+
+        for (universe, payload) in payloads {
+            if let Some(snapshot) = self
+                .universes
+                .iter_mut()
+                .find(|snapshot| snapshot.universe == *universe)
+            {
+                snapshot.payload = payload.clone();
+                snapshot.packets_sent += 1;
+                snapshot.last_sent_at = Some(now);
+            } else {
+                self.universes.push(SacnUniverseSnapshot {
+                    universe: *universe,
+                    payload: payload.clone(),
+                    packets_sent: 1,
+                    last_sent_at: Some(now),
+                });
+            }
+        }
+
+        self.universes
+            .sort_by(|left, right| left.universe.cmp(&right.universe));
+
+        if !self
+            .selected_universe
+            .map(|selected| {
+                self.universes
+                    .iter()
+                    .any(|snapshot| snapshot.universe == selected)
+            })
+            .unwrap_or(false)
+        {
+            self.selected_universe = self.universes.first().map(|snapshot| snapshot.universe);
+        }
+    }
+
+    fn record_send_error(&mut self, error: String) {
+        self.last_send_error = Some(error);
+    }
 }
 
 // The known state of the Korg at any point in time.
@@ -151,7 +313,9 @@ fn model(app: &App) -> Model {
     let dmx = Dmx {
         source: None,
         requested_interface_ip: None,
-        bind_error: None,
+        error: None,
+        last_send_route: None,
+        monitor: SacnOutputMonitor::default(),
     };
 
     let shader = None;
@@ -233,6 +397,7 @@ fn model(app: &App) -> Model {
         last_preset_change,
         ui,
         ids,
+        left_panel_tab: gui::LeftPanelTab::Live,
         audio_input,
         midi_cv_phase_amp: 0.0,
     }
@@ -326,7 +491,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         gui::UpdateContext {
             config: &mut model.config,
             audio_input: &mut model.audio_input,
-            dmx_bind_error: model.dmx.bind_error.as_deref(),
+            left_panel_tab: &mut model.left_panel_tab,
+            sacn_output_monitor: &mut model.dmx.monitor,
+            sacn_error: model.dmx.error.as_deref(),
+            sacn_transport_label: model.dmx.last_send_route.map(dmx_send_route_label),
             since_start: update.since_start,
             shader_activity: model.shader_rx.activity(),
             led_colors: model.led_colors.as_slice(),
@@ -616,56 +784,131 @@ fn update(app: &App, model: &mut Model, update: Update) {
                     Ok(source) => {
                         model.dmx.source = Some(source);
                         model.dmx.requested_interface_ip = desired_interface_ip;
-                        model.dmx.bind_error = None;
+                        model.dmx.error = None;
+                        model.dmx.last_send_route = None;
                     }
                     Err(err) => {
                         model.dmx.requested_interface_ip = desired_interface_ip;
-                        model.dmx.bind_error = Some(match desired_interface_ip {
+                        let error = match desired_interface_ip {
                             Some(ip) => format!("Couldn't bind sACN to {}: {}", ip, err),
                             None => format!("Couldn't auto-bind sACN: {}", err),
-                        });
+                        };
+                        model.dmx.monitor.record_send_error(error.clone());
+                        model.dmx.error = Some(error);
+                        model.dmx.last_send_route = None;
                     }
                 }
             }
         } else {
             model.dmx.requested_interface_ip = None;
-            model.dmx.bind_error = None;
+            model.dmx.error = None;
+            model.dmx.last_send_route = None;
         }
     } else if model.dmx.source.is_some() {
         model.dmx.source.take();
         model.dmx.requested_interface_ip = None;
-        model.dmx.bind_error = None;
+        model.dmx.error = None;
+        model.dmx.last_send_route = None;
     }
 
     // If we have a DMX source, send data over it!
+    let mut disconnect_source = false;
     if let Some(ref mut dmx_source) = model.dmx.source {
-        for (universe, payload) in build_led_sacn_payloads(
+        let payloads = build_led_sacn_payloads(
             model.config.led_start_universe,
             model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
-        ) {
-            dmx_source
-                .register_universe(universe)
-                .expect("failed to register LED sACN universe");
-            dmx_source
-                .send(
-                    &[universe],
-                    &payload,
-                    Some(E131_DEFAULT_PRIORITY),
-                    None,
-                    None,
-                )
-                .expect("failed to send LED DMX data");
+        );
+        let mut sent_payloads = Vec::with_capacity(payloads.len());
+        let mut last_send_route = None;
+        let mut send_error = None;
+
+        for (universe, payload) in payloads {
+            match dmx_source.send(universe, &payload) {
+                Ok(route) => {
+                    last_send_route = Some(route);
+                    sent_payloads.push((universe, payload));
+                }
+                Err(error) => {
+                    send_error = Some(error);
+                    disconnect_source = true;
+                    break;
+                }
+            }
+        }
+
+        if !sent_payloads.is_empty() {
+            model.dmx.monitor.record_successful_frame(&sent_payloads);
+        }
+
+        if let Some(error) = send_error {
+            model.dmx.monitor.record_send_error(error.clone());
+            model.dmx.error = Some(error);
+            model.dmx.last_send_route = None;
+        } else if !sent_payloads.is_empty() {
+            model.dmx.error = None;
+            model.dmx.last_send_route = last_send_route;
+        }
+    }
+
+    if disconnect_source {
+        model.dmx.source.take();
+        model.dmx.last_send_route = None;
+    }
+}
+
+fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> Result<DmxOutputTransport, String> {
+    match interface_ip {
+        Some(ip) if ip.is_loopback() => sacn_sender::LocalhostSacnSender::new("Cohen Pre-vis")
+            .map(DmxOutputTransport::Localhost)
+            .map_err(|err| format!("Couldn't create localhost sACN sender: {}", err)),
+        Some(ip) => create_multicast_dmx_source(ip)
+            .map(DmxOutputTransport::Network)
+            .map_err(|err| err.to_string()),
+        None => {
+            let localhost = sacn_sender::LocalhostSacnSender::new("Cohen Pre-vis")
+                .map_err(|err| format!("Couldn't create localhost sACN sender: {}", err))?;
+            let multicast = create_multicast_dmx_source(Ipv4Addr::UNSPECIFIED).ok();
+            Ok(DmxOutputTransport::Auto {
+                multicast,
+                localhost,
+            })
         }
     }
 }
 
-fn create_dmx_source(interface_ip: Option<Ipv4Addr>) -> sacn::error::errors::Result<SacnSource> {
-    let bind_ip = interface_ip.unwrap_or(Ipv4Addr::UNSPECIFIED);
-    let bind_addr = SocketAddr::new(IpAddr::V4(bind_ip), 0);
+fn create_multicast_dmx_source(interface_ip: Ipv4Addr) -> sacn::error::errors::Result<SacnSource> {
+    let bind_addr = SocketAddr::new(IpAddr::V4(interface_ip), ACN_SDT_MULTICAST_PORT + 1);
     let mut source = SacnSource::with_ip("Cohen Pre-vis", bind_addr)?;
     // Preserve the old sender behaviour: data only, no source discovery chatter.
     source.set_is_sending_discovery(false);
     Ok(source)
+}
+
+fn send_multicast_payload(
+    source: &mut SacnSource,
+    universe: u16,
+    payload: &[u8],
+) -> Result<DmxSendRoute, String> {
+    source
+        .register_universe(universe)
+        .map_err(|err| format!("Couldn't register sACN universe {}: {}", universe, err))?;
+    source
+        .send(
+            &[universe],
+            payload,
+            Some(E131_DEFAULT_PRIORITY),
+            None,
+            None,
+        )
+        .map(|()| DmxSendRoute::Multicast)
+        .map_err(|err| format!("Couldn't send sACN universe {}: {}", universe, err))
+}
+
+fn dmx_send_route_label(route: DmxSendRoute) -> &'static str {
+    match route {
+        DmxSendRoute::Multicast => "Network multicast",
+        DmxSendRoute::Localhost => "Localhost preview",
+    }
 }
 
 fn gui_view(app: &App, model: &Model, frame: Frame) {
