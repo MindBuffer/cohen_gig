@@ -42,6 +42,9 @@ widget_ids! {
         output_tab_button,
         dmx_button,
         midi_button,
+        output_fps_text,
+        output_fps_ddl,
+        output_fps_status_text,
         audio_device_ddl,
         audio_device_placeholder,
         audio_device_error_text,
@@ -1185,7 +1188,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
         }
         LeftPanelTab::Output => {
-            set_output_sidebar_widgets(ui, ids, config, sacn_error);
+            set_output_sidebar_widgets(ui, ids, config, sacn_error, sacn_output_monitor);
             set_output_monitor_widgets(
                 ui,
                 ids,
@@ -1442,10 +1445,58 @@ fn set_output_sidebar_widgets(
     ids: &Ids,
     config: &mut Config,
     sacn_error: Option<&str>,
+    sacn_output_monitor: &crate::SacnOutputMonitor,
 ) {
-    text("sACN Interface IP")
+    text("LED Output FPS")
         .mid_left_of(ids.column_1_id)
         .down_from(ids.live_tab_button, PAD * 0.5)
+        .set(ids.output_fps_text, ui);
+
+    let output_fps_labels: Vec<_> = crate::conf::LedOutputFps::ALL
+        .iter()
+        .map(|mode| mode.label())
+        .collect();
+    let selected_output_fps = Some(config.led_output_fps.to_index());
+    if let Some(selected_idx) = widget::DropDownList::new(&output_fps_labels, selected_output_fps)
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .down(5.0)
+        .max_visible_items(output_fps_labels.len())
+        .rgb(0.176, 0.513, 0.639)
+        .label("LED Output")
+        .label_font_size(14)
+        .label_rgb(1.0, 1.0, 1.0)
+        .scrollbar_on_top()
+        .set(ids.output_fps_ddl, ui)
+    {
+        if let Some(output_fps) = crate::conf::LedOutputFps::from_index(selected_idx) {
+            config.led_output_fps = output_fps;
+        }
+    }
+
+    let measured_output_fps = if config.dmx_on {
+        format_measured_fps(
+            sacn_output_monitor.smoothed_frame_fps,
+            sacn_output_monitor.total_frames_sent,
+        )
+    } else {
+        "Disabled".to_string()
+    };
+    let output_fps_status = format!(
+        "LED Output: {} (Cap {})",
+        measured_output_fps,
+        config.led_output_fps.label()
+    );
+    widget::Text::new(&output_fps_status)
+        .down(5.0)
+        .w(WIDGET_W)
+        .font_size(10)
+        .color(TEXT_COLOR)
+        .left_justify()
+        .set(ids.output_fps_status_text, ui);
+
+    text("sACN Interface IP")
+        .mid_left_of(ids.column_1_id)
+        .down_from(ids.output_fps_status_text, COLUMN_ONE_SECTION_GAP)
         .set(ids.sacn_interface_ip_text, ui);
 
     widget::Text::new(
@@ -1612,17 +1663,34 @@ fn set_output_monitor_widgets(
     let status_text = if !config.dmx_on {
         "DMX output is disabled on the Live tab.".to_string()
     } else if let Some(error) = sacn_error.or(sacn_output_monitor.last_send_error.as_deref()) {
-        format!("sACN error:\n{}", error)
+        format!(
+            "LED output: {} (Cap {})\nsACN error:\n{}",
+            format_measured_fps(
+                sacn_output_monitor.smoothed_frame_fps,
+                sacn_output_monitor.total_frames_sent
+            ),
+            config.led_output_fps.label(),
+            error
+        )
     } else if let Some(last_sent_at) = sacn_output_monitor.last_sent_at {
         format!(
-            "Route: {}\nLast send: {:.2}s ago\nPackets sent: {}\nPayload bytes: {}",
+            "Route: {}\nLED output: {} (Cap {})\nLast send: {:.2}s ago\nFrames sent: {}\nPackets sent: {}\nPayload bytes: {}",
             sacn_transport_label.unwrap_or("Unknown"),
+            format_measured_fps(
+                sacn_output_monitor.smoothed_frame_fps,
+                sacn_output_monitor.total_frames_sent
+            ),
+            config.led_output_fps.label(),
             last_sent_at.elapsed().as_secs_f32(),
+            sacn_output_monitor.total_frames_sent,
             sacn_output_monitor.total_packets_sent,
             sacn_output_monitor.total_payload_bytes_sent
         )
     } else {
-        "Waiting for the first successful sACN packet.".to_string()
+        format!(
+            "LED output: Waiting (Cap {})\nWaiting for the first successful sACN packet.",
+            config.led_output_fps.label()
+        )
     };
     widget::Text::new(&status_text)
         .down(10.0)
@@ -1800,6 +1868,14 @@ fn format_slot_preview(data_slots: &[u8]) -> String {
         .join(" ");
 
     format!("Slots 1-8: {}\nSlots 9-16: {}", first_eight, second_eight)
+}
+
+fn format_measured_fps(smoothed_fps: f32, total_frames: u64) -> String {
+    match total_frames {
+        0 => "Waiting".to_string(),
+        1 => "Measuring...".to_string(),
+        _ => format!("{:.1} FPS", smoothed_fps),
+    }
 }
 
 pub fn set_presets_widgets(

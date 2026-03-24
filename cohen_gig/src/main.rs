@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 mod audio_input;
 mod audio_widgets;
@@ -67,6 +67,7 @@ struct Model {
     ids: gui::Ids,
     left_panel_tab: gui::LeftPanelTab,
     audio_input: audio_input::AudioInput,
+    runtime_stats: RuntimeStats,
     midi_cv_phase_amp: f32,
 }
 
@@ -82,7 +83,12 @@ struct Dmx {
     requested_interface_ip: Option<Ipv4Addr>,
     error: Option<String>,
     last_send_route: Option<DmxSendRoute>,
+    last_send_attempt_at: Option<Instant>,
     monitor: SacnOutputMonitor,
+}
+
+struct RuntimeStats {
+    app_fps: f32,
 }
 
 enum DmxOutputTransport {
@@ -151,8 +157,10 @@ pub struct SacnUniverseSnapshot {
 pub struct SacnOutputMonitor {
     pub universes: Vec<SacnUniverseSnapshot>,
     pub selected_universe: Option<u16>,
+    pub total_frames_sent: u64,
     pub total_packets_sent: u64,
     pub total_payload_bytes_sent: u64,
+    pub smoothed_frame_fps: f32,
     pub last_sent_at: Option<Instant>,
     pub last_send_error: Option<String>,
 }
@@ -187,7 +195,13 @@ impl SacnOutputMonitor {
 
     fn record_successful_frame(&mut self, payloads: &[(u16, Vec<u8>)]) {
         let now = Instant::now();
+        if let Some(previous_frame_at) = self.last_sent_at {
+            if let Some(sample) = fps_from_duration(now.duration_since(previous_frame_at)) {
+                self.smoothed_frame_fps = smooth_fps(self.smoothed_frame_fps, sample);
+            }
+        }
 
+        self.total_frames_sent += 1;
         self.total_packets_sent += payloads.len() as u64;
         self.total_payload_bytes_sent += payloads
             .iter()
@@ -239,6 +253,14 @@ impl SacnOutputMonitor {
 
     fn record_send_error(&mut self, error: String) {
         self.last_send_error = Some(error);
+    }
+}
+
+impl RuntimeStats {
+    fn record_app_frame(&mut self, since_last: Duration) {
+        if let Some(sample) = fps_from_duration(since_last) {
+            self.app_fps = smooth_fps(self.app_fps, sample);
+        }
     }
 }
 
@@ -315,6 +337,7 @@ fn model(app: &App) -> Model {
         requested_interface_ip: None,
         error: None,
         last_send_route: None,
+        last_send_attempt_at: None,
         monitor: SacnOutputMonitor::default(),
     };
 
@@ -399,6 +422,7 @@ fn model(app: &App) -> Model {
         ids,
         left_panel_tab: gui::LeftPanelTab::Live,
         audio_input,
+        runtime_stats: RuntimeStats { app_fps: 0.0 },
         midi_cv_phase_amp: 0.0,
     }
 }
@@ -482,6 +506,7 @@ fn key_pressed(_app: &App, model: &mut Model, key: Key) {
 
 fn update(app: &App, model: &mut Model, update: Update) {
     model.audio_input.update();
+    model.runtime_stats.record_app_frame(update.since_last);
 
     // Apply the GUI update.
     let mut ui = model.ui.set_widgets();
@@ -504,6 +529,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         },
     );
     drop(ui);
+    update_gui_window_title(app, model);
     model.config.led_layout.normalise();
     sync_led_buffers(model);
 
@@ -786,6 +812,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                         model.dmx.requested_interface_ip = desired_interface_ip;
                         model.dmx.error = None;
                         model.dmx.last_send_route = None;
+                        model.dmx.last_send_attempt_at = None;
                     }
                     Err(err) => {
                         model.dmx.requested_interface_ip = desired_interface_ip;
@@ -796,6 +823,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                         model.dmx.monitor.record_send_error(error.clone());
                         model.dmx.error = Some(error);
                         model.dmx.last_send_route = None;
+                        model.dmx.last_send_attempt_at = None;
                     }
                 }
             }
@@ -803,56 +831,86 @@ fn update(app: &App, model: &mut Model, update: Update) {
             model.dmx.requested_interface_ip = None;
             model.dmx.error = None;
             model.dmx.last_send_route = None;
+            model.dmx.last_send_attempt_at = None;
         }
     } else if model.dmx.source.is_some() {
         model.dmx.source.take();
         model.dmx.requested_interface_ip = None;
         model.dmx.error = None;
         model.dmx.last_send_route = None;
+        model.dmx.last_send_attempt_at = None;
     }
 
     // If we have a DMX source, send data over it!
+    let now = Instant::now();
+    let should_send_output = should_send_led_output(
+        model.config.led_output_fps,
+        model.dmx.last_send_attempt_at,
+        now,
+    );
     let mut disconnect_source = false;
-    if let Some(ref mut dmx_source) = model.dmx.source {
-        let payloads = build_led_sacn_payloads(
-            model.config.led_start_universe,
-            model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
-        );
-        let mut sent_payloads = Vec::with_capacity(payloads.len());
-        let mut last_send_route = None;
-        let mut send_error = None;
+    if should_send_output {
+        model.dmx.last_send_attempt_at = Some(now);
+    }
+    if should_send_output {
+        if let Some(ref mut dmx_source) = model.dmx.source {
+            let payloads = build_led_sacn_payloads(
+                model.config.led_start_universe,
+                model.led_outputs.iter().map(lin_srgb_f32_to_bytes),
+            );
+            let mut sent_payloads = Vec::with_capacity(payloads.len());
+            let mut last_send_route = None;
+            let mut send_error = None;
 
-        for (universe, payload) in payloads {
-            match dmx_source.send(universe, &payload) {
-                Ok(route) => {
-                    last_send_route = Some(route);
-                    sent_payloads.push((universe, payload));
-                }
-                Err(error) => {
-                    send_error = Some(error);
-                    disconnect_source = true;
-                    break;
+            for (universe, payload) in payloads {
+                match dmx_source.send(universe, &payload) {
+                    Ok(route) => {
+                        last_send_route = Some(route);
+                        sent_payloads.push((universe, payload));
+                    }
+                    Err(error) => {
+                        send_error = Some(error);
+                        disconnect_source = true;
+                        break;
+                    }
                 }
             }
-        }
 
-        if !sent_payloads.is_empty() {
-            model.dmx.monitor.record_successful_frame(&sent_payloads);
-        }
+            if !sent_payloads.is_empty() {
+                model.dmx.monitor.record_successful_frame(&sent_payloads);
+            }
 
-        if let Some(error) = send_error {
-            model.dmx.monitor.record_send_error(error.clone());
-            model.dmx.error = Some(error);
-            model.dmx.last_send_route = None;
-        } else if !sent_payloads.is_empty() {
-            model.dmx.error = None;
-            model.dmx.last_send_route = last_send_route;
+            if let Some(error) = send_error {
+                model.dmx.monitor.record_send_error(error.clone());
+                model.dmx.error = Some(error);
+                model.dmx.last_send_route = None;
+            } else if !sent_payloads.is_empty() {
+                model.dmx.error = None;
+                model.dmx.last_send_route = last_send_route;
+            }
         }
     }
 
     if disconnect_source {
         model.dmx.source.take();
         model.dmx.last_send_route = None;
+        model.dmx.last_send_attempt_at = None;
+    }
+}
+
+fn should_send_led_output(
+    output_fps_mode: conf::LedOutputFps,
+    last_send_attempt_at: Option<Instant>,
+    now: Instant,
+) -> bool {
+    match output_fps_mode.fps_limit() {
+        None => true,
+        Some(fps_limit) => {
+            let min_interval = Duration::from_secs_f64(1.0 / fps_limit as f64);
+            last_send_attempt_at
+                .map(|last_send_at| now.duration_since(last_send_at) >= min_interval)
+                .unwrap_or(true)
+        }
     }
 }
 
@@ -908,6 +966,35 @@ fn dmx_send_route_label(route: DmxSendRoute) -> &'static str {
     match route {
         DmxSendRoute::Multicast => "Network multicast",
         DmxSendRoute::Localhost => "Localhost preview",
+    }
+}
+
+fn update_gui_window_title(app: &App, model: &Model) {
+    let title = if model.runtime_stats.app_fps > 0.0 {
+        format!("COHEN GIG - GUI - {:.1} FPS", model.runtime_stats.app_fps)
+    } else {
+        "COHEN GIG - GUI".to_string()
+    };
+    if let Some(window) = app.window(model._gui_window) {
+        window.set_title(&title);
+    }
+}
+
+fn fps_from_duration(duration: Duration) -> Option<f32> {
+    let secs = duration.as_secs_f32();
+    if secs <= 0.0 {
+        return None;
+    }
+    let fps = 1.0 / secs;
+    fps.is_finite().then_some(fps)
+}
+
+fn smooth_fps(current: f32, sample: f32) -> f32 {
+    const FPS_SMOOTHING_FACTOR: f32 = 0.2;
+    if current > 0.0 {
+        current + (sample - current) * FPS_SMOOTHING_FACTOR
+    } else {
+        sample
     }
 }
 
@@ -1057,7 +1144,9 @@ fn update_korg_button(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_led_sacn_payloads, UNIVERSE_CHANNEL_CAPACITY};
+    use super::{build_led_sacn_payloads, should_send_led_output, UNIVERSE_CHANNEL_CAPACITY};
+    use crate::conf::LedOutputFps;
+    use std::time::{Duration, Instant};
 
     fn test_rgb_triplets(count: usize) -> Vec<[u8; 3]> {
         (0..count)
@@ -1117,5 +1206,31 @@ mod tests {
         assert_eq!(payloads[1].0, 10);
         assert!(payloads.iter().all(|(_, payload)| !payload.is_empty()));
         assert!(payloads.iter().all(|(_, payload)| payload.len() > 1));
+    }
+
+    #[test]
+    fn free_output_mode_never_throttles() {
+        let now = Instant::now();
+
+        assert!(should_send_led_output(LedOutputFps::Free, None, now));
+        assert!(should_send_led_output(LedOutputFps::Free, Some(now), now));
+    }
+
+    #[test]
+    fn capped_output_mode_waits_for_the_selected_interval() {
+        let now = Instant::now();
+        let too_soon = now.checked_sub(Duration::from_millis(10)).unwrap();
+        let ready = now.checked_sub(Duration::from_millis(13)).unwrap();
+
+        assert!(!should_send_led_output(
+            LedOutputFps::Fps80,
+            Some(too_soon),
+            now
+        ));
+        assert!(should_send_led_output(
+            LedOutputFps::Fps80,
+            Some(ready),
+            now
+        ));
     }
 }

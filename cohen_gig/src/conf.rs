@@ -28,6 +28,8 @@ pub struct Config {
     #[serde(default = "default::sacn_interface_ip")]
     pub sacn_interface_ip: String,
     #[serde(default)]
+    pub led_output_fps: LedOutputFps,
+    #[serde(default)]
     pub led_layout: LedLayout,
     #[serde(default)]
     pub presets: Presets,
@@ -82,6 +84,17 @@ pub struct FadeToBlack {
     pub led: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LedOutputFps {
+    Free,
+    Fps90,
+    Fps80,
+    Fps70,
+    Fps60,
+    Fps50,
+    Fps40,
+}
+
 /// The path to the configuration file.
 pub fn path(assets: &Path) -> PathBuf {
     assets.join("config.json")
@@ -108,6 +121,7 @@ impl Default for Config {
             led_start_universe: default::led_start_universe(),
             fade_to_black: Default::default(),
             sacn_interface_ip: default::sacn_interface_ip(),
+            led_output_fps: Default::default(),
             led_layout: Default::default(),
             presets: Default::default(),
             preset_lerp_secs: Default::default(),
@@ -136,6 +150,59 @@ impl Default for FadeToBlack {
         FadeToBlack {
             led: default::fade_to_black::led(),
         }
+    }
+}
+
+impl Default for LedOutputFps {
+    fn default() -> Self {
+        Self::Free
+    }
+}
+
+impl LedOutputFps {
+    pub const ALL: [Self; 7] = [
+        Self::Free,
+        Self::Fps90,
+        Self::Fps80,
+        Self::Fps70,
+        Self::Fps60,
+        Self::Fps50,
+        Self::Fps40,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Free => "Free",
+            Self::Fps90 => "90 FPS",
+            Self::Fps80 => "80 FPS",
+            Self::Fps70 => "70 FPS",
+            Self::Fps60 => "60 FPS",
+            Self::Fps50 => "50 FPS",
+            Self::Fps40 => "40 FPS",
+        }
+    }
+
+    pub fn fps_limit(self) -> Option<f32> {
+        match self {
+            Self::Free => None,
+            Self::Fps90 => Some(90.0),
+            Self::Fps80 => Some(80.0),
+            Self::Fps70 => Some(70.0),
+            Self::Fps60 => Some(60.0),
+            Self::Fps50 => Some(50.0),
+            Self::Fps40 => Some(40.0),
+        }
+    }
+
+    pub fn to_index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|mode| *mode == self)
+            .expect("LedOutputFps variant missing from ALL")
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.get(index).copied()
     }
 }
 
