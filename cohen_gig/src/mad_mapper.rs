@@ -102,29 +102,29 @@ pub fn parse_bytes(data: &[u8]) -> Result<MadProject, String> {
             .ok_or_else(|| format!("Truncated artnetUniverse at offset {:#x}", uni_offset))?
             as u16;
 
-        let window_start = uni_offset.saturating_sub(FIXTURE_SEARCH_WINDOW);
-
-        let start_channel = find_nearest_before(&start_channel_offsets, uni_offset, window_start)
-            .and_then(|off| read_int_value(data, off + start_channel_key.len()))
-            .unwrap_or(1) as u16;
+        let start_channel =
+            find_nearest(&start_channel_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
+                .and_then(|off| read_int_value(data, off + start_channel_key.len()))
+                .unwrap_or(1) as u16;
 
         let (pixel_count, channels_per_pixel) =
-            find_nearest_before(&pixel_mapping_offsets, uni_offset, window_start)
+            find_nearest(&pixel_mapping_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
                 .and_then(|off| {
                     let s = read_string_value(data, off + pixel_mapping_key.len())?;
                     parse_pixel_mapping(&s)
                 })
                 .unwrap_or((0, 3));
 
-        let position = find_nearest_before(&position_uv_offsets, uni_offset, window_start)
-            .and_then(|off| read_point2d_value(data, off + position_uv_key.len()))
-            .unwrap_or([0.0, 0.0]);
+        let position =
+            find_nearest(&position_uv_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
+                .and_then(|off| read_point2d_value(data, off + position_uv_key.len()))
+                .unwrap_or([0.0, 0.0]);
 
-        let product = find_nearest_before(&product_offsets, uni_offset, window_start)
+        let product = find_nearest(&product_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
             .and_then(|off| read_string_value(data, off + product_key.len()))
             .unwrap_or_default();
 
-        let name = find_nearest_before(&fixture_name_offsets, uni_offset, window_start)
+        let name = find_nearest(&fixture_name_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
             .and_then(|off| read_fixture_name(data, off))
             .unwrap_or_default();
 
@@ -296,13 +296,15 @@ fn memchr_find(haystack: &[u8], needle: &[u8], start: usize) -> Option<usize> {
         .map(|pos| start + pos)
 }
 
-/// Find the nearest offset in `offsets` that is < `before` and >= `min_offset`.
-fn find_nearest_before(offsets: &[usize], before: usize, min_offset: usize) -> Option<usize> {
+/// Find the nearest offset in `offsets` within `window` bytes of `anchor` (either direction).
+fn find_nearest(offsets: &[usize], anchor: usize, window: usize) -> Option<usize> {
+    let min = anchor.saturating_sub(window);
+    let max = anchor + window;
     offsets
         .iter()
-        .rev()
         .copied()
-        .find(|&off| off < before && off >= min_offset)
+        .filter(|&off| off >= min && off <= max && off != anchor)
+        .min_by_key(|&off| (off as isize - anchor as isize).unsigned_abs())
 }
 
 // ---------------------------------------------------------------------------
@@ -412,5 +414,27 @@ mod tests {
         for pair in by_row.windows(2) {
             assert!(pair[0].position[1] >= pair[1].position[1]);
         }
+    }
+
+    #[test]
+    fn parse_mm6_project() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/map_mapper_projects/SJ02-JOSH_COHEN-MM6-01.mad"
+        );
+        let project = parse(path).expect("Failed to parse MM6 .mad file");
+
+        assert_eq!(project.fixtures.len(), 15);
+
+        for fixture in &project.fixtures {
+            assert_eq!(fixture.channels_per_pixel, 3);
+            assert_eq!(fixture.start_channel, 1);
+            assert!(fixture.pixel_count > 0);
+            assert!(fixture.name.starts_with("Fixture-"));
+        }
+
+        let (min_u, max_u) = project.universe_range();
+        assert_eq!(min_u, 0);
+        assert_eq!(max_u, 42);
     }
 }
