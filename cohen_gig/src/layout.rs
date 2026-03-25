@@ -86,3 +86,109 @@ pub fn shader_resolution(led_layout: &LedLayout) -> Vec2 {
         top_led_row_from_ground(led_layout) * pixels_per_metre,
     )
 }
+
+// ---------------------------------------------------------------------------
+// Resolved layout abstraction
+// ---------------------------------------------------------------------------
+
+use crate::mad_mapper;
+use crate::CachedLedShaderInput;
+use shader_shared::Light;
+
+/// Everything the LED worker needs to know about the physical layout.
+#[derive(Clone)]
+pub struct ResolvedLayout {
+    pub shader_inputs: Vec<CachedLedShaderInput>,
+    pub dmx_map: DmxMap,
+    pub led_count: usize,
+}
+
+/// DMX addressing strategy.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DmxMap {
+    /// Sequential packing starting at a given universe (current behavior).
+    Sequential { start_universe: u16 },
+    /// Per-fixture packing with explicit universe assignments.
+    PerFixture(Vec<FixtureDmxEntry>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixtureDmxEntry {
+    pub led_offset: usize,
+    pub led_count: usize,
+    pub start_universe: u16,
+    pub start_channel: u16,
+    pub channels_per_pixel: u8,
+}
+
+/// Build a resolved layout from the manual config.
+pub fn resolve_from_manual(led_layout: &LedLayout, start_universe: u16) -> ResolvedLayout {
+    let shader_inputs = crate::rebuild_led_shader_inputs(led_layout);
+    let led_count = shader_inputs.len();
+    ResolvedLayout {
+        shader_inputs,
+        dmx_map: DmxMap::Sequential { start_universe },
+        led_count,
+    }
+}
+
+/// Build a resolved layout from a parsed MadMapper project.
+pub fn resolve_from_mad_project(project: &mad_mapper::MadProject) -> ResolvedLayout {
+    let fixtures = project.fixtures_by_row();
+    let total_pixels: usize = fixtures.iter().map(|f| f.pixel_count).sum();
+
+    let mut shader_inputs = Vec::with_capacity(total_pixels);
+    let mut dmx_entries = Vec::with_capacity(fixtures.len());
+    let mut led_offset = 0usize;
+
+    // Determine row count and pixels-per-row for normalised coordinate calculation.
+    // Group fixtures by Y position to determine rows.
+    let row_count = {
+        let mut ys: Vec<f64> = fixtures.iter().map(|f| f.position[1]).collect();
+        ys.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        ys.len().max(1)
+    };
+
+    // For normalised coords, we treat each fixture as one row and spread
+    // its pixels across the X range [-1, 1].
+    for (fixture_idx, fixture) in fixtures.iter().enumerate() {
+        let row = fixture_idx;
+        for pixel_ix in 0..fixture.pixel_count {
+            let x_norm = if fixture.pixel_count <= 1 {
+                0.0
+            } else {
+                (pixel_ix as f32 / (fixture.pixel_count - 1) as f32) * 2.0 - 1.0
+            };
+            let y_norm = if row_count <= 1 {
+                0.0
+            } else {
+                // Top row (index 0) at +1, bottom row at -1.
+                1.0 - (row as f32 / (row_count - 1) as f32) * 2.0
+            };
+
+            let position = pt3(x_norm, fixture.position[1] as f32, 0.0);
+            let light = Light::Led {
+                index: led_offset + pixel_ix,
+                col_row: [pixel_ix, row],
+                normalised_coords: vec2(x_norm, y_norm),
+            };
+            shader_inputs.push(CachedLedShaderInput { position, light });
+        }
+
+        dmx_entries.push(FixtureDmxEntry {
+            led_offset,
+            led_count: fixture.pixel_count,
+            start_universe: fixture.universe,
+            start_channel: fixture.start_channel,
+            channels_per_pixel: fixture.channels_per_pixel,
+        });
+
+        led_offset += fixture.pixel_count;
+    }
+
+    ResolvedLayout {
+        led_count: total_pixels,
+        shader_inputs,
+        dmx_map: DmxMap::PerFixture(dmx_entries),
+    }
+}

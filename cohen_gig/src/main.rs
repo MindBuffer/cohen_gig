@@ -21,6 +21,7 @@ mod gui;
 pub mod knob;
 mod layout;
 mod lerp;
+mod mad_mapper;
 pub mod mod_slider;
 mod sacn_sender;
 mod shader;
@@ -72,14 +73,17 @@ struct Model {
     audio_input: audio_input::AudioInput,
     runtime_stats: RuntimeStats,
     midi_cv_phase_amp: f32,
+    mad_project: Option<mad_mapper::MadProject>,
+    /// Receiver for async rfd file dialog result.
+    pending_file_dialog: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 }
 
 type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
 
 #[derive(Copy, Clone)]
-struct CachedLedShaderInput {
-    position: Point3,
-    light: Light,
+pub struct CachedLedShaderInput {
+    pub position: Point3,
+    pub light: Light,
 }
 
 #[derive(Clone)]
@@ -142,7 +146,7 @@ struct LedWorkerInputState {
     capture_output_monitor: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 struct LedWorkerConfig {
     dmx_on: bool,
     midi_on: bool,
@@ -153,6 +157,8 @@ struct LedWorkerConfig {
     preset_lerp_secs: f32,
     led_layout: conf::LedLayout,
     preset: conf::Preset,
+    /// Resolved layout from MadMapper, if active.
+    resolved_layout: Option<layout::ResolvedLayout>,
 }
 
 #[derive(Clone, Default)]
@@ -473,8 +479,29 @@ fn model(app: &App) -> Model {
 
     let shader_rx = shader::spawn_watch();
 
-    let led_colors = black_led_buffer(config.led_layout.led_count());
-    let led_outputs = black_led_buffer(config.led_layout.led_count());
+    let mad_project = config.madmapper_project_path.as_ref().and_then(|path| {
+        match mad_mapper::parse(path) {
+            Ok(project) => {
+                eprintln!(
+                    "Loaded MadMapper project: {} fixtures, {} pixels",
+                    project.fixtures.len(),
+                    project.total_pixels()
+                );
+                Some(project)
+            }
+            Err(e) => {
+                eprintln!("Failed to parse MadMapper project: {}", e);
+                None
+            }
+        }
+    });
+
+    let initial_led_count = mad_project
+        .as_ref()
+        .map(|p| p.total_pixels())
+        .unwrap_or_else(|| config.led_layout.led_count());
+    let led_colors = black_led_buffer(initial_led_count);
+    let led_outputs = black_led_buffer(initial_led_count);
 
     // Setup MIDI Input
     let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
@@ -537,6 +564,7 @@ fn model(app: &App) -> Model {
         &audio_input,
         0.0,
         gui::LeftPanelTab::Live,
+        &mad_project,
     ));
 
     Model {
@@ -562,6 +590,8 @@ fn model(app: &App) -> Model {
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
         midi_cv_phase_amp: 0.0,
+        mad_project,
+        pending_file_dialog: None,
     }
 }
 
@@ -614,6 +644,43 @@ fn build_led_sacn_payloads(
     payloads
 }
 
+fn build_sacn_payloads(
+    dmx_map: Option<&layout::DmxMap>,
+    fallback_start_universe: u16,
+    led_outputs: &[LinSrgb],
+) -> Vec<(u16, Vec<u8>)> {
+    match dmx_map {
+        Some(layout::DmxMap::PerFixture(entries)) => {
+            build_per_fixture_payloads(entries, led_outputs)
+        }
+        Some(layout::DmxMap::Sequential { start_universe }) => build_led_sacn_payloads(
+            *start_universe,
+            led_outputs.iter().map(lin_srgb_f32_to_bytes),
+        ),
+        None => build_led_sacn_payloads(
+            fallback_start_universe,
+            led_outputs.iter().map(lin_srgb_f32_to_bytes),
+        ),
+    }
+}
+
+fn build_per_fixture_payloads(
+    entries: &[layout::FixtureDmxEntry],
+    led_outputs: &[LinSrgb],
+) -> Vec<(u16, Vec<u8>)> {
+    let mut all_payloads: Vec<(u16, Vec<u8>)> = Vec::new();
+    for entry in entries {
+        let end = (entry.led_offset + entry.led_count).min(led_outputs.len());
+        let fixture_leds = &led_outputs[entry.led_offset..end];
+        let fixture_payloads = build_led_sacn_payloads(
+            entry.start_universe,
+            fixture_leds.iter().map(lin_srgb_f32_to_bytes),
+        );
+        all_payloads.extend(fixture_payloads);
+    }
+    all_payloads
+}
+
 fn normalised_led_coord(index: usize, count: usize) -> f32 {
     if count <= 1 {
         0.0
@@ -622,7 +689,7 @@ fn normalised_led_coord(index: usize, count: usize) -> f32 {
     }
 }
 
-fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedShaderInput> {
+pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedShaderInput> {
     layout::led_positions_metres(led_layout)
         .enumerate()
         .map(|(led_ix, (row, x, h))| {
@@ -652,7 +719,11 @@ fn build_led_worker_input_state(
     audio_input: &audio_input::AudioInput,
     midi_cv_phase_amp: f32,
     left_panel_tab: gui::LeftPanelTab,
+    mad_project: &Option<mad_mapper::MadProject>,
 ) -> LedWorkerInputState {
+    let resolved_layout = mad_project
+        .as_ref()
+        .map(layout::resolve_from_mad_project);
     LedWorkerInputState {
         app_time,
         snapshot_at: Instant::now(),
@@ -666,6 +737,7 @@ fn build_led_worker_input_state(
             preset_lerp_secs: config.preset_lerp_secs,
             led_layout: config.led_layout.clone(),
             preset: config.presets.selected().clone(),
+            resolved_layout,
         },
         controller: controller.clone(),
         audio_envelope: audio_input.envelope,
@@ -681,7 +753,11 @@ fn build_led_worker_input_state(
 }
 
 fn sync_led_buffers(model: &mut Model) {
-    let led_count = model.config.led_layout.led_count();
+    let led_count = model
+        .mad_project
+        .as_ref()
+        .map(|p| p.total_pixels())
+        .unwrap_or_else(|| model.config.led_layout.led_count());
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
@@ -698,6 +774,7 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
             &model.audio_input,
             model.midi_cv_phase_amp,
             model.left_panel_tab,
+            &model.mad_project,
         );
 
         if let Some(last_preset_change) = model.last_preset_change.take() {
@@ -760,20 +837,30 @@ struct LedWorkerRuntime {
     led_outputs: Vec<LinSrgb>,
     led_shader_inputs: Vec<CachedLedShaderInput>,
     cached_led_layout: conf::LedLayout,
+    /// True when currently using a MadMapper resolved layout.
+    using_mad_layout: bool,
     last_preset_change: Option<LastPresetChange>,
     dmx: DmxRuntime,
 }
 
 impl LedWorkerRuntime {
     fn new(config: &LedWorkerConfig) -> Self {
-        let led_count = config.led_layout.led_count();
+        let (led_count, shader_inputs, using_mad) = match &config.resolved_layout {
+            Some(rl) => (rl.led_count, rl.shader_inputs.clone(), true),
+            None => {
+                let inputs = rebuild_led_shader_inputs(&config.led_layout);
+                let count = inputs.len();
+                (count, inputs, false)
+            }
+        };
         Self {
             shader: None,
             led_colors: black_led_buffer(led_count),
             led_color_buffer: black_led_buffer(led_count),
             led_outputs: black_led_buffer(led_count),
-            led_shader_inputs: rebuild_led_shader_inputs(&config.led_layout),
+            led_shader_inputs: shader_inputs,
             cached_led_layout: config.led_layout.clone(),
+            using_mad_layout: using_mad,
             last_preset_change: None,
             dmx: DmxRuntime {
                 source: None,
@@ -787,9 +874,15 @@ impl LedWorkerRuntime {
     }
 }
 
-fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, led_layout: &conf::LedLayout) {
-    let led_count = led_layout.led_count();
-    let layout_changed = runtime.cached_led_layout != *led_layout;
+fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerConfig) {
+    let (led_count, new_inputs, now_mad) = match &config.resolved_layout {
+        Some(rl) => (rl.led_count, Some(&rl.shader_inputs), true),
+        None => (config.led_layout.led_count(), None, false),
+    };
+
+    let source_changed = now_mad != runtime.using_mad_layout
+        || (!now_mad && runtime.cached_led_layout != config.led_layout);
+
     if runtime.led_colors.len() != led_count {
         runtime
             .led_colors
@@ -802,9 +895,13 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, led_layout: &conf::Le
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime.last_preset_change = None;
     }
-    if layout_changed || runtime.led_shader_inputs.len() != led_count {
-        runtime.led_shader_inputs = rebuild_led_shader_inputs(led_layout);
-        runtime.cached_led_layout = led_layout.clone();
+    if source_changed || runtime.led_shader_inputs.len() != led_count {
+        runtime.led_shader_inputs = match new_inputs {
+            Some(inputs) => inputs.clone(),
+            None => rebuild_led_shader_inputs(&config.led_layout),
+        };
+        runtime.cached_led_layout = config.led_layout.clone();
+        runtime.using_mad_layout = now_mad;
         runtime.last_preset_change = None;
     }
 }
@@ -847,7 +944,7 @@ fn run_led_worker(
             runtime.last_preset_change = Some(last_preset_change);
         }
 
-        sync_led_worker_buffers(&mut runtime, &state.config.led_layout);
+        sync_led_worker_buffers(&mut runtime, &state.config);
         render_led_worker_frame(&state, &mut runtime);
 
         frame_id = frame_id.wrapping_add(1);
@@ -1066,9 +1163,15 @@ fn update_led_worker_dmx(state: &LedWorkerInputState, runtime: &mut LedWorkerRun
     }
     if should_send_output {
         if let Some(ref mut dmx_source) = runtime.dmx.source {
-            let payloads = build_led_sacn_payloads(
+            let dmx_map = state
+                .config
+                .resolved_layout
+                .as_ref()
+                .map(|rl| &rl.dmx_map);
+            let payloads = build_sacn_payloads(
+                dmx_map,
                 state.config.led_start_universe,
-                runtime.led_outputs.iter().map(lin_srgb_f32_to_bytes),
+                &runtime.led_outputs,
             );
             let mut sent_packet_count = 0usize;
             let mut sent_payload_bytes = 0usize;
@@ -1176,9 +1279,36 @@ fn update(app: &App, model: &mut Model, update: Update) {
             last_preset_change: &mut model.last_preset_change,
             assets: assets.as_path(),
             ids: &mut model.ids,
+            mad_project: &mut model.mad_project,
+            pending_file_dialog: &mut model.pending_file_dialog,
         },
     );
     drop(ui);
+
+    // Poll for async file dialog result.
+    if let Some(ref rx) = model.pending_file_dialog {
+        if let Ok(result) = rx.try_recv() {
+            if let Some(path) = result {
+                match mad_mapper::parse(&path) {
+                    Ok(project) => {
+                        eprintln!(
+                            "Loaded MadMapper project: {} fixtures, {} pixels",
+                            project.fixtures.len(),
+                            project.total_pixels()
+                        );
+                        model.config.madmapper_project_path =
+                            Some(path.to_string_lossy().into_owned());
+                        model.mad_project = Some(project);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse MadMapper project: {}", e);
+                    }
+                }
+            }
+            model.pending_file_dialog = None;
+        }
+    }
+
     sync_preview_window_visibility(app, model);
     update_gui_window_title(app, model);
     model.config.led_layout.normalise();
@@ -1556,8 +1686,13 @@ fn update_korg_button(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_led_sacn_payloads, should_send_led_output, UNIVERSE_CHANNEL_CAPACITY};
+    use super::{
+        build_led_sacn_payloads, build_per_fixture_payloads, should_send_led_output,
+        UNIVERSE_CHANNEL_CAPACITY,
+    };
     use crate::conf::LedOutputFps;
+    use crate::layout::FixtureDmxEntry;
+    use nannou::prelude::*;
     use std::time::{Duration, Instant};
 
     fn test_rgb_triplets(count: usize) -> Vec<[u8; 3]> {
@@ -1644,5 +1779,47 @@ mod tests {
             Some(ready),
             now
         ));
+    }
+
+    #[test]
+    fn per_fixture_payloads_route_pixels_to_correct_universes() {
+        // Two fixtures: 4 pixels on universe 5, 3 pixels on universe 10.
+        let entries = vec![
+            FixtureDmxEntry {
+                led_offset: 0,
+                led_count: 4,
+                start_universe: 5,
+                start_channel: 1,
+                channels_per_pixel: 3,
+            },
+            FixtureDmxEntry {
+                led_offset: 4,
+                led_count: 3,
+                start_universe: 10,
+                start_channel: 1,
+                channels_per_pixel: 3,
+            },
+        ];
+
+        let led_outputs: Vec<LinSrgb> = (0..7)
+            .map(|i| {
+                let v = (i + 1) as f32 / 7.0;
+                lin_srgb(v, v, v)
+            })
+            .collect();
+
+        let payloads = build_per_fixture_payloads(&entries, &led_outputs);
+
+        assert_eq!(payloads.len(), 2);
+        assert_eq!(payloads[0].0, 5);
+        assert_eq!(payloads[1].0, 10);
+
+        // First fixture: 4 pixels * 3 channels = 12 bytes + 1 start code = 13.
+        assert_eq!(payloads[0].1.len(), 13);
+        assert_eq!(payloads[0].1[0], 0); // DMX start code
+
+        // Second fixture: 3 pixels * 3 channels = 9 bytes + 1 start code = 10.
+        assert_eq!(payloads[1].1.len(), 10);
+        assert_eq!(payloads[1].1[0], 0);
     }
 }
