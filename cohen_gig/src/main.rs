@@ -1553,6 +1553,55 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     }
 
     let w = app.window(model.led_strip_window).unwrap().rect();
+
+    if model.mad_project.is_some() {
+        led_strip_view_mad(&draw, &w, model);
+    } else {
+        led_strip_view_manual(app, &draw, &w, model);
+    }
+
+    draw_hotload_feedback(app, model, &draw, w);
+    draw.to_frame(app, &frame).unwrap();
+}
+
+/// Preview rendering when a MadMapper project is active.
+/// Uses normalised coords from the resolved layout, centered in the window.
+fn led_strip_view_mad(draw: &Draw, w: &geom::Rect, model: &Model) {
+    let project = model.mad_project.as_ref().unwrap();
+    let fixtures = project.fixtures_by_row();
+    let scale = w.h() * 0.4;
+
+    let mut led_idx = 0usize;
+    for fixture in &fixtures {
+        let row_count = fixtures.len().max(1);
+        let fixture_idx = fixtures
+            .iter()
+            .position(|f| std::ptr::eq(*f, *fixture))
+            .unwrap_or(0);
+        let y_norm = if row_count <= 1 {
+            0.0
+        } else {
+            1.0 - (fixture_idx as f32 / (row_count - 1) as f32) * 2.0
+        };
+        let y_px = y_norm * scale;
+
+        let x_scale = w.w() * 0.45;
+        let vs = (0..fixture.pixel_count).filter_map(|pixel_ix| {
+            let color = model.led_outputs.get(led_idx + pixel_ix)?;
+            let x_norm = if fixture.pixel_count <= 1 {
+                0.0
+            } else {
+                (pixel_ix as f32 / (fixture.pixel_count - 1) as f32) * 2.0 - 1.0
+            };
+            Some((pt2(x_norm * x_scale, y_px), *color))
+        });
+        draw.polyline().weight(5.0).points_colored(vs);
+        led_idx += fixture.pixel_count;
+    }
+}
+
+/// Preview rendering for manual LED layout (original path).
+fn led_strip_view_manual(app: &App, draw: &Draw, w: &geom::Rect, model: &Model) {
     let led_layout = &model.config.led_layout;
 
     let metres_to_points_scale = (w.h() / layout::top_led_row_from_ground(led_layout))
@@ -1567,7 +1616,6 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     let pm_to_ps =
         |x: f32, h: f32| layout::topdown_metres_to_shader_coords(pt2(x, 0.0), h, led_layout);
 
-    // Draw the LEDs one row at a time.
     let mut leds = layout::led_positions_metres(led_layout).zip(model.led_outputs.iter());
     for _ in 0..led_layout.row_count {
         let vs = leds
@@ -1580,7 +1628,6 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
         draw.polyline().weight(5.0).points_colored(vs);
     }
 
-    // Draw the mouse position in shader coords.
     if app.window_id() == model.led_strip_window && app.keys.down.contains(&Key::LShift) {
         let mouse_p = app.mouse.position();
         let (x, h) = pp_to_pm(mouse_p);
@@ -1591,11 +1638,6 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
             .y(mouse_p.y + 16.0)
             .font_size(16);
     }
-
-    draw_hotload_feedback(app, model, &draw, w);
-
-    // Write the result of our drawing to the window's frame.
-    draw.to_frame(app, &frame).unwrap();
 }
 
 // Draw hotloading status in top-left corner. Flash screen on build completion.
