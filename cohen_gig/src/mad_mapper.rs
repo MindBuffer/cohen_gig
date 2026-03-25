@@ -81,6 +81,7 @@ pub fn parse_bytes(data: &[u8]) -> Result<MadProject, String> {
     let start_channel_key = encode_utf16be("startChannel");
     let pixel_mapping_key = encode_utf16be("pixelMapping");
     let position_uv_key = encode_utf16be("positionUv");
+    let position_key = encode_utf16be("position");
     let product_key = encode_utf16be("product");
     let fixture_name_key = encode_utf16be("Fixture-");
 
@@ -92,6 +93,16 @@ pub fn parse_bytes(data: &[u8]) -> Result<MadProject, String> {
     let start_channel_offsets = find_all(data, &start_channel_key);
     let pixel_mapping_offsets = find_all(data, &pixel_mapping_key);
     let position_uv_offsets = find_all(data, &position_uv_key);
+    // `position` offsets, excluding those that are actually `positionUv`.
+    // `position` offsets: exclude `positionUv` matches, and only keep those
+    // with a 2D point type tag (0x1a) to avoid matching UI/layout keys.
+    let position_offsets: Vec<usize> = find_all_excluding(data, &position_key, &position_uv_key)
+        .into_iter()
+        .filter(|&off| {
+            let after = off + position_key.len();
+            after + 4 <= data.len() && read_u32(data, after) == TYPE_POINT2D
+        })
+        .collect();
     let product_offsets = find_all(data, &product_key);
     let fixture_name_offsets = find_all(data, &fixture_name_key);
 
@@ -115,10 +126,16 @@ pub fn parse_bytes(data: &[u8]) -> Result<MadProject, String> {
                 })
                 .unwrap_or((0, 3));
 
-        let position =
-            find_nearest(&position_uv_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
-                .and_then(|off| read_point2d_value(data, off + position_uv_key.len()))
-                .unwrap_or([0.0, 0.0]);
+        // MM5 uses `positionUv`, MM6 uses `position`. Try both, skipping
+        // the (0.5, 0.5) default that MM6 writes to `positionUv`.
+        let position = find_nearest(&position_uv_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
+            .and_then(|off| read_point2d_value(data, off + position_uv_key.len()))
+            .filter(|p| !is_default_position(p))
+            .or_else(|| {
+                find_nearest(&position_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
+                    .and_then(|off| read_point2d_value(data, off + position_key.len()))
+            })
+            .unwrap_or([0.0, 0.0]);
 
         let product = find_nearest(&product_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
             .and_then(|off| read_string_value(data, off + product_key.len()))
@@ -272,6 +289,29 @@ fn decode_utf16be(data: &[u8]) -> String {
 // Scanning helpers
 // ---------------------------------------------------------------------------
 
+/// Find all occurrences of `needle` that are NOT the start of `exclude`.
+fn find_all_excluding(data: &[u8], needle: &[u8], exclude: &[u8]) -> Vec<usize> {
+    let mut results = Vec::new();
+    let mut start = 0;
+    while start + needle.len() <= data.len() {
+        if let Some(pos) = memchr_find(data, needle, start) {
+            // Skip if this is actually the start of the excluded pattern.
+            if exclude.len() > needle.len()
+                && pos + exclude.len() <= data.len()
+                && &data[pos..pos + exclude.len()] == exclude
+            {
+                start = pos + 1;
+                continue;
+            }
+            results.push(pos);
+            start = pos + 1;
+        } else {
+            break;
+        }
+    }
+    results
+}
+
 fn find_all(data: &[u8], needle: &[u8]) -> Vec<usize> {
     let mut results = Vec::new();
     let mut start = 0;
@@ -310,6 +350,10 @@ fn find_nearest(offsets: &[usize], anchor: usize, window: usize) -> Option<usize
 // ---------------------------------------------------------------------------
 // Pixel mapping parsing
 // ---------------------------------------------------------------------------
+
+fn is_default_position(p: &[f64; 2]) -> bool {
+    (p[0] - 0.5).abs() < 0.001 && (p[1] - 0.5).abs() < 0.001
+}
 
 fn parse_pixel_mapping(mapping: &str) -> Option<(usize, u8)> {
     let entries: Vec<u32> = mapping
@@ -439,5 +483,24 @@ mod tests {
             assert!(fixture.pixel_count > 0);
             assert!(fixture.name.starts_with("Fixture-"));
         }
+    }
+
+    #[test]
+    fn mm6_has_distinct_positions() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/map_mapper_projects/SJ02-JOSH_COHEN-MM6-01.mad"
+        );
+        let project = parse(path).expect("Failed to parse MM6 .mad file");
+
+        // MM6 stores positions under 'position' not 'positionUv'.
+        // Verify we actually got distinct Y values (not all defaults).
+        let ys: Vec<f64> = project.fixtures.iter().map(|f| f.position[1]).collect();
+        let distinct: std::collections::HashSet<u64> =
+            ys.iter().map(|y| y.to_bits()).collect();
+        assert!(
+            distinct.len() > 1,
+            "All fixtures have the same Y position — position data not parsed correctly"
+        );
     }
 }
