@@ -150,6 +150,7 @@ pub struct UpdateContext<'a> {
     pub assets: &'a Path,
     pub ids: &'a mut Ids,
     pub mad_project: &'a mut Option<crate::mad_mapper::MadProject>,
+    pub resolved_layout: &'a mut Option<crate::layout::ResolvedLayout>,
     pub pending_file_dialog:
         &'a mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 }
@@ -1128,6 +1129,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         assets,
         ids,
         mad_project,
+        resolved_layout,
         pending_file_dialog,
     } = ctx;
 
@@ -1206,6 +1208,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 sacn_error,
                 sacn_output_monitor,
                 mad_project,
+                resolved_layout,
                 pending_file_dialog,
             );
             set_output_monitor_widgets(
@@ -1478,6 +1481,7 @@ fn set_output_sidebar_widgets(
     sacn_error: Option<&str>,
     sacn_output_monitor: &crate::SacnOutputMonitor,
     mad_project: &mut Option<crate::mad_mapper::MadProject>,
+    resolved_layout: &mut Option<crate::layout::ResolvedLayout>,
     pending_file_dialog: &mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 ) {
     let has_mad_project = mad_project.is_some();
@@ -1632,6 +1636,7 @@ fn set_output_sidebar_widgets(
             .was_clicked()
         {
             *mad_project = None;
+            *resolved_layout = None;
             config.madmapper_project_path = None;
         }
     } else {

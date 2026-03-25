@@ -74,6 +74,8 @@ struct Model {
     runtime_stats: RuntimeStats,
     midi_cv_phase_amp: f32,
     mad_project: Option<mad_mapper::MadProject>,
+    /// Cached resolved layout from the current MadMapper project.
+    resolved_layout: Option<layout::ResolvedLayout>,
     /// Receiver for async rfd file dialog result.
     pending_file_dialog: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 }
@@ -556,6 +558,8 @@ fn model(app: &App) -> Model {
 
     let audio_input = audio_input::AudioInput::new(128, config.audio_input_device.clone());
 
+    let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
+
     let last_preset_change = None;
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
@@ -564,7 +568,7 @@ fn model(app: &App) -> Model {
         &audio_input,
         0.0,
         gui::LeftPanelTab::Live,
-        &mad_project,
+        &resolved_layout,
     ));
 
     Model {
@@ -590,6 +594,7 @@ fn model(app: &App) -> Model {
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
         midi_cv_phase_amp: 0.0,
+        resolved_layout,
         mad_project,
         pending_file_dialog: None,
     }
@@ -719,11 +724,9 @@ fn build_led_worker_input_state(
     audio_input: &audio_input::AudioInput,
     midi_cv_phase_amp: f32,
     left_panel_tab: gui::LeftPanelTab,
-    mad_project: &Option<mad_mapper::MadProject>,
+    resolved_layout: &Option<layout::ResolvedLayout>,
 ) -> LedWorkerInputState {
-    let resolved_layout = mad_project
-        .as_ref()
-        .map(layout::resolve_from_mad_project);
+    let resolved_layout = resolved_layout.clone();
     LedWorkerInputState {
         app_time,
         snapshot_at: Instant::now(),
@@ -774,7 +777,7 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
             &model.audio_input,
             model.midi_cv_phase_amp,
             model.left_panel_tab,
-            &model.mad_project,
+            &model.resolved_layout,
         );
 
         if let Some(last_preset_change) = model.last_preset_change.take() {
@@ -1280,6 +1283,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
             assets: assets.as_path(),
             ids: &mut model.ids,
             mad_project: &mut model.mad_project,
+            resolved_layout: &mut model.resolved_layout,
             pending_file_dialog: &mut model.pending_file_dialog,
         },
     );
@@ -1298,6 +1302,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
                         );
                         model.config.madmapper_project_path =
                             Some(path.to_string_lossy().into_owned());
+                        model.resolved_layout =
+                            Some(layout::resolve_from_mad_project(&project));
                         model.mad_project = Some(project);
                     }
                     Err(e) => {
