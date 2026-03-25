@@ -34,6 +34,11 @@ pub struct Config {
     pub led_output_fps: LedOutputFps,
     #[serde(default)]
     pub led_layout: LedLayout,
+    /// Optional path to a MadMapper .mad project file.
+    /// When Some, the layout and DMX addressing are derived from this file
+    /// instead of the manual `led_layout` and `led_start_universe` fields.
+    #[serde(default)]
+    pub madmapper_project_path: Option<String>,
     #[serde(default)]
     pub presets: Presets,
     #[serde(default)]
@@ -127,6 +132,7 @@ impl Default for Config {
             sacn_interface_ip: default::sacn_interface_ip(),
             led_output_fps: Default::default(),
             led_layout: Default::default(),
+            madmapper_project_path: None,
             presets: Default::default(),
             preset_lerp_secs: Default::default(),
         }

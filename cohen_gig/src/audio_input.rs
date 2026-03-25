@@ -50,6 +50,8 @@ pub struct AudioInput {
     selected_device_name: Option<String>,
     device_error: Option<String>,
     last_device_refresh: Instant,
+    /// Receiver for background device enumeration results.
+    pending_device_refresh: Option<std::sync::mpsc::Receiver<Vec<AudioDeviceInfo>>>,
     pub peak_history: VecDeque<f32>,
     pub waveform_history: VecDeque<f32>,
     pub envelope_history: VecDeque<f32>,
@@ -79,6 +81,7 @@ impl AudioInput {
             selected_device_name: None,
             device_error: None,
             last_device_refresh: Instant::now(),
+            pending_device_refresh: None,
             peak_history: VecDeque::from(vec![0.0; history_len]),
             waveform_history: VecDeque::from(vec![0.0; waveform_history_len]),
             envelope_history: VecDeque::from(vec![0.0; history_len]),
@@ -197,8 +200,25 @@ impl AudioInput {
     }
 
     fn refresh_available_devices_if_needed(&mut self) {
-        if self.last_device_refresh.elapsed() >= DEVICE_REFRESH_INTERVAL {
-            self.refresh_available_devices();
+        // Collect result from background enumeration if ready.
+        if let Some(ref rx) = self.pending_device_refresh {
+            if let Ok(devices) = rx.try_recv() {
+                self.available_devices = devices;
+                self.pending_device_refresh = None;
+                self.ensure_selected_device();
+            }
+        }
+
+        // Kick off a new background enumeration if interval elapsed and none pending.
+        if self.pending_device_refresh.is_none()
+            && self.last_device_refresh.elapsed() >= DEVICE_REFRESH_INTERVAL
+        {
+            self.last_device_refresh = Instant::now();
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.pending_device_refresh = Some(rx);
+            std::thread::spawn(move || {
+                let _ = tx.send(enumerate_input_devices());
+            });
         }
     }
 

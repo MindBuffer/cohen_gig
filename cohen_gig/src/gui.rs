@@ -120,6 +120,11 @@ widget_ids! {
         sacn_output_grid_summary_text,
         sacn_output_slot_preview_text,
 
+        madmapper_section_text,
+        madmapper_load_button,
+        madmapper_filename_text,
+        madmapper_stats_text,
+        madmapper_remove_button,
     }
 }
 
@@ -144,6 +149,10 @@ pub struct UpdateContext<'a> {
     pub last_preset_change: &'a mut Option<crate::LastPresetChange>,
     pub assets: &'a Path,
     pub ids: &'a mut Ids,
+    pub mad_project: &'a mut Option<crate::mad_mapper::MadProject>,
+    pub resolved_layout: &'a mut Option<crate::layout::ResolvedLayout>,
+    pub pending_file_dialog:
+        &'a mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1119,6 +1128,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         last_preset_change,
         assets,
         ids,
+        mad_project,
+        resolved_layout,
+        pending_file_dialog,
     } = ctx;
 
     widget::Canvas::new()
@@ -1189,7 +1201,16 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
         }
         LeftPanelTab::Output => {
-            set_output_sidebar_widgets(ui, ids, config, sacn_error, sacn_output_monitor);
+            set_output_sidebar_widgets(
+                ui,
+                ids,
+                config,
+                sacn_error,
+                sacn_output_monitor,
+                mad_project,
+                resolved_layout,
+                pending_file_dialog,
+            );
             set_output_monitor_widgets(
                 ui,
                 ids,
@@ -1459,7 +1480,12 @@ fn set_output_sidebar_widgets(
     config: &mut Config,
     sacn_error: Option<&str>,
     sacn_output_monitor: &crate::SacnOutputMonitor,
+    mad_project: &mut Option<crate::mad_mapper::MadProject>,
+    resolved_layout: &mut Option<crate::layout::ResolvedLayout>,
+    pending_file_dialog: &mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 ) {
+    let has_mad_project = mad_project.is_some();
+
     text("LED Output FPS")
         .mid_left_of(ids.column_1_id)
         .down_from(ids.live_tab_button, PAD * 0.5)
@@ -1558,106 +1584,194 @@ fn set_output_sidebar_widgets(
             .set(ids.sacn_interface_ip_error_text, ui);
     }
 
-    text("Universes")
+    // --- MadMapper Project section ---
+
+    text("MadMapper Project")
         .mid_left_of(ids.column_1_id)
         .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.universe_starts_text, ui);
+        .set(ids.madmapper_section_text, ui);
 
-    let min_universe = 1.0;
-    let max_universe = 99.0;
-    let precision = 0;
-    let v = config.led_start_universe;
-    if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+    if has_mad_project {
+        let project = mad_project.as_ref().unwrap();
+        let filename = config
+            .madmapper_project_path
+            .as_deref()
+            .and_then(|p| std::path::Path::new(p).file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Unknown".into());
+
+        widget::Text::new(&filename)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(12)
+            .color(TEXT_COLOR)
+            .left_justify()
+            .set(ids.madmapper_filename_text, ui);
+
+        let (min_u, max_u) = project.universe_range();
+        let stats = format!(
+            "{} fixtures, {} pixels, {} universes (U{}-U{})",
+            project.fixtures.len(),
+            project.total_pixels(),
+            project.universe_count(),
+            min_u,
+            max_u,
+        );
+        widget::Text::new(&stats)
+            .down(3.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(TEXT_COLOR)
+            .left_justify()
+            .set(ids.madmapper_stats_text, ui);
+
+        if button()
+            .color(color::DARK_RED.with_luminance(0.15))
+            .label("Remove")
+            .label_font_size(14)
+            .down(5.0)
+            .w(WIDGET_W)
+            .h(DEFAULT_WIDGET_H)
+            .set(ids.madmapper_remove_button, ui)
+            .was_clicked()
+        {
+            *mad_project = None;
+            *resolved_layout = None;
+            config.madmapper_project_path = None;
+        }
+    } else {
+        let dialog_pending = pending_file_dialog.is_some();
+        let label = if dialog_pending {
+            "Waiting..."
+        } else {
+            "Load .mad File"
+        };
+        if button()
+            .color(BUTTON_COLOR)
+            .label(label)
+            .label_font_size(14)
+            .down(5.0)
+            .w(WIDGET_W)
+            .h(DEFAULT_WIDGET_H)
+            .set(ids.madmapper_load_button, ui)
+            .was_clicked()
+            && !dialog_pending
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            *pending_file_dialog = Some(rx);
+            std::thread::spawn(move || {
+                let result = rfd::FileDialog::new()
+                    .add_filter("MadMapper", &["mad"])
+                    .pick_file();
+                let _ = tx.send(result);
+            });
+        }
+
+        // Manual controls shown only when no MadMapper project is loaded.
+
+        text("Universes")
+            .mid_left_of(ids.column_1_id)
+            .down(COLUMN_ONE_SECTION_GAP)
+            .set(ids.universe_starts_text, ui);
+
+        let min_universe = 1.0;
+        let max_universe = 99.0;
+        let precision = 0;
+        let v = config.led_start_universe;
+        if let Some(v) =
+            widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+                .border(0.0)
+                .label("Start Universe")
+                .label_color(color::WHITE)
+                .label_font_size(14)
+                .down(PAD)
+                .w(WIDGET_W)
+                .h(DEFAULT_WIDGET_H)
+                .color(color::DARK_CHARCOAL)
+                .set(ids.led_start_universe_dialer, ui)
+        {
+            config.led_start_universe = v as u16;
+        }
+
+        text("LED Layout")
+            .mid_left_of(ids.column_1_id)
+            .down(COLUMN_ONE_SECTION_GAP)
+            .set(ids.led_layout_text, ui);
+
+        if let Some(v) = widget::NumberDialer::new(
+            config.led_layout.leds_per_metre as f32,
+            1.0,
+            288.0,
+            precision,
+        )
         .border(0.0)
-        .label("Start Universe")
+        .label("LEDs / Metre")
         .label_color(color::WHITE)
         .label_font_size(14)
         .down(PAD)
         .w(WIDGET_W)
         .h(DEFAULT_WIDGET_H)
         .color(color::DARK_CHARCOAL)
-        .set(ids.led_start_universe_dialer, ui)
-    {
-        config.led_start_universe = v as u16;
-    }
+        .set(ids.led_pixels_per_metre_dialer, ui)
+        {
+            config.led_layout.leds_per_metre = v as usize;
+        }
 
-    text("LED Layout")
-        .mid_left_of(ids.column_1_id)
-        .down(COLUMN_ONE_SECTION_GAP)
-        .set(ids.led_layout_text, ui);
-
-    if let Some(v) = widget::NumberDialer::new(
-        config.led_layout.leds_per_metre as f32,
-        1.0,
-        288.0,
-        precision,
-    )
-    .border(0.0)
-    .label("LEDs / Metre")
-    .label_color(color::WHITE)
-    .label_font_size(14)
-    .down(PAD)
-    .w(WIDGET_W)
-    .h(DEFAULT_WIDGET_H)
-    .color(color::DARK_CHARCOAL)
-    .set(ids.led_pixels_per_metre_dialer, ui)
-    {
-        config.led_layout.leds_per_metre = v as usize;
-    }
-
-    if let Some(v) = widget::NumberDialer::new(
-        config.led_layout.metres_per_row as f32,
-        1.0,
-        32.0,
-        precision,
-    )
-    .border(0.0)
-    .label("Row Length (m)")
-    .label_color(color::WHITE)
-    .label_font_size(14)
-    .down(5.0)
-    .w(WIDGET_W)
-    .h(DEFAULT_WIDGET_H)
-    .color(color::DARK_CHARCOAL)
-    .set(ids.led_metres_per_row_dialer, ui)
-    {
-        config.led_layout.metres_per_row = v as usize;
-    }
-
-    if let Some(v) =
-        widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
-            .border(0.0)
-            .label("Rows")
-            .label_color(color::WHITE)
-            .label_font_size(14)
-            .down(5.0)
-            .w(WIDGET_W)
-            .h(DEFAULT_WIDGET_H)
-            .color(color::DARK_CHARCOAL)
-            .set(ids.led_row_count_dialer, ui)
-    {
-        config.led_layout.row_count = v as usize;
-    }
-
-    config.led_layout.normalise();
-
-    let total_leds = config.led_layout.led_count();
-    let leds_per_universe =
-        (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
-    let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
-    let start_universe = config.led_start_universe;
-    let end_universe = start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
-    let layout_stats = format!(
-        "{} LEDs across {} universes (U{}-U{})",
-        total_leds, universe_count, start_universe, end_universe
-    );
-    widget::Text::new(&layout_stats)
+        if let Some(v) = widget::NumberDialer::new(
+            config.led_layout.metres_per_row as f32,
+            1.0,
+            32.0,
+            precision,
+        )
+        .border(0.0)
+        .label("Row Length (m)")
+        .label_color(color::WHITE)
+        .label_font_size(14)
         .down(5.0)
         .w(WIDGET_W)
-        .font_size(10)
-        .color(TEXT_COLOR)
-        .left_justify()
-        .set(ids.led_layout_stats_text, ui);
+        .h(DEFAULT_WIDGET_H)
+        .color(color::DARK_CHARCOAL)
+        .set(ids.led_metres_per_row_dialer, ui)
+        {
+            config.led_layout.metres_per_row = v as usize;
+        }
+
+        if let Some(v) =
+            widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
+                .border(0.0)
+                .label("Rows")
+                .label_color(color::WHITE)
+                .label_font_size(14)
+                .down(5.0)
+                .w(WIDGET_W)
+                .h(DEFAULT_WIDGET_H)
+                .color(color::DARK_CHARCOAL)
+                .set(ids.led_row_count_dialer, ui)
+        {
+            config.led_layout.row_count = v as usize;
+        }
+
+        config.led_layout.normalise();
+
+        let total_leds = config.led_layout.led_count();
+        let leds_per_universe =
+            (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
+        let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
+        let start_universe = config.led_start_universe;
+        let end_universe =
+            start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
+        let layout_stats = format!(
+            "{} LEDs across {} universes (U{}-U{})",
+            total_leds, universe_count, start_universe, end_universe
+        );
+        widget::Text::new(&layout_stats)
+            .down(5.0)
+            .w(WIDGET_W)
+            .font_size(10)
+            .color(TEXT_COLOR)
+            .left_justify()
+            .set(ids.led_layout_stats_text, ui);
+    }
 }
 
 fn set_output_monitor_widgets(
