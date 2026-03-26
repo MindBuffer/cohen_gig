@@ -1,16 +1,15 @@
+use nannou::io::{load_from_json, save_to_json};
 use serde::{Deserialize, Serialize};
 use shader_shared::{BlendMode, Shader, ShaderParams};
 use std::net::{AddrParseError, Ipv4Addr};
 use std::path::{Path, PathBuf};
 
-/// Runtime configuration parameters.
+/// Global runtime configuration (non-preset settings).
 ///
-/// These are loaded from `assets/config.json` when the program starts and then saved when the
-/// program closes.
-///
-/// If no `assets/config.json` exists, a default one will be created.
+/// Loaded from `assets/config.json` on launch. Saved only when the user
+/// explicitly presses the "Save Config" button.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Config {
+pub struct GlobalConfig {
     /// Whether or not DMX is enabled.
     #[serde(default)]
     pub dmx_on: bool,
@@ -36,8 +35,6 @@ pub struct Config {
     /// instead of the manual `led_layout` and `led_start_universe` fields.
     #[serde(default)]
     pub madmapper_project_path: Option<String>,
-    #[serde(default)]
-    pub presets: Presets,
     #[serde(default)]
     pub preset_lerp_secs: f32,
 }
@@ -115,9 +112,12 @@ pub enum LedOutputFps {
     Fps40,
 }
 
-/// The path to the configuration file.
-pub fn path(assets: &Path) -> PathBuf {
+pub fn config_path(assets: &Path) -> PathBuf {
     assets.join("config.json")
+}
+
+pub fn presets_path(assets: &Path) -> PathBuf {
+    assets.join("presets.json")
 }
 
 impl Presets {
@@ -132,9 +132,9 @@ impl Presets {
     }
 }
 
-impl Default for Config {
+impl Default for GlobalConfig {
     fn default() -> Self {
-        Config {
+        GlobalConfig {
             dmx_on: Default::default(),
             preview_window_on: default::preview_window_on(),
             audio_input_device: default::audio_input_device(),
@@ -144,10 +144,41 @@ impl Default for Config {
             led_output_fps: Default::default(),
             led_layout: Default::default(),
             madmapper_project_path: None,
-            presets: Default::default(),
             preset_lerp_secs: Default::default(),
         }
     }
+}
+
+/// Used only for one-time migration from the old combined config.json.
+#[derive(Deserialize)]
+struct LegacyConfig {
+    #[serde(flatten)]
+    global: GlobalConfig,
+    #[serde(default)]
+    presets: Option<Presets>,
+}
+
+/// Load global config and presets. Handles migration from the old single-file format.
+pub fn load(assets: &Path) -> (GlobalConfig, Presets) {
+    let config_path = config_path(assets);
+    let presets_path = presets_path(assets);
+
+    if presets_path.exists() {
+        let global: GlobalConfig = load_from_json(&config_path).ok().unwrap_or_default();
+        let presets: Presets = load_from_json(&presets_path).ok().unwrap_or_default();
+        return (global, presets);
+    }
+
+    if let Ok(legacy) = load_from_json::<_, LegacyConfig>(&config_path) {
+        let global = legacy.global;
+        let presets = legacy.presets.unwrap_or_default();
+        // Persist the split files so the legacy path is only hit once.
+        let _ = save_to_json(&config_path, &global);
+        let _ = save_to_json(&presets_path, &presets);
+        return (global, presets);
+    }
+
+    (GlobalConfig::default(), Presets::default())
 }
 
 impl LedLayout {

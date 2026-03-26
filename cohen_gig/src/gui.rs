@@ -1,4 +1,4 @@
-use crate::conf::Config;
+use crate::conf::GlobalConfig;
 use crate::shader;
 use nannou::prelude::*;
 
@@ -41,6 +41,7 @@ widget_ids! {
         live_tab_button,
         output_tab_button,
         dmx_button,
+        save_config_button,
         midi_button,
         preview_window_button,
         output_fps_text,
@@ -151,7 +152,8 @@ pub enum LeftPanelTab {
 }
 
 pub struct UpdateContext<'a> {
-    pub config: &'a mut Config,
+    pub global_config: &'a mut GlobalConfig,
+    pub presets: &'a mut crate::conf::Presets,
     pub audio_input: &'a mut crate::audio_input::AudioInput,
     pub left_panel_tab: &'a mut LeftPanelTab,
     pub sacn_output_monitor: &'a mut crate::SacnOutputMonitor,
@@ -1159,7 +1161,8 @@ impl Params for shader_shared::ColourPalettes {
 /// Update the user interface.
 pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     let UpdateContext {
-        config,
+        global_config,
+        presets,
         audio_input,
         left_panel_tab,
         sacn_output_monitor,
@@ -1249,31 +1252,32 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     match *left_panel_tab {
         LeftPanelTab::Live => {
             let audio_anchor =
-                set_live_sidebar_widgets(ui, ids, config, since_start, shader_activity);
+                set_live_sidebar_widgets(ui, ids, global_config, since_start, shader_activity);
             crate::audio_widgets::set_widgets(
                 ui,
                 ids,
                 audio_input,
-                &mut config.audio_input_device,
+                &mut global_config.audio_input_device,
                 audio_anchor,
             );
-            set_presets_widgets(ui, ids, config, last_preset_change, led_colors, assets);
+            set_presets_widgets(ui, ids, global_config, presets, last_preset_change, led_colors, assets);
         }
         LeftPanelTab::Output => {
             set_output_sidebar_widgets(
                 ui,
                 ids,
-                config,
+                global_config,
                 sacn_error,
                 sacn_output_monitor,
                 mad_project,
                 resolved_layout,
                 pending_file_dialog,
+                assets,
             );
             set_output_monitor_widgets(
                 ui,
                 ids,
-                config,
+                global_config,
                 sacn_output_monitor,
                 sacn_error,
                 sacn_transport_label,
@@ -1286,14 +1290,13 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 midi_mapping,
                 midi_learn,
                 midi_values,
-                config,
                 assets,
             );
         }
     }
 
     // Now that preset selection is done, get easier access to the selected preset.
-    let preset = config.presets.selected_mut();
+    let preset = presets.selected_mut();
 
     //---------------------- LED SHADER LEFT
 
@@ -1470,12 +1473,12 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         preset.left_right_mix = value;
     }
 
-    if let Some(value) = slider(config.fade_to_black.led, 0.0, 1.0)
+    if let Some(value) = slider(global_config.fade_to_black.led, 0.0, 1.0)
         .down(10.0)
         .label("LED Fade to Black")
         .set(ids.led_fade_to_black, ui)
     {
-        config.fade_to_black.led = value;
+        global_config.fade_to_black.led = value;
     }
 
     // A scrollbar for the canvas.
@@ -1485,12 +1488,12 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 fn set_live_sidebar_widgets(
     ui: &mut UiCell,
     ids: &Ids,
-    config: &mut Config,
+    global_config: &mut GlobalConfig,
     since_start: std::time::Duration,
     shader_activity: shader::Activity<'_>,
 ) -> widget::Id {
     if button()
-        .color(toggle_color(config.preview_window_on))
+        .color(toggle_color(global_config.preview_window_on))
         .label("PREVIEW")
         .mid_left_of(ids.column_1_id)
         .down_from(ids.live_tab_button, PAD * 0.5)
@@ -1498,7 +1501,7 @@ fn set_live_sidebar_widgets(
         .set(ids.preview_window_button, ui)
         .was_clicked()
     {
-        config.preview_window_on = !config.preview_window_on;
+        global_config.preview_window_on = !global_config.preview_window_on;
     }
 
     text("Shader State")
@@ -1537,12 +1540,13 @@ fn set_live_sidebar_widgets(
 fn set_output_sidebar_widgets(
     ui: &mut UiCell,
     ids: &Ids,
-    config: &mut Config,
+    global_config: &mut GlobalConfig,
     sacn_error: Option<&str>,
     sacn_output_monitor: &crate::SacnOutputMonitor,
     mad_project: &mut Option<crate::mad_mapper::MadProject>,
     resolved_layout: &mut Option<crate::layout::ResolvedLayout>,
     pending_file_dialog: &mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
+    assets: &Path,
 ) {
     let has_mad_project = mad_project.is_some();
 
@@ -1555,7 +1559,7 @@ fn set_output_sidebar_widgets(
         .iter()
         .map(|mode| mode.label())
         .collect();
-    let selected_output_fps = Some(config.led_output_fps.to_index());
+    let selected_output_fps = Some(global_config.led_output_fps.to_index());
     if let Some(selected_idx) = widget::DropDownList::new(&output_fps_labels, selected_output_fps)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .down(5.0)
@@ -1568,11 +1572,11 @@ fn set_output_sidebar_widgets(
         .set(ids.output_fps_ddl, ui)
     {
         if let Some(output_fps) = crate::conf::LedOutputFps::from_index(selected_idx) {
-            config.led_output_fps = output_fps;
+            global_config.led_output_fps = output_fps;
         }
     }
 
-    let measured_output_fps = if config.dmx_on {
+    let measured_output_fps = if global_config.dmx_on {
         format_measured_fps(
             sacn_output_monitor.smoothed_frame_fps,
             sacn_output_monitor.total_frames_sent,
@@ -1583,7 +1587,7 @@ fn set_output_sidebar_widgets(
     let output_fps_status = format!(
         "LED Output: {} (Cap {})",
         measured_output_fps,
-        config.led_output_fps.label()
+        global_config.led_output_fps.label()
     );
     widget::Text::new(&output_fps_status)
         .down(5.0)
@@ -1611,13 +1615,13 @@ fn set_output_sidebar_widgets(
     let color = if sacn_error.is_some() {
         color::DARK_RED.with_luminance(0.1)
     } else {
-        match crate::conf::parse_sacn_interface_ip(&config.sacn_interface_ip) {
+        match crate::conf::parse_sacn_interface_ip(&global_config.sacn_interface_ip) {
             Ok(Some(_)) => color::DARK_GREEN.with_luminance(0.1),
             Ok(None) => color::BLACK,
             Err(_) => color::DARK_RED.with_luminance(0.1),
         }
     };
-    for event in widget::TextBox::new(&config.sacn_interface_ip)
+    for event in widget::TextBox::new(&global_config.sacn_interface_ip)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .down(5.0)
         .border(0.0)
@@ -1627,9 +1631,9 @@ fn set_output_sidebar_widgets(
         .set(ids.sacn_interface_ip_text_box, ui)
     {
         match event {
-            widget::text_box::Event::Update(string) => config.sacn_interface_ip = string,
+            widget::text_box::Event::Update(string) => global_config.sacn_interface_ip = string,
             widget::text_box::Event::Enter => {
-                config.sacn_interface_ip = config.sacn_interface_ip.trim().to_string();
+                global_config.sacn_interface_ip = global_config.sacn_interface_ip.trim().to_string();
             }
         }
     }
@@ -1645,7 +1649,7 @@ fn set_output_sidebar_widgets(
     }
 
     if button()
-        .color(toggle_color(config.dmx_on))
+        .color(toggle_color(global_config.dmx_on))
         .label("Enable DMX Output")
         .w(WIDGET_W)
         .mid_left_of(ids.column_1_id)
@@ -1653,7 +1657,17 @@ fn set_output_sidebar_widgets(
         .set(ids.dmx_button, ui)
         .was_clicked()
     {
-        config.dmx_on = !config.dmx_on;
+        global_config.dmx_on = !global_config.dmx_on;
+    }
+
+    for _click in button()
+        .down(COLUMN_ONE_SECTION_GAP)
+        .label("Save Config")
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.save_config_button, ui)
+    {
+        super::save_global_config(assets, global_config);
     }
 
     // --- MadMapper Project section ---
@@ -1665,7 +1679,7 @@ fn set_output_sidebar_widgets(
 
     if has_mad_project {
         let project = mad_project.as_ref().unwrap();
-        let filename = config
+        let filename = global_config
             .madmapper_project_path
             .as_deref()
             .and_then(|p| std::path::Path::new(p).file_name())
@@ -1709,7 +1723,7 @@ fn set_output_sidebar_widgets(
         {
             *mad_project = None;
             *resolved_layout = None;
-            config.madmapper_project_path = None;
+            global_config.madmapper_project_path = None;
         }
     } else {
         let dialog_pending = pending_file_dialog.is_some();
@@ -1749,7 +1763,7 @@ fn set_output_sidebar_widgets(
         let min_universe = 1.0;
         let max_universe = 99.0;
         let precision = 0;
-        let v = config.led_start_universe;
+        let v = global_config.led_start_universe;
         if let Some(v) =
             widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
                 .border(0.0)
@@ -1762,7 +1776,7 @@ fn set_output_sidebar_widgets(
                 .color(color::DARK_CHARCOAL)
                 .set(ids.led_start_universe_dialer, ui)
         {
-            config.led_start_universe = v as u16;
+            global_config.led_start_universe = v as u16;
         }
 
         text("LED Layout")
@@ -1771,7 +1785,7 @@ fn set_output_sidebar_widgets(
             .set(ids.led_layout_text, ui);
 
         if let Some(v) = widget::NumberDialer::new(
-            config.led_layout.leds_per_metre as f32,
+            global_config.led_layout.leds_per_metre as f32,
             1.0,
             288.0,
             precision,
@@ -1786,11 +1800,11 @@ fn set_output_sidebar_widgets(
         .color(color::DARK_CHARCOAL)
         .set(ids.led_pixels_per_metre_dialer, ui)
         {
-            config.led_layout.leds_per_metre = v as usize;
+            global_config.led_layout.leds_per_metre = v as usize;
         }
 
         if let Some(v) = widget::NumberDialer::new(
-            config.led_layout.metres_per_row as f32,
+            global_config.led_layout.metres_per_row as f32,
             1.0,
             32.0,
             precision,
@@ -1805,11 +1819,11 @@ fn set_output_sidebar_widgets(
         .color(color::DARK_CHARCOAL)
         .set(ids.led_metres_per_row_dialer, ui)
         {
-            config.led_layout.metres_per_row = v as usize;
+            global_config.led_layout.metres_per_row = v as usize;
         }
 
         if let Some(v) =
-            widget::NumberDialer::new(config.led_layout.row_count as f32, 1.0, 32.0, precision)
+            widget::NumberDialer::new(global_config.led_layout.row_count as f32, 1.0, 32.0, precision)
                 .border(0.0)
                 .label("Rows")
                 .label_color(color::WHITE)
@@ -1820,16 +1834,16 @@ fn set_output_sidebar_widgets(
                 .color(color::DARK_CHARCOAL)
                 .set(ids.led_row_count_dialer, ui)
         {
-            config.led_layout.row_count = v as usize;
+            global_config.led_layout.row_count = v as usize;
         }
 
-        config.led_layout.normalise();
+        global_config.led_layout.normalise();
 
-        let total_leds = config.led_layout.led_count();
+        let total_leds = global_config.led_layout.led_count();
         let leds_per_universe =
             (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
         let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
-        let start_universe = config.led_start_universe;
+        let start_universe = global_config.led_start_universe;
         let end_universe =
             start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
         let layout_stats = format!(
@@ -1844,12 +1858,13 @@ fn set_output_sidebar_widgets(
             .left_justify()
             .set(ids.led_layout_stats_text, ui);
     }
+
 }
 
 fn set_output_monitor_widgets(
     ui: &mut UiCell,
     ids: &mut Ids,
-    config: &Config,
+    global_config: &GlobalConfig,
     sacn_output_monitor: &mut crate::SacnOutputMonitor,
     sacn_error: Option<&str>,
     sacn_transport_label: Option<&str>,
@@ -1859,7 +1874,7 @@ fn set_output_monitor_widgets(
         .color(TEXT_COLOR)
         .set(ids.sacn_output_title_text, ui);
 
-    let status_text = if !config.dmx_on {
+    let status_text = if !global_config.dmx_on {
         "DMX output is disabled on the Live tab.".to_string()
     } else if let Some(error) = sacn_error.or(sacn_output_monitor.last_send_error.as_deref()) {
         format!(
@@ -1868,7 +1883,7 @@ fn set_output_monitor_widgets(
                 sacn_output_monitor.smoothed_frame_fps,
                 sacn_output_monitor.total_frames_sent
             ),
-            config.led_output_fps.label(),
+            global_config.led_output_fps.label(),
             error
         )
     } else if let Some(last_sent_at) = sacn_output_monitor.last_sent_at {
@@ -1879,7 +1894,7 @@ fn set_output_monitor_widgets(
                 sacn_output_monitor.smoothed_frame_fps,
                 sacn_output_monitor.total_frames_sent
             ),
-            config.led_output_fps.label(),
+            global_config.led_output_fps.label(),
             last_sent_at.elapsed().as_secs_f32(),
             sacn_output_monitor.total_frames_sent,
             sacn_output_monitor.total_packets_sent,
@@ -1888,7 +1903,7 @@ fn set_output_monitor_widgets(
     } else {
         format!(
             "LED output: Waiting (Cap {})\nWaiting for the first successful sACN packet.",
-            config.led_output_fps.label()
+            global_config.led_output_fps.label()
         )
     };
     widget::Text::new(&status_text)
@@ -2086,7 +2101,6 @@ fn set_midi_tab_widgets(
         crate::midi::mapping::MidiTarget,
         crate::MidiTargetState,
     >,
-    config: &mut Config,
     assets: &Path,
 ) {
     use crate::midi::mapping::{MidiMappingPreset, MidiTarget};
@@ -2311,7 +2325,8 @@ fn truncate_port_name(name: &str) -> String {
 pub fn set_presets_widgets(
     ui: &mut UiCell,
     ids: &Ids,
-    config: &mut Config,
+    global_config: &mut GlobalConfig,
+    presets: &mut crate::conf::Presets,
     last_preset_change: &mut Option<crate::LastPresetChange>,
     led_colors: &LedColors,
     assets: &Path,
@@ -2323,14 +2338,14 @@ pub fn set_presets_widgets(
         .color(TEXT_COLOR)
         .set(ids.presets_text, ui);
 
-    let label = format!("Lerp Duration: {:.2} secs", config.preset_lerp_secs);
-    if let Some(v) = slider(config.preset_lerp_secs, 0.0, 6.0)
+    let label = format!("Lerp Duration: {:.2} secs", global_config.preset_lerp_secs);
+    if let Some(v) = slider(global_config.preset_lerp_secs, 0.0, 6.0)
         .down(10.0)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .label(&label)
         .set(ids.presets_lerp_slider, ui)
     {
-        config.preset_lerp_secs = v;
+        global_config.preset_lerp_secs = v;
     }
 
     for _click in button()
@@ -2340,8 +2355,8 @@ pub fn set_presets_widgets(
         .color(BUTTON_COLOR)
         .set(ids.presets_save_button, ui)
     {
-        config.presets.selected_mut().name = config.presets.selected_preset_name.clone();
-        super::save_config(assets, config);
+        presets.selected_mut().name = presets.selected_preset_name.clone();
+        super::save_presets(assets, presets);
     }
 
     for _click in button()
@@ -2351,23 +2366,17 @@ pub fn set_presets_widgets(
         .color(BUTTON_COLOR)
         .set(ids.presets_delete_button, ui)
     {
-        config
-            .presets
-            .list
-            .remove(config.presets.selected_preset_idx);
+        presets.list.remove(presets.selected_preset_idx);
 
-        // Ensure there's always at least one preset.
-        if config.presets.list.is_empty() {
-            config.presets.list.push(Default::default());
+        if presets.list.is_empty() {
+            presets.list.push(Default::default());
         }
 
-        // Ensure the selected index points at a valid preset.
-        if config.presets.selected_preset_idx >= config.presets.list.len() {
-            config.presets.selected_preset_idx -= 1;
+        if presets.selected_preset_idx >= presets.list.len() {
+            presets.selected_preset_idx -= 1;
         }
 
-        // Update selected preset name.
-        config.presets.selected_preset_name = config.presets.selected().name.clone();
+        presets.selected_preset_name = presets.selected().name.clone();
     }
 
     for _click in button()
@@ -2378,9 +2387,9 @@ pub fn set_presets_widgets(
         .set(ids.presets_new_button, ui)
     {
         let new_preset = crate::conf::Preset::default();
-        config.presets.selected_preset_name = new_preset.name.clone();
-        config.presets.list.push(new_preset);
-        config.presets.selected_preset_idx = config.presets.list.len() - 1;
+        presets.selected_preset_name = new_preset.name.clone();
+        presets.list.push(new_preset);
+        presets.selected_preset_idx = presets.list.len() - 1;
     }
 
     for _click in button()
@@ -2390,10 +2399,10 @@ pub fn set_presets_widgets(
         .color(BUTTON_COLOR)
         .set(ids.presets_duplicate, ui)
     {
-        let mut new_preset = config.presets.selected().clone();
-        new_preset.name = config.presets.selected_preset_name.clone();
-        config.presets.list.push(new_preset);
-        config.presets.selected_preset_idx = config.presets.list.len() - 1;
+        let mut new_preset = presets.selected().clone();
+        new_preset.name = presets.selected_preset_name.clone();
+        presets.list.push(new_preset);
+        presets.selected_preset_idx = presets.list.len() - 1;
     }
 
     widget::Text::new("Enter Preset Name")
@@ -2402,7 +2411,7 @@ pub fn set_presets_widgets(
         .color(TEXT_COLOR)
         .set(ids.enter_preset_name_text, ui);
 
-    for event in widget::TextBox::new(&config.presets.selected_preset_name)
+    for event in widget::TextBox::new(&presets.selected_preset_name)
         .down(10.0)
         .w_h(WIDGET_W, TEXT_BOX_H)
         .color(PRESET_ENTRY_COLOR)
@@ -2412,17 +2421,16 @@ pub fn set_presets_widgets(
     {
         use nannou_conrod::widget::text_box::Event;
         match event {
-            Event::Update(text) => config.presets.selected_preset_name = text,
+            Event::Update(text) => presets.selected_preset_name = text,
             Event::Enter => {
-                config.presets.selected_mut().name = config.presets.selected_preset_name.clone();
-                super::save_config(assets, config);
+                presets.selected_mut().name = presets.selected_preset_name.clone();
+                super::save_presets(assets, presets);
             }
         }
     }
 
-    let names: Vec<_> = config.presets.list.iter().map(|p| p.name.clone()).collect();
+    let names: Vec<_> = presets.list.iter().map(|p| p.name.clone()).collect();
 
-    // Instantiate the `ListSelect` widget.
     let font_size = TEXT_BOX_H as ui::FontSize / 2;
     let (mut events, presets_scrollbar) = widget::ListSelect::single(names.len())
         .flow_down()
@@ -2433,14 +2441,12 @@ pub fn set_presets_widgets(
         .align_left()
         .set(ids.presets_list, ui);
 
-    // Handle the `ListSelect`s events.
-    while let Some(event) = events.next(ui, |i| i == config.presets.selected_preset_idx) {
+    while let Some(event) = events.next(ui, |i| i == presets.selected_preset_idx) {
         use nannou_conrod::widget::list_select::Event;
         match event {
-            // For the `Item` events we instantiate the `List`'s items.
             Event::Item(item) => {
                 let label = &names[item.i];
-                let (color, label_color) = if item.i == config.presets.selected_preset_idx {
+                let (color, label_color) = if item.i == presets.selected_preset_idx {
                     (PRESET_LIST_SELECTED_COLOR, nannou_conrod::color::BLACK)
                 } else {
                     (PRESET_LIST_COLOR, TEXT_COLOR)
@@ -2455,11 +2461,10 @@ pub fn set_presets_widgets(
                 item.set(button, ui);
             }
 
-            // The selection has changed.
             Event::Selection(selection) => {
-                if selection < config.presets.list.len() {
-                    config.presets.selected_preset_idx = selection;
-                    config.presets.selected_preset_name = config.presets.selected().name.clone();
+                if selection < presets.list.len() {
+                    presets.selected_preset_idx = selection;
+                    presets.selected_preset_name = presets.selected().name.clone();
                     let now = std::time::Instant::now();
                     *last_preset_change = Some((now, led_colors.to_vec()));
                 }
