@@ -1235,7 +1235,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         shader_right_dropdown,
         hover_preview_state,
     } = ctx;
-    let _ = preview_hover_image_id;
+    // Clear previous frame's hover state — re-set by dropdown/list hover detection if still hovering.
+    *hover_preview_request = None;
+    hover_preview_state.hovered_rect = None;
 
     widget::Canvas::new()
         .pad(PAD)
@@ -1560,8 +1562,15 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         global_config.fade_to_black.led = value;
     }
 
-    // A scrollbar for the canvas.
-    //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
+    // Floating hover preview image.
+    if let (Some(image_id), Some(rect)) = (preview_hover_image_id, hover_preview_state.hovered_rect) {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .floating(true)
+            .x_y(rect.right() + COLUMN_W * 0.5 + PAD, rect.y())
+            .set(ids.hover_preview_image, ui);
+    }
 }
 
 fn set_live_sidebar_widgets(
