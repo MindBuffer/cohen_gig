@@ -1393,6 +1393,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     ) {
         preset.shader_left = shader;
     }
+    if shader_left_dropdown.is_open {
+        shader_right_dropdown.is_open = false;
+    }
 
     let mut mod_slider_ix = 0;
     let mut int_slider_ix = 0;
@@ -1500,6 +1503,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         hover_preview_state,
     ) {
         preset.shader_right = shader;
+    }
+    if shader_right_dropdown.is_open {
+        shader_left_dropdown.is_open = false;
     }
 
     {
