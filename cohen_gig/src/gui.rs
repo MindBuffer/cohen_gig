@@ -79,19 +79,15 @@ widget_ids! {
         led_layout_stats_text,
 
         led_shader_left_text,
-        led_shader_left_ddl,
 
         led_shader_right_text,
-        led_shader_right_ddl,
 
         // Custom shader dropdown (left).
         shader_left_button,
         shader_left_list,
-        shader_left_scrollbar,
         // Custom shader dropdown (right).
         shader_right_button,
         shader_right_list,
-        shader_right_scrollbar,
         // Floating hover preview.
         hover_preview_image,
 
@@ -1282,6 +1278,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Live;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     if button()
@@ -1293,6 +1291,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Output;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     if button()
@@ -1304,6 +1304,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Midi;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     match *left_panel_tab {
@@ -1383,7 +1385,6 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         ui,
         ids.shader_left_button,
         ids.shader_left_list,
-        ids.shader_left_scrollbar,
         shader_left_dropdown,
         preset.shader_left,
         &shader_names,
@@ -1492,7 +1493,6 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         ui,
         ids.shader_right_button,
         ids.shader_right_list,
-        ids.shader_right_scrollbar,
         shader_right_dropdown,
         preset.shader_right,
         &shader_names,
@@ -2420,7 +2420,6 @@ fn shader_dropdown(
     ui: &mut UiCell,
     button_id: widget::Id,
     list_id: widget::Id,
-    scrollbar_id: widget::Id,
     state: &mut ShaderDropdownState,
     current: Shader,
     shader_names: &[&str],
@@ -2499,7 +2498,6 @@ fn shader_dropdown(
         }
     }
 
-    let _ = scrollbar_id;
     if let Some(sb) = scrollbar {
         sb.set(ui);
     }
