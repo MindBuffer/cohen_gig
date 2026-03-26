@@ -1,0 +1,19 @@
+{
+  "name": "NanoKontrol2",
+  "entries": [
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 0, "target": { "ShaderLeftParam": 0 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 1, "target": { "ShaderLeftParam": 1 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 2, "target": { "ShaderLeftParam": 2 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 3, "target": { "ShaderLeftParam": 3 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 4, "target": "SmoothingSpeed" },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 6, "target": "FadeToBlack" },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 7, "target": "LeftRightMix" },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 16, "target": { "ShaderLeftMod": 0 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 17, "target": { "ShaderLeftMod": 1 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 18, "target": { "ShaderLeftMod": 2 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 19, "target": { "ShaderLeftMod": 3 } },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 21, "target": "ColourChannel1" },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 22, "target": "ColourChannel2" },
+    { "port_name": "nanoKONTROL2 SLIDER/KNOB", "cc": 23, "target": "ColourChannel3" }
+  ]
+}
