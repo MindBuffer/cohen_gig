@@ -53,6 +53,13 @@ struct MidiTargetState {
     active: bool,
 }
 
+struct PreviewImages {
+    left_id: ui::image::Id,
+    right_id: ui::image::Id,
+    width: u32,
+    height: u32,
+}
+
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
@@ -82,6 +89,7 @@ struct Model {
     mad_project: Option<mad_mapper::MadProject>,
     resolved_layout: Option<layout::ResolvedLayout>,
     pending_file_dialog: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
+    preview_images: Option<PreviewImages>,
 }
 
 type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
@@ -554,11 +562,158 @@ fn model(app: &App) -> Model {
         resolved_layout,
         mad_project,
         pending_file_dialog: None,
+        preview_images: None,
     }
 }
 
 fn black_led_buffer(led_count: usize) -> Vec<LinSrgb> {
     vec![lin_srgb(0.0, 0.0, 0.0); led_count]
+}
+
+fn led_colors_to_rgba(colors: &[LinSrgb], width: u32, height: u32) -> Vec<u8> {
+    let pixel_count = (width * height) as usize;
+    let mut rgba = vec![0u8; pixel_count * 4];
+    for (i, color) in colors.iter().take(pixel_count).enumerate() {
+        let offset = i * 4;
+        rgba[offset] = (color.red.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 1] = (color.green.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 2] = (color.blue.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 3] = 255;
+    }
+    rgba
+}
+
+fn preview_dimensions(
+    led_layout: &conf::LedLayout,
+    mad_project: Option<&mad_mapper::MadProject>,
+) -> (u32, u32) {
+    if let Some(project) = mad_project {
+        let fixtures = project.fixtures_by_row();
+        let rows = fixtures.len() as u32;
+        let max_cols = fixtures
+            .iter()
+            .map(|f| f.pixel_count as u32)
+            .max()
+            .unwrap_or(1);
+        (max_cols, rows.max(1))
+    } else {
+        (led_layout.leds_per_row() as u32, led_layout.row_count as u32)
+    }
+}
+
+fn update_preview_textures(app: &App, model: &mut Model) {
+    let (width, height) = preview_dimensions(
+        &model.global_config.led_layout,
+        model.mad_project.as_ref(),
+    );
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let window = match app.window(model._gui_window) {
+        Some(w) => w,
+        None => return,
+    };
+
+    let needs_recreate = match &model.preview_images {
+        Some(pi) => pi.width != width || pi.height != height,
+        None => true,
+    };
+
+    if needs_recreate {
+        let device = window.device();
+
+        let create_preview_texture = |label: &'static str| {
+            device.create_texture(&nannou::wgpu::TextureDescriptor {
+                label: Some(label),
+                size: nannou::wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: nannou::wgpu::TextureDimension::D2,
+                format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: nannou::wgpu::TextureUsages::COPY_DST
+                    | nannou::wgpu::TextureUsages::TEXTURE_BINDING,
+            })
+        };
+
+        let left_tex = create_preview_texture("preview_left");
+        let right_tex = create_preview_texture("preview_right");
+
+        let left_img = ui::conrod_wgpu::Image {
+            texture: left_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
+        let right_img = ui::conrod_wgpu::Image {
+            texture: right_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
+
+        if let Some(old) = model.preview_images.take() {
+            model.ui.image_map.remove(old.left_id);
+            model.ui.image_map.remove(old.right_id);
+        }
+
+        let left_id = model.ui.image_map.insert(left_img);
+        let right_id = model.ui.image_map.insert(right_img);
+        model.preview_images = Some(PreviewImages {
+            left_id,
+            right_id,
+            width,
+            height,
+        });
+    }
+
+    if let Some(ref pi) = model.preview_images {
+        let queue = window.queue();
+        let size = nannou::wgpu::Extent3d {
+            width: pi.width,
+            height: pi.height,
+            depth_or_array_layers: 1,
+        };
+        let layout = nannou::wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: std::num::NonZeroU32::new(pi.width * 4),
+            rows_per_image: std::num::NonZeroU32::new(pi.height),
+        };
+
+        let left_rgba = led_colors_to_rgba(&model.led_colors_left, pi.width, pi.height);
+        if let Some(img) = model.ui.image_map.get(&pi.left_id) {
+            queue.write_texture(
+                nannou::wgpu::ImageCopyTexture {
+                    texture: &img.texture,
+                    mip_level: 0,
+                    origin: nannou::wgpu::Origin3d::ZERO,
+                    aspect: nannou::wgpu::TextureAspect::All,
+                },
+                &left_rgba,
+                layout,
+                size,
+            );
+        }
+
+        let right_rgba = led_colors_to_rgba(&model.led_colors_right, pi.width, pi.height);
+        if let Some(img) = model.ui.image_map.get(&pi.right_id) {
+            queue.write_texture(
+                nannou::wgpu::ImageCopyTexture {
+                    texture: &img.texture,
+                    mip_level: 0,
+                    origin: nannou::wgpu::Origin3d::ZERO,
+                    aspect: nannou::wgpu::TextureAspect::All,
+                },
+                &right_rgba,
+                layout,
+                size,
+            );
+        }
+    }
 }
 
 fn convert_channel(f: f32) -> u8 {
@@ -1405,6 +1560,7 @@ fn key_pressed(_app: &App, model: &mut Model, key: Key) {
 fn update(app: &App, model: &mut Model, update: Update) {
     model.audio_input.update();
     apply_led_worker_output(model);
+    update_preview_textures(app, model);
     model.runtime_stats.record_app_frame(update.since_last);
 
     // Apply the GUI update.
@@ -1432,6 +1588,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
             midi_mapping: &mut model.midi_mapping,
             midi_learn: &mut model.midi_learn,
             midi_values: &mut model.midi_values,
+            preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
+            preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
         },
     );
     drop(ui);
