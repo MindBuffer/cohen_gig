@@ -194,6 +194,7 @@ pub struct UpdateContext<'a> {
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
     pub preview_colourise_image_id: Option<ui::image::Id>,
+    pub preview_hover_image_id: Option<ui::image::Id>,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1203,6 +1204,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         preview_left_image_id,
         preview_right_image_id,
         preview_colourise_image_id,
+        preview_hover_image_id: _preview_hover_image_id,
     } = ctx;
 
     widget::Canvas::new()

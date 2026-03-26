@@ -57,6 +57,7 @@ struct PreviewImages {
     left_id: ui::image::Id,
     right_id: ui::image::Id,
     colourise_id: ui::image::Id,
+    hover_id: ui::image::Id,
     width: u32,
     height: u32,
 }
@@ -676,6 +677,7 @@ fn update_preview_textures(app: &App, model: &mut Model) {
         let left_tex = create_preview_texture("preview_left");
         let right_tex = create_preview_texture("preview_right");
         let colourise_tex = create_preview_texture("preview_colourise");
+        let hover_tex = create_preview_texture("preview_hover");
 
         let left_img = ui::conrod_wgpu::Image {
             texture: left_tex,
@@ -695,20 +697,29 @@ fn update_preview_textures(app: &App, model: &mut Model) {
             width,
             height,
         };
+        let hover_img = ui::conrod_wgpu::Image {
+            texture: hover_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
 
         if let Some(old) = model.preview_images.take() {
             model.ui.image_map.remove(old.left_id);
             model.ui.image_map.remove(old.right_id);
             model.ui.image_map.remove(old.colourise_id);
+            model.ui.image_map.remove(old.hover_id);
         }
 
         let left_id = model.ui.image_map.insert(left_img);
         let right_id = model.ui.image_map.insert(right_img);
         let colourise_id = model.ui.image_map.insert(colourise_img);
+        let hover_id = model.ui.image_map.insert(hover_img);
         model.preview_images = Some(PreviewImages {
             left_id,
             right_id,
             colourise_id,
+            hover_id,
             width,
             height,
         });
@@ -770,6 +781,23 @@ fn update_preview_textures(app: &App, model: &mut Model) {
                 layout,
                 size,
             );
+        }
+
+        if !model.led_colors_hover.is_empty() {
+            let hover_rgba = led_colors_to_rgba(&model.led_colors_hover, pi.width, pi.height);
+            if let Some(img) = model.ui.image_map.get(&pi.hover_id) {
+                queue.write_texture(
+                    nannou::wgpu::ImageCopyTexture {
+                        texture: &img.texture,
+                        mip_level: 0,
+                        origin: nannou::wgpu::Origin3d::ZERO,
+                        aspect: nannou::wgpu::TextureAspect::All,
+                    },
+                    &hover_rgba,
+                    layout,
+                    size,
+                );
+            }
         }
     }
 }
@@ -1776,6 +1804,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
             preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
             preview_colourise_image_id: model.preview_images.as_ref().map(|pi| pi.colourise_id),
+            preview_hover_image_id: model.preview_images.as_ref().map(|pi| pi.hover_id),
         },
     );
     drop(ui);
