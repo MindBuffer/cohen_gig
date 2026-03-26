@@ -1287,7 +1287,7 @@ fn run_led_worker(
 fn render_led_worker_frame(
     state: &LedWorkerInputState,
     runtime: &mut LedWorkerRuntime,
-    _hover_preview_request: &Option<HoverPreviewRequest>,
+    hover_preview_request: &Option<HoverPreviewRequest>,
 ) {
     let shader: ShaderFnPtr = runtime
         .shader
@@ -1408,6 +1408,34 @@ fn render_led_worker_frame(
                 };
                 *color = shader(vertex, &colourise_uniforms);
             });
+    }
+
+    // Hover preview: render only when a request is active.
+    if let Some(ref request) = hover_preview_request {
+        let hover_uniforms = match request {
+            HoverPreviewRequest::Shader(s) => {
+                let mix = MixingInfo {
+                    left: *s,
+                    right: *s,
+                    colourise: shader_shared::Shader::SolidRgbColour,
+                    blend_mode: shader_shared::BlendMode::Add,
+                    xfade_left: 1.0,
+                    xfade_right: 0.0,
+                    params_left: ShaderParams::default(),
+                    params_right: ShaderParams::default(),
+                    params_colourise: white_colourise,
+                };
+                Uniforms { mix, ..uniforms.clone() }
+            }
+            HoverPreviewRequest::Preset(preset) => preset_uniforms(state, preset),
+        };
+        render_preset_graph(
+            shader,
+            &runtime.led_shader_inputs,
+            &hover_uniforms,
+            &runtime.led_colors,
+            &mut runtime.led_colors_hover,
+        );
     }
 
     let mut clear_transition = state.config.preset_lerp_secs <= 0.0;
