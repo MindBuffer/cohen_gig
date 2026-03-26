@@ -84,6 +84,17 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
+        // Custom shader dropdown (left).
+        shader_left_button,
+        shader_left_list,
+        shader_left_scrollbar,
+        // Custom shader dropdown (right).
+        shader_right_button,
+        shader_right_list,
+        shader_right_scrollbar,
+        // Floating hover preview.
+        hover_preview_image,
+
         led_preview_left_image,
         led_preview_right_image,
         led_preview_colourise_image,
@@ -169,6 +180,16 @@ struct ActivePresetListDrag {
     target_index: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ShaderDropdownState {
+    pub is_open: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct HoverPreviewState {
+    pub hovered_rect: Option<nannou_conrod::Rect>,
+}
+
 pub struct UpdateContext<'a> {
     pub global_config: &'a mut GlobalConfig,
     pub presets: &'a mut crate::conf::Presets,
@@ -195,6 +216,10 @@ pub struct UpdateContext<'a> {
     pub preview_right_image_id: Option<ui::image::Id>,
     pub preview_colourise_image_id: Option<ui::image::Id>,
     pub preview_hover_image_id: Option<ui::image::Id>,
+    pub hover_preview_request: &'a mut Option<crate::HoverPreviewRequest>,
+    pub shader_left_dropdown: &'a mut ShaderDropdownState,
+    pub shader_right_dropdown: &'a mut ShaderDropdownState,
+    pub hover_preview_state: &'a mut HoverPreviewState,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1205,6 +1230,10 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         preview_right_image_id,
         preview_colourise_image_id,
         preview_hover_image_id: _preview_hover_image_id,
+        hover_preview_request: _hover_preview_request,
+        shader_left_dropdown: _shader_left_dropdown,
+        shader_right_dropdown: _shader_right_dropdown,
+        hover_preview_state: _hover_preview_state,
     } = ctx;
 
     widget::Canvas::new()

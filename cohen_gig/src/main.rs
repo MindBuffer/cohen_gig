@@ -90,6 +90,9 @@ struct Model {
     ids: gui::Ids,
     left_panel_tab: gui::LeftPanelTab,
     preset_list_drag: gui::PresetListDragState,
+    shader_left_dropdown: gui::ShaderDropdownState,
+    shader_right_dropdown: gui::ShaderDropdownState,
+    hover_preview_state: gui::HoverPreviewState,
     audio_input: audio_input::AudioInput,
     runtime_stats: RuntimeStats,
     mad_project: Option<mad_mapper::MadProject>,
@@ -105,7 +108,7 @@ struct LastPresetChange {
 }
 
 #[derive(Clone)]
-enum HoverPreviewRequest {
+pub(crate) enum HoverPreviewRequest {
     Shader(shader_shared::Shader),
     Preset(conf::Preset),
 }
@@ -590,6 +593,9 @@ fn model(app: &App) -> Model {
         ids,
         left_panel_tab: gui::LeftPanelTab::Live,
         preset_list_drag: gui::PresetListDragState::default(),
+        shader_left_dropdown: gui::ShaderDropdownState::default(),
+        shader_right_dropdown: gui::ShaderDropdownState::default(),
+        hover_preview_state: gui::HoverPreviewState::default(),
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
         resolved_layout,
@@ -1805,6 +1811,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
             preview_colourise_image_id: model.preview_images.as_ref().map(|pi| pi.colourise_id),
             preview_hover_image_id: model.preview_images.as_ref().map(|pi| pi.hover_id),
+            hover_preview_request: &mut model.hover_preview_request,
+            shader_left_dropdown: &mut model.shader_left_dropdown,
+            shader_right_dropdown: &mut model.shader_right_dropdown,
+            hover_preview_state: &mut model.hover_preview_state,
         },
     );
     drop(ui);
