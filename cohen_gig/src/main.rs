@@ -94,7 +94,18 @@ struct Model {
     preview_images: Option<PreviewImages>,
 }
 
-type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
+#[derive(Clone)]
+struct LastPresetChange {
+    started_at: Instant,
+    preset: conf::Preset,
+}
+
+struct PresetTransitionState {
+    started_at: Instant,
+    preset: conf::Preset,
+    led_colors: Vec<LinSrgb>,
+    led_color_buffer: Vec<LinSrgb>,
+}
 
 #[derive(Copy, Clone)]
 pub struct CachedLedShaderInput {
@@ -413,7 +424,6 @@ impl RuntimeStats {
     }
 }
 
-
 fn main() {
     nannou::app(model).update(update).exit(exit).run();
 }
@@ -483,8 +493,10 @@ fn model(app: &App) -> Model {
 
     let shader_rx = shader::spawn_watch();
 
-    let mad_project = global_config.madmapper_project_path.as_ref().and_then(|path| {
-        match mad_mapper::parse(path) {
+    let mad_project = global_config
+        .madmapper_project_path
+        .as_ref()
+        .and_then(|path| match mad_mapper::parse(path) {
             Ok(project) => {
                 eprintln!(
                     "Loaded MadMapper project: {} fixtures, {} pixels",
@@ -497,8 +509,7 @@ fn model(app: &App) -> Model {
                 eprintln!("Failed to parse MadMapper project: {}", e);
                 None
             }
-        }
-    });
+        });
 
     let initial_led_count = mad_project
         .as_ref()
@@ -602,15 +613,16 @@ fn preview_dimensions(
             .unwrap_or(1);
         (max_cols, rows.max(1))
     } else {
-        (led_layout.leds_per_row() as u32, led_layout.row_count as u32)
+        (
+            led_layout.leds_per_row() as u32,
+            led_layout.row_count as u32,
+        )
     }
 }
 
 fn update_preview_textures(app: &App, model: &mut Model) {
-    let (width, height) = preview_dimensions(
-        &model.global_config.led_layout,
-        model.mad_project.as_ref(),
-    );
+    let (width, height) =
+        preview_dimensions(&model.global_config.led_layout, model.mad_project.as_ref());
     if width == 0 || height == 0 {
         return;
     }
@@ -898,9 +910,15 @@ fn sync_led_buffers(model: &mut Model) {
         .unwrap_or_else(|| model.global_config.led_layout.led_count());
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
-        model.led_colors_left.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
-        model.led_colors_right.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
-        model.led_colors_colourise.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model
+            .led_colors_left
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model
+            .led_colors_right
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model
+            .led_colors_colourise
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
@@ -923,8 +941,7 @@ fn apply_midi_values(model: &mut Model) {
                 model.global_config.fade_to_black.led = v;
             }
             MidiTarget::LeftRightMix => {
-                model.presets.selected_mut().left_right_mix =
-                    map_range(v, 0.0, 1.0, -1.0, 1.0);
+                model.presets.selected_mut().left_right_mix = map_range(v, 0.0, 1.0, -1.0, 1.0);
             }
             MidiTarget::AudioGain => {
                 model.audio_input.gain_db =
@@ -1031,9 +1048,15 @@ fn apply_led_worker_output(model: &mut Model) {
 
     model.led_worker.last_applied_frame_id = shared_output.frame_id;
     model.led_colors.clone_from(&shared_output.led_colors);
-    model.led_colors_left.clone_from(&shared_output.led_colors_left);
-    model.led_colors_right.clone_from(&shared_output.led_colors_right);
-    model.led_colors_colourise.clone_from(&shared_output.led_colors_colourise);
+    model
+        .led_colors_left
+        .clone_from(&shared_output.led_colors_left);
+    model
+        .led_colors_right
+        .clone_from(&shared_output.led_colors_right);
+    model
+        .led_colors_colourise
+        .clone_from(&shared_output.led_colors_colourise);
     model.led_outputs.clone_from(&shared_output.led_outputs);
     model.dmx.error = shared_output.dmx_error.clone();
     model.dmx.last_send_route = shared_output.last_send_route;
@@ -1082,7 +1105,7 @@ struct LedWorkerRuntime {
     cached_led_layout: conf::LedLayout,
     /// True when currently using a MadMapper resolved layout.
     using_mad_layout: bool,
-    last_preset_change: Option<LastPresetChange>,
+    preset_transition: Option<PresetTransitionState>,
     dmx: DmxRuntime,
 }
 
@@ -1107,7 +1130,7 @@ impl LedWorkerRuntime {
             led_shader_inputs: shader_inputs,
             cached_led_layout: config.led_layout.clone(),
             using_mad_layout: using_mad,
-            last_preset_change: None,
+            preset_transition: None,
             dmx: DmxRuntime {
                 source: None,
                 requested_interface_ip: None,
@@ -1148,7 +1171,7 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
         runtime
             .led_outputs
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
-        runtime.last_preset_change = None;
+        runtime.preset_transition = None;
     }
     if source_changed || runtime.led_shader_inputs.len() != led_count {
         runtime.led_shader_inputs = match new_inputs {
@@ -1157,7 +1180,7 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
         };
         runtime.cached_led_layout = config.led_layout.clone();
         runtime.using_mad_layout = now_mad;
-        runtime.last_preset_change = None;
+        runtime.preset_transition = None;
     }
 }
 
@@ -1196,7 +1219,12 @@ fn run_led_worker(
             runtime.shader = Some(shader);
         }
         if let Some(last_preset_change) = pending_preset_change {
-            runtime.last_preset_change = Some(last_preset_change);
+            runtime.preset_transition = Some(PresetTransitionState {
+                started_at: last_preset_change.started_at,
+                preset: last_preset_change.preset,
+                led_colors: runtime.led_colors.clone(),
+                led_color_buffer: black_led_buffer(runtime.led_colors.len()),
+            });
         }
 
         sync_led_worker_buffers(&mut runtime, &state.config);
@@ -1207,8 +1235,12 @@ fn run_led_worker(
             output.frame_id = frame_id;
             output.led_colors.clone_from(&runtime.led_colors);
             output.led_colors_left.clone_from(&runtime.led_colors_left);
-            output.led_colors_right.clone_from(&runtime.led_colors_right);
-            output.led_colors_colourise.clone_from(&runtime.led_colors_colourise);
+            output
+                .led_colors_right
+                .clone_from(&runtime.led_colors_right);
+            output
+                .led_colors_colourise
+                .clone_from(&runtime.led_colors_colourise);
             output.led_outputs.clone_from(&runtime.led_outputs);
             output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
             output.dmx_error = runtime.dmx.error.clone();
@@ -1225,109 +1257,23 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
         .as_ref()
         .map(|shader| *shader.get_fn())
         .unwrap_or(shader::black);
-    let led_layout = &state.config.led_layout;
-
-    /*
-    when t is -1, volumes[0] = 0, volumes[1] = 1
-    when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
-    when t = 1, volumes[0] = 1, volumes[1] = 0
-    // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
-    */
-    let lr_mix = state.config.preset.left_right_mix;
-    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
-    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
-    let env = state.audio_envelope;
-
-    // Build per-slot params with envelope modulation applied independently.
-    let mut params_left = state.config.preset.shader_params_left;
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.shader_left,
-            &mut params_left,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_left,
-            env,
-        );
-    }
-    let mut params_colourise = state.config.preset.shader_params_colourise;
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.colourise,
-            &mut params_colourise,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_colourise,
-            env,
-        );
-    }
-    let mut params_right = state.config.preset.shader_params_right;
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.shader_right,
-            &mut params_right,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_right,
-            env,
-        );
-    }
-
-    let mix_info = MixingInfo {
-        left: state.config.preset.shader_left,
-        right: state.config.preset.shader_right,
-        colourise: state.config.preset.colourise,
-        blend_mode: state.config.preset.blend_mode,
-        xfade_left,
-        xfade_right,
-        params_left,
-        params_right,
-        params_colourise,
-    };
-
-    let buttons = state
-        .buttons
-        .iter()
-        .map(|(&button, button_state)| {
-            let secs = button_state.last_pressed.elapsed().secs() as f32;
-            let state = shader_shared::ButtonState {
-                secs,
-                state: button_state.state,
-            };
-            (button, state)
-        })
-        .collect();
-    let time = state.app_time + state.snapshot_at.elapsed().as_secs_f32();
-    let uniforms = Uniforms {
-        time,
-        resolution: layout::shader_resolution(led_layout),
-        pot6: state.colour_channels[0],
-        pot7: state.colour_channels[1],
-        pot8: state.colour_channels[2],
-        params: ShaderParams::default(),
-        mix: mix_info,
-        buttons,
-    };
-
-    let previous_led_colors = &runtime.led_colors;
-    runtime
-        .led_color_buffer
-        .par_iter_mut()
-        .zip(runtime.led_shader_inputs.par_iter())
-        .zip(previous_led_colors.par_iter())
-        .for_each(|((color, led_input), &last_color)| {
-            let vertex = Vertex {
-                position: led_input.position,
-                light: led_input.light,
-                last_color,
-            };
-            *color = shader(vertex, &uniforms);
-        });
+    let uniforms = preset_uniforms(state, &state.config.preset);
+    render_preset_graph(
+        shader,
+        &runtime.led_shader_inputs,
+        &uniforms,
+        &runtime.led_colors,
+        &mut runtime.led_color_buffer,
+    );
     std::mem::swap(&mut runtime.led_colors, &mut runtime.led_color_buffer);
 
     // White colourise params used to bypass post-processing in left/right previews.
     let white_colourise = ShaderParams {
-        solid_rgb_colour: shader_shared::SolidRgbColour { red: 1.0, green: 1.0, blue: 1.0 },
+        solid_rgb_colour: shader_shared::SolidRgbColour {
+            red: 1.0,
+            green: 1.0,
+            blue: 1.0,
+        },
         ..ShaderParams::default()
     };
 
@@ -1398,7 +1344,11 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
             xfade_left: 1.0,
             xfade_right: 0.0,
             params_left: ShaderParams {
-                solid_rgb_colour: SolidRgbColour { red: 1.0, green: 1.0, blue: 1.0 },
+                solid_rgb_colour: SolidRgbColour {
+                    red: 1.0,
+                    green: 1.0,
+                    blue: 1.0,
+                },
                 ..ShaderParams::default()
             },
             params_right: ShaderParams::default(),
@@ -1423,16 +1373,27 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
             });
     }
 
-    let (prev_output, lerp_amt) = match runtime.last_preset_change {
+    let mut clear_transition = state.config.preset_lerp_secs <= 0.0;
+    let (prev_output, lerp_amt) = match runtime.preset_transition.as_mut() {
         None => (&[][..], 1.0),
-        Some((ref inst, ref prev_output)) => {
-            let elapsed_secs = inst.elapsed().as_secs_f32();
+        Some(transition) => {
+            let elapsed_secs = transition.started_at.elapsed().as_secs_f32();
             if elapsed_secs < state.config.preset_lerp_secs {
-                let diff = state.config.preset_lerp_secs - elapsed_secs;
-                let amt = 1.0 - diff / state.config.preset_lerp_secs;
-                (&prev_output[..], amt)
+                let transition_uniforms = preset_uniforms(state, &transition.preset);
+                render_preset_graph(
+                    shader,
+                    &runtime.led_shader_inputs,
+                    &transition_uniforms,
+                    &transition.led_colors,
+                    &mut transition.led_color_buffer,
+                );
+                std::mem::swap(&mut transition.led_colors, &mut transition.led_color_buffer);
+                (
+                    &transition.led_colors[..],
+                    ease_in_out((elapsed_secs / state.config.preset_lerp_secs).clamp(0.0, 1.0)),
+                )
             } else {
-                runtime.last_preset_change = None;
+                clear_transition = true;
                 (&[][..], 1.0)
             }
         }
@@ -1453,7 +1414,122 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
             };
         });
 
+    if clear_transition {
+        runtime.preset_transition = None;
+    }
+
     update_led_worker_dmx(state, runtime);
+}
+
+fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn preset_uniforms(state: &LedWorkerInputState, preset: &conf::Preset) -> Uniforms {
+    let led_layout = &state.config.led_layout;
+
+    /*
+    when t is -1, volumes[0] = 0, volumes[1] = 1
+    when t = 0, volumes[0] = 0.707, volumes[1] = 0.707 (equal-power cross fade)
+    when t = 1, volumes[0] = 1, volumes[1] = 0
+    // Equal power xfade taken from https://dsp.stackexchange.com/questions/14754/equal-power-crossfade
+    */
+    let lr_mix = preset.left_right_mix;
+    let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
+    let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
+    let env = state.audio_envelope;
+
+    let mut params_left = preset.shader_params_left;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            preset.shader_left,
+            &mut params_left,
+            &mut mod_ix,
+            &preset.shader_mod_amounts_left,
+            env,
+        );
+    }
+    let mut params_colourise = preset.shader_params_colourise;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            preset.colourise,
+            &mut params_colourise,
+            &mut mod_ix,
+            &preset.shader_mod_amounts_colourise,
+            env,
+        );
+    }
+    let mut params_right = preset.shader_params_right;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            preset.shader_right,
+            &mut params_right,
+            &mut mod_ix,
+            &preset.shader_mod_amounts_right,
+            env,
+        );
+    }
+
+    let mix_info = MixingInfo {
+        left: preset.shader_left,
+        right: preset.shader_right,
+        colourise: preset.colourise,
+        blend_mode: preset.blend_mode,
+        xfade_left,
+        xfade_right,
+        params_left,
+        params_right,
+        params_colourise,
+    };
+
+    let buttons = state
+        .buttons
+        .iter()
+        .map(|(&button, button_state)| {
+            let secs = button_state.last_pressed.elapsed().secs() as f32;
+            let state = shader_shared::ButtonState {
+                secs,
+                state: button_state.state,
+            };
+            (button, state)
+        })
+        .collect();
+    let time = state.app_time + state.snapshot_at.elapsed().as_secs_f32();
+    Uniforms {
+        time,
+        resolution: layout::shader_resolution(led_layout),
+        pot6: state.colour_channels[0],
+        pot7: state.colour_channels[1],
+        pot8: state.colour_channels[2],
+        params: ShaderParams::default(),
+        mix: mix_info,
+        buttons,
+    }
+}
+
+fn render_preset_graph(
+    shader: ShaderFnPtr,
+    led_shader_inputs: &[CachedLedShaderInput],
+    uniforms: &Uniforms,
+    previous_led_colors: &[LinSrgb],
+    output: &mut [LinSrgb],
+) {
+    output
+        .par_iter_mut()
+        .zip(led_shader_inputs.par_iter())
+        .zip(previous_led_colors.par_iter())
+        .for_each(|((color, led_input), &last_color)| {
+            let vertex = Vertex {
+                position: led_input.position,
+                light: led_input.light,
+                last_color,
+            };
+            *color = shader(vertex, uniforms);
+        });
 }
 
 fn update_led_worker_dmx(state: &LedWorkerInputState, runtime: &mut LedWorkerRuntime) {
@@ -1511,11 +1587,7 @@ fn update_led_worker_dmx(state: &LedWorkerInputState, runtime: &mut LedWorkerRun
     }
     if should_send_output {
         if let Some(ref mut dmx_source) = runtime.dmx.source {
-            let dmx_map = state
-                .config
-                .resolved_layout
-                .as_ref()
-                .map(|rl| &rl.dmx_map);
+            let dmx_map = state.config.resolved_layout.as_ref().map(|rl| &rl.dmx_map);
             let payloads = build_sacn_payloads(
                 dmx_map,
                 state.config.led_start_universe,
@@ -1655,8 +1727,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                         );
                         model.global_config.madmapper_project_path =
                             Some(path.to_string_lossy().into_owned());
-                        model.resolved_layout =
-                            Some(layout::resolve_from_mad_project(&project));
+                        model.resolved_layout = Some(layout::resolve_from_mad_project(&project));
                         model.mad_project = Some(project);
                     }
                     Err(e) => {
@@ -1693,14 +1764,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
         // Normal routing.
         if let Some(target) = model.midi_mapping.target_for(&msg.port_name, msg.cc) {
             let normalized = 1.0 - (msg.value as f32 / 127.0);
-            let state = model
-                .midi_values
-                .entry(target)
-                .or_insert(MidiTargetState {
-                    target: normalized,
-                    smoothed: normalized,
-                    active: false,
-                });
+            let state = model.midi_values.entry(target).or_insert(MidiTargetState {
+                target: normalized,
+                smoothed: normalized,
+                active: false,
+            });
             state.target = normalized;
             state.active = true;
         }
