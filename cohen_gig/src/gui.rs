@@ -2207,10 +2207,10 @@ fn set_midi_tab_widgets(
     ids.midi_mapping_category_headers
         .resize(categories.len(), &mut ui.widget_id_generator());
 
-    let label_w = WIDGET_W * 0.48;
-    let port_w = WIDGET_W * 0.22;
-    let cc_w = WIDGET_W * 0.08;
-    let learn_w = WIDGET_W * 0.18;
+    let label_w = WIDGET_W * 0.38;
+    let port_w = WIDGET_W * 0.25;
+    let cc_w = WIDGET_W * 0.12;
+    let learn_w = WIDGET_W * 0.20;
     let row_h = DEFAULT_SLIDER_H - 2.0;
     let row_spacing = 1.0;
 
@@ -2301,8 +2301,8 @@ fn set_midi_tab_widgets(
 }
 
 fn truncate_port_name(name: &str) -> String {
-    if name.len() > 15 {
-        format!("{}…", &name[..14])
+    if name.len() > 10 {
+        format!("{}…", &name[..9])
     } else {
         name.to_string()
     }
