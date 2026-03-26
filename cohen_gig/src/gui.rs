@@ -1490,33 +1490,10 @@ fn set_live_sidebar_widgets(
     shader_activity: shader::Activity<'_>,
 ) -> widget::Id {
     if button()
-        .color(toggle_color(config.dmx_on))
-        .label("DMX")
-        .w(HALF_WIDGET_W)
-        .mid_left_of(ids.column_1_id)
-        .down_from(ids.live_tab_button, PAD * 0.5)
-        .set(ids.dmx_button, ui)
-        .was_clicked()
-    {
-        config.dmx_on = !config.dmx_on;
-    }
-
-    if button()
-        .color(toggle_color(config.midi_on))
-        .label("MIDI")
-        .right(PAD * 0.5)
-        .w(HALF_WIDGET_W)
-        .set(ids.midi_button, ui)
-        .was_clicked()
-    {
-        config.midi_on = !config.midi_on;
-    }
-
-    if button()
         .color(toggle_color(config.preview_window_on))
         .label("PREVIEW")
         .mid_left_of(ids.column_1_id)
-        .down_from(ids.dmx_button, PAD * 0.5)
+        .down_from(ids.live_tab_button, PAD * 0.5)
         .w(WIDGET_W)
         .set(ids.preview_window_button, ui)
         .was_clicked()
@@ -1665,6 +1642,18 @@ fn set_output_sidebar_widgets(
             .color(color::LIGHT_RED)
             .left_justify()
             .set(ids.sacn_interface_ip_error_text, ui);
+    }
+
+    if button()
+        .color(toggle_color(config.dmx_on))
+        .label("Enable DMX Output")
+        .w(WIDGET_W)
+        .mid_left_of(ids.column_1_id)
+        .down(COLUMN_ONE_SECTION_GAP)
+        .set(ids.dmx_button, ui)
+        .was_clicked()
+    {
+        config.dmx_on = !config.dmx_on;
     }
 
     // --- MadMapper Project section ---

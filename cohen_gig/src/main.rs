@@ -1392,33 +1392,31 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
 
     // MIDI routing: CC → mapping lookup → target values → smoothing → apply.
-    if model.config.midi_on {
-        model.midi_manager.poll();
-        for msg in model.midi_manager.drain().collect::<Vec<_>>() {
-            // Check learn mode first.
-            if model.midi_learn.is_listening() {
-                if let Some((port, cc, target)) = model.midi_learn.receive(&msg) {
-                    model.midi_mapping.assign(port, cc, target);
-                }
-                continue;
+    model.midi_manager.poll();
+    for msg in model.midi_manager.drain().collect::<Vec<_>>() {
+        // Check learn mode first.
+        if model.midi_learn.is_listening() {
+            if let Some((port, cc, target)) = model.midi_learn.receive(&msg) {
+                model.midi_mapping.assign(port, cc, target);
             }
-            // Normal routing.
-            if let Some(target) = model.midi_mapping.target_for(&msg.port_name, msg.cc) {
-                let normalized = 1.0 - (msg.value as f32 / 127.0);
-                let state = model
-                    .midi_values
-                    .entry(target)
-                    .or_insert(MidiTargetState {
-                        target: normalized,
-                        smoothed: normalized,
-                        active: false,
-                    });
-                state.target = normalized;
-                state.active = true;
-            }
+            continue;
         }
-        model.midi_learn.update();
+        // Normal routing.
+        if let Some(target) = model.midi_mapping.target_for(&msg.port_name, msg.cc) {
+            let normalized = 1.0 - (msg.value as f32 / 127.0);
+            let state = model
+                .midi_values
+                .entry(target)
+                .or_insert(MidiTargetState {
+                    target: normalized,
+                    smoothed: normalized,
+                    active: false,
+                });
+            state.target = normalized;
+            state.active = true;
+        }
     }
+    model.midi_learn.update();
 
     // Smooth active MIDI targets.
     let s = model.smoothing_speed;

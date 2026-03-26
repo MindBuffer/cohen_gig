@@ -14,9 +14,6 @@ pub struct Config {
     /// Whether or not DMX is enabled.
     #[serde(default)]
     pub dmx_on: bool,
-    /// Whether or not MIDI is enabled.
-    #[serde(default)]
-    pub midi_on: bool,
     /// Whether or not the LED previs window is visible.
     #[serde(default = "default::preview_window_on")]
     pub preview_window_on: bool,
@@ -139,7 +136,6 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             dmx_on: Default::default(),
-            midi_on: Default::default(),
             preview_window_on: default::preview_window_on(),
             audio_input_device: default::audio_input_device(),
             led_start_universe: default::led_start_universe(),
