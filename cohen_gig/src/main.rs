@@ -26,7 +26,7 @@ pub mod mod_slider;
 mod sacn_sender;
 mod shader;
 
-use crate::conf::Config;
+use crate::conf::GlobalConfig;
 use crate::shader::{Shader, ShaderFnPtr, ShaderReceiver};
 
 const WINDOW_PAD: i32 = 20;
@@ -64,7 +64,8 @@ struct Model {
     midi_learn: midi::learn::LearnState,
     midi_values: HashMap<midi::mapping::MidiTarget, MidiTargetState>,
     shader_rx: ShaderReceiver,
-    config: Config,
+    global_config: GlobalConfig,
+    presets: conf::Presets,
     smoothing_speed: f32,
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
@@ -404,12 +405,9 @@ fn model(app: &App) -> Model {
         .assets_path()
         .expect("failed to find project `assets` directory");
 
-    let config_path = conf::path(&assets);
-    let mut config: Config = load_from_json(config_path)
-        .ok()
-        .unwrap_or_else(Config::default);
-    config.led_layout.normalise();
-    for preset in &mut config.presets.list {
+    let (mut global_config, mut presets) = conf::load(&assets);
+    global_config.led_layout.normalise();
+    for preset in &mut presets.list {
         preset.migrate_legacy();
         gui::normalise_preset_shader_mod_amounts(preset);
     }
@@ -456,7 +454,7 @@ fn model(app: &App) -> Model {
             .window(led_strip_window)
             .expect("visualisation window closed unexpectedly");
         w.set_outer_position_pixels(LED_STRIP_WINDOW_X, LED_STRIP_WINDOW_Y);
-        w.set_visible(config.preview_window_on);
+        w.set_visible(global_config.preview_window_on);
     }
 
     let dmx = Dmx {
@@ -467,7 +465,7 @@ fn model(app: &App) -> Model {
 
     let shader_rx = shader::spawn_watch();
 
-    let mad_project = config.madmapper_project_path.as_ref().and_then(|path| {
+    let mad_project = global_config.madmapper_project_path.as_ref().and_then(|path| {
         match mad_mapper::parse(path) {
             Ok(project) => {
                 eprintln!(
@@ -487,7 +485,7 @@ fn model(app: &App) -> Model {
     let initial_led_count = mad_project
         .as_ref()
         .map(|p| p.total_pixels())
-        .unwrap_or_else(|| config.led_layout.led_count());
+        .unwrap_or_else(|| global_config.led_layout.led_count());
     let led_colors = black_led_buffer(initial_led_count);
     let led_outputs = black_led_buffer(initial_led_count);
 
@@ -505,7 +503,7 @@ fn model(app: &App) -> Model {
         .map(midi::mapping::MidiMapping::new)
         .unwrap_or_default();
 
-    let audio_input = audio_input::AudioInput::new(128, config.audio_input_device.clone());
+    let audio_input = audio_input::AudioInput::new(128, global_config.audio_input_device.clone());
     let colour_channels = [1.0, 0.0, 1.0]; // R/H, G/S, B/V defaults
 
     let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
@@ -513,7 +511,8 @@ fn model(app: &App) -> Model {
     let last_preset_change = None;
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
-        &config,
+        &global_config,
+        &presets,
         &audio_input,
         colour_channels,
         gui::LeftPanelTab::Live,
@@ -523,7 +522,7 @@ fn model(app: &App) -> Model {
     Model {
         _gui_window: gui_window,
         led_strip_window,
-        preview_window_visible: config.preview_window_on,
+        preview_window_visible: global_config.preview_window_on,
         led_worker,
         dmx,
         midi_manager,
@@ -531,7 +530,8 @@ fn model(app: &App) -> Model {
         midi_learn: midi::learn::LearnState::default(),
         midi_values: HashMap::new(),
         shader_rx,
-        config,
+        global_config,
+        presets,
         smoothing_speed: 0.05,
         colour_channels,
         buttons: Default::default(),
@@ -668,7 +668,8 @@ pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedS
 
 fn build_led_worker_input_state(
     app_time: f32,
-    config: &Config,
+    global_config: &GlobalConfig,
+    presets: &conf::Presets,
     audio_input: &audio_input::AudioInput,
     colour_channels: [f32; 3],
     left_panel_tab: gui::LeftPanelTab,
@@ -679,14 +680,14 @@ fn build_led_worker_input_state(
         app_time,
         snapshot_at: Instant::now(),
         config: LedWorkerConfig {
-            dmx_on: config.dmx_on,
-            sacn_interface_ip: config.sacn_interface_ip.clone(),
-            led_output_fps: config.led_output_fps,
-            led_start_universe: config.led_start_universe,
-            fade_to_black_led: config.fade_to_black.led,
-            preset_lerp_secs: config.preset_lerp_secs,
-            led_layout: config.led_layout.clone(),
-            preset: config.presets.selected().clone(),
+            dmx_on: global_config.dmx_on,
+            sacn_interface_ip: global_config.sacn_interface_ip.clone(),
+            led_output_fps: global_config.led_output_fps,
+            led_start_universe: global_config.led_start_universe,
+            fade_to_black_led: global_config.fade_to_black.led,
+            preset_lerp_secs: global_config.preset_lerp_secs,
+            led_layout: global_config.led_layout.clone(),
+            preset: presets.selected().clone(),
             resolved_layout,
         },
         colour_channels,
@@ -701,7 +702,7 @@ fn sync_led_buffers(model: &mut Model) {
         .mad_project
         .as_ref()
         .map(|p| p.total_pixels())
-        .unwrap_or_else(|| model.config.led_layout.led_count());
+        .unwrap_or_else(|| model.global_config.led_layout.led_count());
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
@@ -744,10 +745,10 @@ fn apply_midi_values(model: &mut Model) {
                 model.smoothing_speed = map_range(v, 0.0, 1.0, 0.0008, 0.08);
             }
             MidiTarget::FadeToBlack => {
-                model.config.fade_to_black.led = v;
+                model.global_config.fade_to_black.led = v;
             }
             MidiTarget::LeftRightMix => {
-                model.config.presets.selected_mut().left_right_mix =
+                model.presets.selected_mut().left_right_mix =
                     map_range(v, 0.0, 1.0, -1.0, 1.0);
             }
             MidiTarget::AudioGain => {
@@ -776,9 +777,7 @@ fn apply_midi_values(model: &mut Model) {
                 model.colour_channels[2] = v;
             }
             MidiTarget::ColourPalette => {
-                // Write to whichever slot is using ColourPalettes.
                 model
-                    .config
                     .presets
                     .selected_mut()
                     .shader_params_colourise
@@ -786,7 +785,7 @@ fn apply_midi_values(model: &mut Model) {
                     .interval = map_range(v, 0.0, 1.0, 0.0, 1.0);
             }
             MidiTarget::ShaderLeftParam(n) => {
-                let preset = model.config.presets.selected_mut();
+                let preset = model.presets.selected_mut();
                 let shader = preset.shader_left;
                 let params: &mut dyn gui::Params =
                     gui::shader_params(shader, &mut preset.shader_params_left);
@@ -798,7 +797,7 @@ fn apply_midi_values(model: &mut Model) {
                 }
             }
             MidiTarget::ShaderRightParam(n) => {
-                let preset = model.config.presets.selected_mut();
+                let preset = model.presets.selected_mut();
                 let shader = preset.shader_right;
                 let params: &mut dyn gui::Params =
                     gui::shader_params(shader, &mut preset.shader_params_right);
@@ -810,14 +809,14 @@ fn apply_midi_values(model: &mut Model) {
                 }
             }
             MidiTarget::ShaderLeftMod(n) => {
-                let preset = model.config.presets.selected_mut();
+                let preset = model.presets.selected_mut();
                 let idx = n as usize;
                 if idx < preset.shader_mod_amounts_left.len() {
                     preset.shader_mod_amounts_left[idx] = v;
                 }
             }
             MidiTarget::ShaderRightMod(n) => {
-                let preset = model.config.presets.selected_mut();
+                let preset = model.presets.selected_mut();
                 let idx = n as usize;
                 if idx < preset.shader_mod_amounts_right.len() {
                     preset.shader_mod_amounts_right[idx] = v;
@@ -831,7 +830,8 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
     if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
         shared_input.latest_state = build_led_worker_input_state(
             app.time,
-            &model.config,
+            &model.global_config,
+            &model.presets,
             &model.audio_input,
             model.colour_channels,
             model.left_panel_tab,
@@ -1299,14 +1299,14 @@ fn update_led_worker_dmx(state: &LedWorkerInputState, runtime: &mut LedWorkerRun
 }
 
 fn sync_preview_window_visibility(app: &App, model: &mut Model) {
-    if model.preview_window_visible == model.config.preview_window_on {
+    if model.preview_window_visible == model.global_config.preview_window_on {
         return;
     }
 
     if let Some(window) = app.window(model.led_strip_window) {
-        window.set_visible(model.config.preview_window_on);
+        window.set_visible(model.global_config.preview_window_on);
     }
-    model.preview_window_visible = model.config.preview_window_on;
+    model.preview_window_visible = model.global_config.preview_window_on;
 }
 
 fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
@@ -1331,7 +1331,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
     gui::update(
         &mut ui,
         gui::UpdateContext {
-            config: &mut model.config,
+            global_config: &mut model.global_config,
+            presets: &mut model.presets,
             audio_input: &mut model.audio_input,
             left_panel_tab: &mut model.left_panel_tab,
             sacn_output_monitor: &mut model.dmx.monitor,
@@ -1364,7 +1365,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
                             project.fixtures.len(),
                             project.total_pixels()
                         );
-                        model.config.madmapper_project_path =
+                        model.global_config.madmapper_project_path =
                             Some(path.to_string_lossy().into_owned());
                         model.resolved_layout =
                             Some(layout::resolve_from_mad_project(&project));
@@ -1381,7 +1382,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     sync_preview_window_visibility(app, model);
     update_gui_window_title(app, model);
-    model.config.led_layout.normalise();
+    model.global_config.led_layout.normalise();
     sync_led_buffers(model);
 
     // Check for an update to the shader.
@@ -1551,7 +1552,7 @@ fn led_strip_view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
 
-    if !model.config.preview_window_on {
+    if !model.global_config.preview_window_on {
         draw.to_frame(app, &frame).unwrap();
         return;
     }
@@ -1606,7 +1607,7 @@ fn led_strip_view_mad(draw: &Draw, w: &geom::Rect, model: &Model) {
 
 /// Preview rendering for manual LED layout (original path).
 fn led_strip_view_manual(app: &App, draw: &Draw, w: &geom::Rect, model: &Model) {
-    let led_layout = &model.config.led_layout;
+    let led_layout = &model.global_config.led_layout;
 
     let metres_to_points_scale = (w.h() / layout::top_led_row_from_ground(led_layout))
         .min(w.w() / led_layout.metres_per_row as f32)
@@ -1691,23 +1692,23 @@ fn draw_hotload_feedback(app: &App, model: &Model, draw: &Draw, w: geom::Rect) {
     }
 }
 
-fn save_config(assets: &Path, config: &Config) {
-    let config_path = conf::path(assets);
-    save_to_json(config_path, config).expect("failed to save config");
+fn save_global_config(assets: &Path, global_config: &GlobalConfig) {
+    let path = conf::config_path(assets);
+    save_to_json(path, global_config).expect("failed to save global config");
 }
 
-fn exit(app: &App, mut model: Model) {
+fn save_presets(assets: &Path, presets: &conf::Presets) {
+    let path = conf::presets_path(assets);
+    save_to_json(path, presets).expect("failed to save presets");
+}
+
+fn exit(_app: &App, mut model: Model) {
     if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
         shared_input.shutdown = true;
     }
     if let Some(thread) = model.led_worker.thread.take() {
         let _ = thread.join();
     }
-
-    let assets = app
-        .assets_path()
-        .expect("failed to find project `assets` directory");
-    save_config(assets.as_path(), &model.config);
 }
 
 fn update_button(
