@@ -171,14 +171,11 @@ pub struct UpdateContext<'a> {
     pub ids: &'a mut Ids,
     pub mad_project: &'a mut Option<crate::mad_mapper::MadProject>,
     pub resolved_layout: &'a mut Option<crate::layout::ResolvedLayout>,
-    pub pending_file_dialog:
-        &'a mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
+    pub pending_file_dialog: &'a mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
     pub midi_mapping: &'a mut crate::midi::mapping::MidiMapping,
     pub midi_learn: &'a mut crate::midi::learn::LearnState,
-    pub midi_values: &'a mut std::collections::HashMap<
-        crate::midi::mapping::MidiTarget,
-        crate::MidiTargetState,
-    >,
+    pub midi_values:
+        &'a mut std::collections::HashMap<crate::midi::mapping::MidiTarget, crate::MidiTargetState>,
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
     pub preview_colourise_image_id: Option<ui::image::Id>,
@@ -1270,7 +1267,15 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 &mut global_config.audio_input_device,
                 audio_anchor,
             );
-            set_presets_widgets(ui, ids, global_config, presets, last_preset_change, led_colors, assets);
+            set_presets_widgets(
+                ui,
+                ids,
+                global_config,
+                presets,
+                last_preset_change,
+                led_colors,
+                assets,
+            );
         }
         LeftPanelTab::Output => {
             set_output_sidebar_widgets(
@@ -1294,14 +1299,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             );
         }
         LeftPanelTab::Midi => {
-            set_midi_tab_widgets(
-                ui,
-                ids,
-                midi_mapping,
-                midi_learn,
-                midi_values,
-                assets,
-            );
+            set_midi_tab_widgets(ui, ids, midi_mapping, midi_learn, midi_values, assets);
         }
     }
 
@@ -1667,7 +1665,8 @@ fn set_output_sidebar_widgets(
         match event {
             widget::text_box::Event::Update(string) => global_config.sacn_interface_ip = string,
             widget::text_box::Event::Enter => {
-                global_config.sacn_interface_ip = global_config.sacn_interface_ip.trim().to_string();
+                global_config.sacn_interface_ip =
+                    global_config.sacn_interface_ip.trim().to_string();
             }
         }
     }
@@ -1798,17 +1797,16 @@ fn set_output_sidebar_widgets(
         let max_universe = 99.0;
         let precision = 0;
         let v = global_config.led_start_universe;
-        if let Some(v) =
-            widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
-                .border(0.0)
-                .label("Start Universe")
-                .label_color(color::WHITE)
-                .label_font_size(14)
-                .down(PAD)
-                .w(WIDGET_W)
-                .h(DEFAULT_WIDGET_H)
-                .color(color::DARK_CHARCOAL)
-                .set(ids.led_start_universe_dialer, ui)
+        if let Some(v) = widget::NumberDialer::new(v as f32, min_universe, max_universe, precision)
+            .border(0.0)
+            .label("Start Universe")
+            .label_color(color::WHITE)
+            .label_font_size(14)
+            .down(PAD)
+            .w(WIDGET_W)
+            .h(DEFAULT_WIDGET_H)
+            .color(color::DARK_CHARCOAL)
+            .set(ids.led_start_universe_dialer, ui)
         {
             global_config.led_start_universe = v as u16;
         }
@@ -1856,17 +1854,21 @@ fn set_output_sidebar_widgets(
             global_config.led_layout.metres_per_row = v as usize;
         }
 
-        if let Some(v) =
-            widget::NumberDialer::new(global_config.led_layout.row_count as f32, 1.0, 32.0, precision)
-                .border(0.0)
-                .label("Rows")
-                .label_color(color::WHITE)
-                .label_font_size(14)
-                .down(5.0)
-                .w(WIDGET_W)
-                .h(DEFAULT_WIDGET_H)
-                .color(color::DARK_CHARCOAL)
-                .set(ids.led_row_count_dialer, ui)
+        if let Some(v) = widget::NumberDialer::new(
+            global_config.led_layout.row_count as f32,
+            1.0,
+            32.0,
+            precision,
+        )
+        .border(0.0)
+        .label("Rows")
+        .label_color(color::WHITE)
+        .label_font_size(14)
+        .down(5.0)
+        .w(WIDGET_W)
+        .h(DEFAULT_WIDGET_H)
+        .color(color::DARK_CHARCOAL)
+        .set(ids.led_row_count_dialer, ui)
         {
             global_config.led_layout.row_count = v as usize;
         }
@@ -1878,8 +1880,7 @@ fn set_output_sidebar_widgets(
             (crate::DMX_ADDRS_PER_UNIVERSE as usize - 2) / crate::DMX_ADDRS_PER_LED as usize;
         let universe_count = ((total_leds.saturating_sub(1)) / leds_per_universe) + 1;
         let start_universe = global_config.led_start_universe;
-        let end_universe =
-            start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
+        let end_universe = start_universe.saturating_add(universe_count.saturating_sub(1) as u16);
         let layout_stats = format!(
             "{} LEDs across {} universes (U{}-U{})",
             total_leds, universe_count, start_universe, end_universe
@@ -1892,7 +1893,6 @@ fn set_output_sidebar_widgets(
             .left_justify()
             .set(ids.led_layout_stats_text, ui);
     }
-
 }
 
 fn set_output_monitor_widgets(
@@ -2151,18 +2151,17 @@ fn set_midi_tab_widgets(
     let preset_labels: Vec<&str> = preset_names.iter().map(|s| s.as_str()).collect();
 
     if !preset_labels.is_empty() {
-        if let Some(selected_idx) =
-            widget::DropDownList::new(&preset_labels, current_idx)
-                .w_h(WIDGET_W, DEFAULT_WIDGET_H)
-                .mid_left_of(ids.column_1_id)
-                .down_from(ids.live_tab_button, PAD * 0.5)
-                .max_visible_items(10)
-                .rgb(0.176, 0.513, 0.639)
-                .label("MIDI Preset")
-                .label_font_size(12)
-                .label_rgb(1.0, 1.0, 1.0)
-                .scrollbar_on_top()
-                .set(ids.midi_preset_ddl, ui)
+        if let Some(selected_idx) = widget::DropDownList::new(&preset_labels, current_idx)
+            .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+            .mid_left_of(ids.column_1_id)
+            .down_from(ids.live_tab_button, PAD * 0.5)
+            .max_visible_items(10)
+            .rgb(0.176, 0.513, 0.639)
+            .label("MIDI Preset")
+            .label_font_size(12)
+            .label_rgb(1.0, 1.0, 1.0)
+            .scrollbar_on_top()
+            .set(ids.midi_preset_ddl, ui)
         {
             let name = &preset_names[selected_idx];
             let path = midi_mappings_dir.join(format!("{name}.json"));
@@ -2362,7 +2361,7 @@ pub fn set_presets_widgets(
     global_config: &mut GlobalConfig,
     presets: &mut crate::conf::Presets,
     last_preset_change: &mut Option<crate::LastPresetChange>,
-    led_colors: &LedColors,
+    _led_colors: &LedColors,
     assets: &Path,
 ) {
     const PRESET_ACTION_GAP: Scalar = 2.0;
@@ -2373,7 +2372,7 @@ pub fn set_presets_widgets(
         .set(ids.presets_text, ui);
 
     let label = format!("Lerp Duration: {:.2} secs", global_config.preset_lerp_secs);
-    if let Some(v) = slider(global_config.preset_lerp_secs, 0.0, 6.0)
+    if let Some(v) = slider(global_config.preset_lerp_secs, 0.0, 10.0)
         .down(10.0)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .label(&label)
@@ -2497,10 +2496,13 @@ pub fn set_presets_widgets(
 
             Event::Selection(selection) => {
                 if selection < presets.list.len() {
+                    let outgoing_preset = presets.selected().clone();
                     presets.selected_preset_idx = selection;
                     presets.selected_preset_name = presets.selected().name.clone();
-                    let now = std::time::Instant::now();
-                    *last_preset_change = Some((now, led_colors.to_vec()));
+                    *last_preset_change = Some(crate::LastPresetChange {
+                        started_at: std::time::Instant::now(),
+                        preset: outgoing_preset,
+                    });
                 }
             }
             _ => (),
