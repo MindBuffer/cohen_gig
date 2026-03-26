@@ -1,4 +1,3 @@
-use korg_nano_kontrol_2 as korg;
 use lerp::Lerp;
 use nannou::prelude::*;
 use nannou_conrod as ui;
@@ -6,11 +5,11 @@ use nannou_conrod::Ui;
 use rayon::prelude::*;
 use sacn::packet::{ACN_SDT_MULTICAST_PORT, E131_DEFAULT_PRIORITY, UNIVERSE_CHANNEL_CAPACITY};
 use sacn::source::SacnSource;
-use shader_shared::{Light, MixingInfo, Uniforms, Vertex};
+use shader_shared::{Light, MixingInfo, ShaderParams, Uniforms, Vertex};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -22,6 +21,7 @@ pub mod knob;
 mod layout;
 mod lerp;
 mod mad_mapper;
+mod midi;
 pub mod mod_slider;
 mod sacn_sender;
 mod shader;
@@ -47,24 +47,28 @@ pub const ROOF_Y: f32 = 1.0;
 pub const DMX_ADDRS_PER_LED: u8 = 3;
 pub const DMX_ADDRS_PER_UNIVERSE: u16 = 512;
 
+struct MidiTargetState {
+    target: f32,
+    smoothed: f32,
+    active: bool,
+}
+
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
     preview_window_visible: bool,
     led_worker: LedWorker,
     dmx: Dmx,
-    _midi_inputs: Vec<midir::MidiInputConnection<()>>,
-    midi_rx: mpsc::Receiver<korg::Event>,
+    midi_manager: midi::MidiManager,
+    midi_mapping: midi::mapping::MidiMapping,
+    midi_learn: midi::learn::LearnState,
+    midi_values: HashMap<midi::mapping::MidiTarget, MidiTargetState>,
     shader_rx: ShaderReceiver,
     config: Config,
-    controller: Controller,
-    target_slider_values: Vec<f32>,
-    target_pot_values: Vec<f32>,
     smoothing_speed: f32,
-    // Colours output via the shader.
-    // Starts from top left, one row at a time.
+    colour_channels: [f32; 3],
+    buttons: HashMap<shader_shared::Button, ButtonState>,
     led_colors: Vec<LinSrgb>,
-    // Shader output with fade-to-black applied.
     led_outputs: Vec<LinSrgb>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
@@ -72,11 +76,8 @@ struct Model {
     left_panel_tab: gui::LeftPanelTab,
     audio_input: audio_input::AudioInput,
     runtime_stats: RuntimeStats,
-    midi_cv_phase_amp: f32,
     mad_project: Option<mad_mapper::MadProject>,
-    /// Cached resolved layout from the current MadMapper project.
     resolved_layout: Option<layout::ResolvedLayout>,
-    /// Receiver for async rfd file dialog result.
     pending_file_dialog: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
 }
 
@@ -91,7 +92,7 @@ pub struct CachedLedShaderInput {
 #[derive(Clone)]
 struct ButtonState {
     pub last_pressed: std::time::Instant,
-    pub state: korg::State,
+    pub state: shader_shared::State,
 }
 
 struct Dmx {
@@ -141,17 +142,15 @@ struct LedWorkerInputState {
     app_time: f32,
     snapshot_at: Instant,
     config: LedWorkerConfig,
-    controller: Controller,
+    colour_channels: [f32; 3],
     audio_envelope: f32,
-    audio_mod_amps: [f32; 4],
-    midi_cv_phase_amp: f32,
+    buttons: HashMap<shader_shared::Button, ButtonState>,
     capture_output_monitor: bool,
 }
 
 #[derive(Clone)]
 struct LedWorkerConfig {
     dmx_on: bool,
-    midi_on: bool,
     sacn_interface_ip: String,
     led_output_fps: conf::LedOutputFps,
     led_start_universe: u16,
@@ -395,20 +394,6 @@ impl RuntimeStats {
     }
 }
 
-// The known state of the Korg at any point in time.
-#[derive(Clone)]
-struct Controller {
-    slider1: f32, // BW param 1
-    slider2: f32, // BW param 2
-    slider3: f32, // Colour param 1
-    slider4: f32, // Colour param 2
-    slider5: f32, // Shader param 5
-    slider6: f32, // Shader param 6
-    pot6: f32,    // Red / Hue
-    pot7: f32,    // Green / Saturation
-    pot8: f32,    // Blue / Value
-    buttons: HashMap<shader_shared::Button, ButtonState>,
-}
 
 fn main() {
     nannou::app(model).update(update).exit(exit).run();
@@ -425,6 +410,7 @@ fn model(app: &App) -> Model {
         .unwrap_or_else(Config::default);
     config.led_layout.normalise();
     for preset in &mut config.presets.list {
+        preset.migrate_legacy();
         gui::normalise_preset_shader_mod_amounts(preset);
     }
 
@@ -505,58 +491,22 @@ fn model(app: &App) -> Model {
     let led_colors = black_led_buffer(initial_led_count);
     let led_outputs = black_led_buffer(initial_led_count);
 
-    // Setup MIDI Input
-    let midi_in = midir::MidiInput::new("Korg Nano Kontrol 2").unwrap();
+    let midi_manager = midi::MidiManager::new();
 
-    // A channel for sending events to the main thread.
-    let (midi_tx, midi_rx) = std::sync::mpsc::channel();
-
-    let mut midi_inputs = Vec::new();
-
-    // For each port used by the nano kontrol 2, check for events.
-    for i in 0..midi_in.port_count() {
-        let name = midi_in.port_name(i).unwrap();
-        let midi_tx = midi_tx.clone();
-        let midi_in = midir::MidiInput::new(&name).unwrap();
-        println!("midi_in = {:?}", name);
-        if name == "nanoKONTROL2 SLIDER/KNOB" {
-            let input = midi_in
-                .connect(
-                    i,
-                    "nanoKONTROL2 SLIDER/KNOB",
-                    move |_stamp, msg, _| {
-                        if let Some(event) = korg::Event::from_midi(msg) {
-                            midi_tx.send(event).unwrap();
-                        }
-                    },
-                    (),
-                )
-                .unwrap();
-            midi_inputs.push(input);
-        }
-    }
-
-    let controller = Controller {
-        slider1: 0.5, // BW param 1
-        slider2: 0.5, // BW param 2
-        slider3: 0.5, // Colour param 1
-        slider4: 0.5, // Colour param 2
-        slider5: 0.5, // Shader param 5
-        slider6: 0.5, // Shader param 6
-        // slider7: 0.0, // LED fade to black
-        // slider8: 0.5, // Left / Right Blend Mix
-        // pot1: 0.0,    // BW param 1 (midi_cv amp)
-        // pot2: 0.0,    // BW param 2 (midi_cv amp)
-        // pot3: 0.0,    // Colour param 1 (midi_cv amp)
-        // pot4: 0.0,    // Colour param 2 (midi_cv amp)
-        // pot5: 0.0,    // Reserved smoothing control
-        pot6: 1.0, // Red / Hue
-        pot7: 0.0, // Green / Saturation
-        pot8: 1.0, // Blue / Value
-        buttons: Default::default(),
-    };
+    // Load MIDI mapping preset (or default empty).
+    let midi_mappings_dir = assets.join("midi_mappings");
+    let midi_mapping = midi::mapping::MidiMappingPreset::list_presets(&midi_mappings_dir)
+        .into_iter()
+        .next()
+        .and_then(|name| {
+            let path = midi_mappings_dir.join(format!("{name}.json"));
+            midi::mapping::MidiMappingPreset::load(&path).ok()
+        })
+        .map(midi::mapping::MidiMapping::new)
+        .unwrap_or_default();
 
     let audio_input = audio_input::AudioInput::new(128, config.audio_input_device.clone());
+    let colour_channels = [1.0, 0.0, 1.0]; // R/H, G/S, B/V defaults
 
     let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
 
@@ -564,9 +514,8 @@ fn model(app: &App) -> Model {
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
         &config,
-        &controller,
         &audio_input,
-        0.0,
+        colour_channels,
         gui::LeftPanelTab::Live,
         &resolved_layout,
     ));
@@ -577,14 +526,15 @@ fn model(app: &App) -> Model {
         preview_window_visible: config.preview_window_on,
         led_worker,
         dmx,
-        _midi_inputs: midi_inputs,
-        midi_rx,
+        midi_manager,
+        midi_mapping,
+        midi_learn: midi::learn::LearnState::default(),
+        midi_values: HashMap::new(),
         shader_rx,
         config,
-        controller,
-        target_slider_values: vec![0.5; 4], // First 4 Sliders
-        target_pot_values: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0], // Last 3 Pots
         smoothing_speed: 0.05,
+        colour_channels,
+        buttons: Default::default(),
         led_colors,
         led_outputs,
         last_preset_change,
@@ -593,7 +543,6 @@ fn model(app: &App) -> Model {
         left_panel_tab: gui::LeftPanelTab::Live,
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
-        midi_cv_phase_amp: 0.0,
         resolved_layout,
         mad_project,
         pending_file_dialog: None,
@@ -720,9 +669,8 @@ pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedS
 fn build_led_worker_input_state(
     app_time: f32,
     config: &Config,
-    controller: &Controller,
     audio_input: &audio_input::AudioInput,
-    midi_cv_phase_amp: f32,
+    colour_channels: [f32; 3],
     left_panel_tab: gui::LeftPanelTab,
     resolved_layout: &Option<layout::ResolvedLayout>,
 ) -> LedWorkerInputState {
@@ -732,7 +680,6 @@ fn build_led_worker_input_state(
         snapshot_at: Instant::now(),
         config: LedWorkerConfig {
             dmx_on: config.dmx_on,
-            midi_on: config.midi_on,
             sacn_interface_ip: config.sacn_interface_ip.clone(),
             led_output_fps: config.led_output_fps,
             led_start_universe: config.led_start_universe,
@@ -742,15 +689,9 @@ fn build_led_worker_input_state(
             preset: config.presets.selected().clone(),
             resolved_layout,
         },
-        controller: controller.clone(),
+        colour_channels,
         audio_envelope: audio_input.envelope,
-        audio_mod_amps: [
-            audio_input.mod_amp1,
-            audio_input.mod_amp2,
-            audio_input.mod_amp3,
-            audio_input.mod_amp4,
-        ],
-        midi_cv_phase_amp,
+        buttons: Default::default(),
         capture_output_monitor: left_panel_tab == gui::LeftPanelTab::Output,
     }
 }
@@ -768,17 +709,135 @@ fn sync_led_buffers(model: &mut Model) {
     }
 }
 
+/// Copy the shader-specific fields from `src` into `dst` for the given shader type.
+fn merge_slot_params(
+    shader: shader_shared::Shader,
+    src: &ShaderParams,
+    dst: &mut ShaderParams,
+) {
+    let mut src_copy = *src;
+    let mut dst_copy = *dst;
+    let s = gui::shader_params(shader, &mut src_copy);
+    let d = gui::shader_params(shader, &mut dst_copy);
+    for ix in 0..s.param_count().min(d.param_count()) {
+        let sv = s.param_mut(ix);
+        let dv = d.param_mut(ix);
+        match (sv.kind, dv.kind) {
+            (gui::ParamKindMut::F32 { value: sv, .. }, gui::ParamKindMut::F32 { value: dv, .. }) => *dv = *sv,
+            (gui::ParamKindMut::Bool(sv), gui::ParamKindMut::Bool(dv)) => *dv = *sv,
+            (gui::ParamKindMut::Usize { value: sv, .. }, gui::ParamKindMut::Usize { value: dv, .. }) => *dv = *sv,
+            _ => {}
+        }
+    }
+    *dst = dst_copy;
+}
+
+fn apply_midi_values(model: &mut Model) {
+    use midi::mapping::MidiTarget;
+    for (&target, state) in &model.midi_values {
+        if !state.active {
+            continue;
+        }
+        let v = state.smoothed;
+        match target {
+            MidiTarget::SmoothingSpeed => {
+                model.smoothing_speed = map_range(v, 0.0, 1.0, 0.0008, 0.08);
+            }
+            MidiTarget::FadeToBlack => {
+                model.config.fade_to_black.led = v;
+            }
+            MidiTarget::LeftRightMix => {
+                model.config.presets.selected_mut().left_right_mix =
+                    map_range(v, 0.0, 1.0, -1.0, 1.0);
+            }
+            MidiTarget::AudioGain => {
+                model.audio_input.gain_db =
+                    map_range(v, 0.0, 1.0, 0.0, audio_input::MAX_INPUT_GAIN_DB);
+            }
+            MidiTarget::AudioThreshold => {
+                model.audio_input.threshold = v;
+            }
+            MidiTarget::AudioAttack => {
+                model.audio_input.attack = map_range(v, 0.0, 1.0, 0.001, 1.0);
+            }
+            MidiTarget::AudioHold => {
+                model.audio_input.hold = map_range(v, 0.0, 1.0, 0.0, 2.0);
+            }
+            MidiTarget::AudioRelease => {
+                model.audio_input.release = map_range(v, 0.0, 1.0, 0.01, 2.0);
+            }
+            MidiTarget::ColourChannel1 => {
+                model.colour_channels[0] = v;
+            }
+            MidiTarget::ColourChannel2 => {
+                model.colour_channels[1] = v;
+            }
+            MidiTarget::ColourChannel3 => {
+                model.colour_channels[2] = v;
+            }
+            MidiTarget::ColourPalette => {
+                // Write to whichever slot is using ColourPalettes.
+                model
+                    .config
+                    .presets
+                    .selected_mut()
+                    .shader_params_colourise
+                    .colour_palettes
+                    .interval = map_range(v, 0.0, 1.0, 0.0, 1.0);
+            }
+            MidiTarget::ShaderLeftParam(n) => {
+                let preset = model.config.presets.selected_mut();
+                let shader = preset.shader_left;
+                let params: &mut dyn gui::Params =
+                    gui::shader_params(shader, &mut preset.shader_params_left);
+                if (n as usize) < params.param_count() {
+                    let p = params.param_mut(n as usize);
+                    if let gui::ParamKindMut::F32 { value, max } = p.kind {
+                        *value = v * max;
+                    }
+                }
+            }
+            MidiTarget::ShaderRightParam(n) => {
+                let preset = model.config.presets.selected_mut();
+                let shader = preset.shader_right;
+                let params: &mut dyn gui::Params =
+                    gui::shader_params(shader, &mut preset.shader_params_right);
+                if (n as usize) < params.param_count() {
+                    let p = params.param_mut(n as usize);
+                    if let gui::ParamKindMut::F32 { value, max } = p.kind {
+                        *value = v * max;
+                    }
+                }
+            }
+            MidiTarget::ShaderLeftMod(n) => {
+                let preset = model.config.presets.selected_mut();
+                let idx = n as usize;
+                if idx < preset.shader_mod_amounts_left.len() {
+                    preset.shader_mod_amounts_left[idx] = v;
+                }
+            }
+            MidiTarget::ShaderRightMod(n) => {
+                let preset = model.config.presets.selected_mut();
+                let idx = n as usize;
+                if idx < preset.shader_mod_amounts_right.len() {
+                    preset.shader_mod_amounts_right[idx] = v;
+                }
+            }
+        }
+    }
+}
+
 fn queue_led_worker_update(app: &App, model: &mut Model) {
     if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
         shared_input.latest_state = build_led_worker_input_state(
             app.time,
             &model.config,
-            &model.controller,
             &model.audio_input,
-            model.midi_cv_phase_amp,
+            model.colour_channels,
             model.left_panel_tab,
             &model.resolved_layout,
         );
+        shared_input.latest_state.buttons = model.buttons.clone();
 
         if let Some(last_preset_change) = model.last_preset_change.take() {
             shared_input.pending_preset_change = Some(last_preset_change);
@@ -992,46 +1051,55 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
 
     let env = state.audio_envelope;
 
-    let piano_mod = (env * state.audio_mod_amps[0]) - (state.audio_mod_amps[0] / 2.0);
-    let bw_param1 = clamp(state.controller.slider1 + piano_mod, 0.0, 1.0);
+    // Merge per-slot shader params into a single ShaderParams for Uniforms.
+    // Start from left, overlay colourise, overlay right. Since each slot
+    // writes to a different shader type's fields, there's no conflict
+    // (and when two slots use the same type, the later one wins).
+    let mut shader_params = state.config.preset.shader_params_left;
+    merge_slot_params(
+        state.config.preset.colourise,
+        &state.config.preset.shader_params_colourise,
+        &mut shader_params,
+    );
+    merge_slot_params(
+        state.config.preset.shader_right,
+        &state.config.preset.shader_params_right,
+        &mut shader_params,
+    );
 
-    let piano_mod = (env * state.audio_mod_amps[1]) - (state.audio_mod_amps[1] / 2.0);
-    let bw_param2 = clamp(state.controller.slider2 + piano_mod, 0.0, 1.0);
-
-    let piano_mod = (env * state.audio_mod_amps[2]) - (state.audio_mod_amps[2] / 2.0);
-    let colour_param1 = clamp(state.controller.slider3 + piano_mod, 0.0, 1.0);
-
-    let piano_mod = (env * state.audio_mod_amps[3]) - (state.audio_mod_amps[3] / 2.0);
-    let colour_param2 = clamp(state.controller.slider4 + piano_mod, 0.0, 1.0);
-
-    let mut shader_params = state.config.preset.shader_params;
+    // Apply envelope modulation per slot.
     {
-        let mut mod_slider_ix = 0;
+        let mut mod_ix = 0;
         gui::apply_shader_modulation(
             state.config.preset.shader_left,
             &mut shader_params,
-            &mut mod_slider_ix,
-            &state.config.preset.shader_mod_amounts,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_left,
             env,
         );
+    }
+    {
+        let mut mod_ix = 0;
         gui::apply_shader_modulation(
             state.config.preset.colourise,
             &mut shader_params,
-            &mut mod_slider_ix,
-            &state.config.preset.shader_mod_amounts,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_colourise,
             env,
         );
+    }
+    {
+        let mut mod_ix = 0;
         gui::apply_shader_modulation(
             state.config.preset.shader_right,
             &mut shader_params,
-            &mut mod_slider_ix,
-            &state.config.preset.shader_mod_amounts,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_right,
             env,
         );
     }
 
     let buttons = state
-        .controller
         .buttons
         .iter()
         .map(|(&button, button_state)| {
@@ -1045,18 +1113,11 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
         .collect();
     let time = state.app_time + state.snapshot_at.elapsed().as_secs_f32();
     let uniforms = Uniforms {
-        time: time + (env * state.midi_cv_phase_amp),
+        time,
         resolution: layout::shader_resolution(led_layout),
-        use_midi: state.config.midi_on,
-        slider1: bw_param1,
-        slider2: bw_param2,
-        slider3: colour_param1,
-        slider4: colour_param2,
-        slider5: state.controller.slider5,
-        slider6: state.controller.slider6,
-        pot6: state.controller.pot6,
-        pot7: state.controller.pot7,
-        pot8: state.controller.pot8,
+        pot6: state.colour_channels[0],
+        pot7: state.colour_channels[1],
+        pot8: state.colour_channels[2],
         params: shader_params,
         mix: mix_info,
         buttons,
@@ -1255,7 +1316,7 @@ fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
 fn key_pressed(_app: &App, model: &mut Model, key: Key) {
     if key == Key::Space {
         let button = shader_shared::Button::Cycle;
-        update_korg_button(&mut model.controller, button, korg::State::On);
+        update_button(&mut model.buttons, button, shader_shared::State::On);
     }
 }
 
@@ -1285,6 +1346,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
             mad_project: &mut model.mad_project,
             resolved_layout: &mut model.resolved_layout,
             pending_file_dialog: &mut model.pending_file_dialog,
+            midi_mapping: &mut model.midi_mapping,
+            midi_learn: &mut model.midi_learn,
+            midi_values: &mut model.midi_values,
         },
     );
     drop(ui);
@@ -1327,109 +1391,43 @@ fn update(app: &App, model: &mut Model, update: Update) {
         }
     }
 
-    for event in model.midi_rx.try_iter() {
-        //println!("{:?}", &event);
-        match event {
-            korg::Event::VerticalSlider(strip, value) => match strip {
-                korg::Strip::A => {
-                    model.target_slider_values[0] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::B => {
-                    model.target_slider_values[1] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::C => {
-                    model.target_slider_values[2] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::D => {
-                    model.target_slider_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::E => {
-                    model.smoothing_speed = map_range(value as f32, 0.0, 127.0, 0.0008, 0.08)
-                }
-                korg::Strip::F => {
-                    model.midi_cv_phase_amp = map_range(value as f32, 0.0, 127.0, 0.0, 4.0);
-                }
-                korg::Strip::G => {
-                    model.config.fade_to_black.led = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::H => {
-                    model.config.presets.selected_mut().left_right_mix =
-                        map_range(value as f32, 0.0, 127.0, -1.0, 1.0)
-                }
-            },
-            korg::Event::RotarySlider(strip, value) => match strip {
-                korg::Strip::A => {
-                    model.target_pot_values[0] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::B => {
-                    model.target_pot_values[1] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::C => {
-                    model.target_pot_values[2] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::D => {
-                    model.target_pot_values[3] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::E => {}
-                korg::Strip::F => {
-                    model.target_pot_values[5] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::G => {
-                    model.target_pot_values[6] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-                korg::Strip::H => {
-                    model.target_pot_values[7] = map_range(value as f32, 0.0, 127.0, 0.0, 1.0)
-                }
-            },
+    // MIDI routing: CC → mapping lookup → target values → smoothing → apply.
+    model.midi_manager.poll();
+    for msg in model.midi_manager.drain().collect::<Vec<_>>() {
+        // Check learn mode first.
+        if model.midi_learn.is_listening() {
+            if let Some((port, cc, target)) = model.midi_learn.receive(&msg) {
+                model.midi_mapping.assign(port, cc, target);
+            }
+            continue;
+        }
+        // Normal routing.
+        if let Some(target) = model.midi_mapping.target_for(&msg.port_name, msg.cc) {
+            let normalized = 1.0 - (msg.value as f32 / 127.0);
+            let state = model
+                .midi_values
+                .entry(target)
+                .or_insert(MidiTargetState {
+                    target: normalized,
+                    smoothed: normalized,
+                    active: false,
+                });
+            state.target = normalized;
+            state.active = true;
+        }
+    }
+    model.midi_learn.update();
 
-            // Updates for button events.
-            korg::Event::Button(row, strip, state) => {
-                let button = shader_shared::Button::Row(row, strip);
-                update_korg_button(&mut model.controller, button, state);
-            }
-            korg::Event::TrackButton(tb, state) => {
-                let button = shader_shared::Button::Track(tb);
-                update_korg_button(&mut model.controller, button, state);
-            }
-            korg::Event::CycleButton(state) => {
-                let button = shader_shared::Button::Cycle;
-                update_korg_button(&mut model.controller, button, state);
-            }
-            korg::Event::MarkerButton(mb, state) => {
-                let button = shader_shared::Button::Marker(mb);
-                update_korg_button(&mut model.controller, button, state);
-            }
-            korg::Event::TransportButton(t, state) => {
-                let button = shader_shared::Button::Transport(t);
-                update_korg_button(&mut model.controller, button, state);
-            }
+    // Smooth active MIDI targets.
+    let s = model.smoothing_speed;
+    for (_target, state) in &mut model.midi_values {
+        if state.active {
+            state.smoothed = state.smoothed * (1.0 - s) + state.target * s;
         }
     }
 
-    model.controller.slider1 = model.controller.slider1 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[0] * model.smoothing_speed;
-    model.controller.slider2 = model.controller.slider2 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[1] * model.smoothing_speed;
-    model.controller.slider3 = model.controller.slider3 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[2] * model.smoothing_speed;
-    model.controller.slider4 = model.controller.slider4 * (1.0 - model.smoothing_speed)
-        + model.target_slider_values[3] * model.smoothing_speed;
-
-    model.audio_input.mod_amp1 = model.audio_input.mod_amp1 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[0] * model.smoothing_speed;
-    model.audio_input.mod_amp2 = model.audio_input.mod_amp2 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[1] * model.smoothing_speed;
-    model.audio_input.mod_amp3 = model.audio_input.mod_amp3 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[2] * model.smoothing_speed;
-    model.audio_input.mod_amp4 = model.audio_input.mod_amp4 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[3] * model.smoothing_speed;
-
-    model.controller.pot6 = model.controller.pot6 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[5] * model.smoothing_speed;
-    model.controller.pot7 = model.controller.pot7 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[6] * model.smoothing_speed;
-    model.controller.pot8 = model.controller.pot8 * (1.0 - model.smoothing_speed)
-        + model.target_pot_values[7] * model.smoothing_speed;
+    // Apply smoothed MIDI values to their destinations.
+    apply_midi_values(model);
 
     queue_led_worker_update(app, model);
 }
@@ -1712,22 +1710,18 @@ fn exit(app: &App, mut model: Model) {
     save_config(assets.as_path(), &model.config);
 }
 
-// A function for updating the controller's button states based on a button event.
-fn update_korg_button(
-    controller: &mut Controller,
+fn update_button(
+    buttons: &mut HashMap<shader_shared::Button, ButtonState>,
     button: shader_shared::Button,
-    state: korg::State,
+    state: shader_shared::State,
 ) {
     let now = std::time::Instant::now();
-    let b_state = controller.buttons.entry(button).or_insert_with(|| {
-        let last_pressed = now;
-        ButtonState {
-            last_pressed,
-            state,
-        }
+    let b_state = buttons.entry(button).or_insert_with(|| ButtonState {
+        last_pressed: now,
+        state,
     });
     b_state.state = state;
-    if state == korg::State::On {
+    if state == shader_shared::State::On {
         b_state.last_pressed = now;
     }
 }

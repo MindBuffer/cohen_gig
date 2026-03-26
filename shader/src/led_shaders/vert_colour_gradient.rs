@@ -52,12 +52,7 @@ fn hue(colour: Vec3, shift: f32) -> Vec3 {
     //colour
 }
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.vert_colour_gradient;
-
-    if uniforms.use_midi {
-        params.scale = uniforms.slider3;
-        params.colour_iter = map_range(uniforms.slider4, 0.0, 1.0, 0.0001, 0.5);
-    }
+    let params = uniforms.params.vert_colour_gradient;
 
     let t = uniforms.time * params.speed;
 

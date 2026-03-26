@@ -3,10 +3,63 @@
 //! the exe.
 
 use devault::Devault;
-use korg_nano_kontrol_2::{ButtonRow, MarkerButton, State, Strip, TrackButton, Transport};
 use nannou_core::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+fn default_half() -> f32 {
+    0.5
+}
+
+// Button-related types (previously from korg_nano_kontrol_2).
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum TrackButton {
+    Left,
+    Right,
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum MarkerButton {
+    Set,
+    Left,
+    Right,
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum Transport {
+    Rewind,
+    Fastforward,
+    Stop,
+    Play,
+    Record,
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum ButtonRow {
+    Solo,
+    Mute,
+    Record,
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum State {
+    On,
+    Off,
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum Strip {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+}
 
 /// Attributes unique to each vertex.
 #[derive(Copy, Clone)]
@@ -42,13 +95,6 @@ pub enum Light {
 pub struct Uniforms {
     pub time: f32,
     pub resolution: Vec2,
-    pub use_midi: bool,
-    pub slider1: f32,
-    pub slider2: f32,
-    pub slider3: f32,
-    pub slider4: f32,
-    pub slider5: f32,
-    pub slider6: f32,
     pub pot6: f32,
     pub pot7: f32,
     pub pot8: f32,
@@ -224,6 +270,9 @@ pub struct ColourGrid {
     pub speed: f32,
     #[devault("0.1")]
     pub zoom_amount: f32,
+    #[serde(default = "default_half")]
+    #[devault("0.5")]
+    pub colour_amount: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -344,6 +393,9 @@ pub struct SatisSpiraling {
     pub mirror: bool,
     #[devault("true")]
     pub rotate: bool,
+    #[serde(default)]
+    #[devault("0.0")]
+    pub colour_offset: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -392,6 +444,9 @@ pub struct TunnelProjection {
     pub speed: f32,
     #[devault("0.5")]
     pub res: f32,
+    #[serde(default = "default_half")]
+    #[devault("0.5")]
+    pub y_offset: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]

@@ -20,14 +20,10 @@ fn palette(t: f32, a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3 {
     )
 }
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.blinky_circles;
+    let params = uniforms.params.blinky_circles;
 
     let t = uniforms.time * params.speed;
 
-    if uniforms.use_midi {
-        params.zoom = uniforms.slider3;
-        params.offset = uniforms.slider4;
-    }
     let d = 0.3 * (params.offset * 10.0);
 
     let Light::Led {

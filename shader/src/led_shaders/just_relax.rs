@@ -12,12 +12,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.just_relax;
-
-    if uniforms.use_midi {
-        params.shape_offset = uniforms.slider1;
-        params.iter = 0.5 + uniforms.slider2;
-    }
+    let params = uniforms.params.just_relax;
 
     let t = uniforms.time * (params.speed * 4.0);
 

@@ -1,6 +1,5 @@
-use korg_nano_kontrol_2::{ButtonRow, Strip};
 use nannou_core::prelude::*;
-use shader_shared::{Button, Light, Uniforms, Vertex};
+use shader_shared::{Button, ButtonRow, Light, Strip, Uniforms, Vertex};
 
 use crate::helpers::*;
 
@@ -37,15 +36,10 @@ fn halo_ring(uv: Vec2, pos: Vec2, radius: f32, thick: f32) -> f32 {
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let speed = uniforms.params.shape_envelopes.speed;
     let pulse_speed = uniforms.params.shape_envelopes.pulse_speed;
-    let mut line_thickness = uniforms.params.shape_envelopes.line_thickness;
-    let mut shape_thickness = uniforms.params.shape_envelopes.shape_thickness;
+    let line_thickness = uniforms.params.shape_envelopes.line_thickness;
+    let shape_thickness = uniforms.params.shape_envelopes.shape_thickness;
 
     let t = uniforms.time * speed;
-
-    if uniforms.use_midi {
-        line_thickness = uniforms.slider1;
-        shape_thickness = uniforms.slider2;
-    }
 
     let Light::Led {
         normalised_coords, ..

@@ -25,11 +25,7 @@ fn palette(t: f32, a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3 {
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.colour_palettes;
-
-    if uniforms.use_midi {
-        params.interval = 0.05 + uniforms.slider5;
-    }
+    let params = uniforms.params.colour_palettes;
 
     let t = uniforms.time * params.speed;
 

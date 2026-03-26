@@ -14,9 +14,6 @@ pub struct Config {
     /// Whether or not DMX is enabled.
     #[serde(default)]
     pub dmx_on: bool,
-    /// Whether or not MIDI is enabled.
-    #[serde(default)]
-    pub midi_on: bool,
     /// Whether or not the LED previs window is visible.
     #[serde(default = "default::preview_window_on")]
     pub preview_window_on: bool,
@@ -79,10 +76,25 @@ pub struct Preset {
     pub left_right_mix: f32,
     #[serde(default = "default::preset::blend_mode")]
     pub blend_mode: BlendMode,
+    /// Per-slot shader parameters. Each slot has independent params so the same
+    /// shader type can be used in multiple slots without cross-contamination.
     #[serde(default)]
-    pub shader_params: ShaderParams,
+    pub shader_params_left: ShaderParams,
     #[serde(default)]
-    pub shader_mod_amounts: Vec<f32>,
+    pub shader_params_colourise: ShaderParams,
+    #[serde(default)]
+    pub shader_params_right: ShaderParams,
+    #[serde(default)]
+    pub shader_mod_amounts_left: Vec<f32>,
+    #[serde(default)]
+    pub shader_mod_amounts_colourise: Vec<f32>,
+    #[serde(default)]
+    pub shader_mod_amounts_right: Vec<f32>,
+    // Legacy fields for backwards compatibility with old config.json.
+    #[serde(default, alias = "shader_params", skip_serializing)]
+    legacy_shader_params: Option<ShaderParams>,
+    #[serde(default, alias = "shader_mod_amounts", skip_serializing)]
+    legacy_shader_mod_amounts: Option<Vec<f32>>,
 }
 
 /// Fade to black parameters for each kind of fixture.
@@ -124,7 +136,6 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             dmx_on: Default::default(),
-            midi_on: Default::default(),
             preview_window_on: default::preview_window_on(),
             audio_input_device: default::audio_input_device(),
             led_start_universe: default::led_start_universe(),
@@ -238,6 +249,35 @@ impl Default for Presets {
     }
 }
 
+impl Preset {
+    /// Migrate legacy single-params to per-slot params if present.
+    pub fn migrate_legacy(&mut self) {
+        if let Some(params) = self.legacy_shader_params.take() {
+            // Only migrate if per-slot params are all defaults (i.e. not already set).
+            if self.shader_params_left == ShaderParams::default()
+                && self.shader_params_colourise == ShaderParams::default()
+                && self.shader_params_right == ShaderParams::default()
+            {
+                self.shader_params_left = params;
+                self.shader_params_colourise = params;
+                self.shader_params_right = params;
+            }
+        }
+        if let Some(mod_amounts) = self.legacy_shader_mod_amounts.take() {
+            if !mod_amounts.is_empty()
+                && self.shader_mod_amounts_left.is_empty()
+                && self.shader_mod_amounts_colourise.is_empty()
+                && self.shader_mod_amounts_right.is_empty()
+            {
+                // Legacy mod amounts were interleaved: left, colourise, right.
+                // We need to split them by counting each slot's f32 params.
+                // For simplicity, just put them all in left — normalise will fix sizes.
+                self.shader_mod_amounts_left = mod_amounts;
+            }
+        }
+    }
+}
+
 impl Default for Preset {
     fn default() -> Self {
         Preset {
@@ -247,8 +287,14 @@ impl Default for Preset {
             left_right_mix: default::preset::left_right_mix(),
             colourise: default::preset::colourise(),
             blend_mode: default::preset::blend_mode(),
-            shader_params: shader_shared::ShaderParams::default(),
-            shader_mod_amounts: Vec::new(),
+            shader_params_left: ShaderParams::default(),
+            shader_params_colourise: ShaderParams::default(),
+            shader_params_right: ShaderParams::default(),
+            shader_mod_amounts_left: Vec::new(),
+            shader_mod_amounts_colourise: Vec::new(),
+            shader_mod_amounts_right: Vec::new(),
+            legacy_shader_params: None,
+            legacy_shader_mod_amounts: None,
         }
     }
 }

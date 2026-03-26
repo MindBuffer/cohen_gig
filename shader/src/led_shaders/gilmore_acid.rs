@@ -41,12 +41,7 @@ fn calc(tx: Vec2, t: f32, params: &shader_shared::GilmoreAcid, uniforms: &Unifor
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.gilmore_acid;
-
-    if uniforms.use_midi {
-        params.grid_size = 0.1 + uniforms.slider3;
-        params.displace = uniforms.slider4 * 0.01;
-    }
+    let params = uniforms.params.gilmore_acid;
 
     let t = uniforms.time * params.speed;
 
