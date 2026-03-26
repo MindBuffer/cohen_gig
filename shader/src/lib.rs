@@ -25,10 +25,11 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let right_shader = get_shader(mix.right);
     let colourise = get_shader(mix.colourise);
 
-    // Run the shaders for the vertex.
-    let left = left_shader(v, uniforms);
-    let right = right_shader(v, uniforms);
-    let colour = colourise(v, uniforms);
+    // Run each sub-shader with its own params so there's no collision
+    // when the same shader type is used in multiple slots.
+    let left = left_shader(v, &with_params(uniforms, mix.params_left));
+    let right = right_shader(v, &with_params(uniforms, mix.params_right));
+    let colour = colourise(v, &with_params(uniforms, mix.params_colourise));
 
     // Mix the left and right shaders.
     let xfl = lin_srgb(mix.xfade_left, mix.xfade_left, mix.xfade_left);
@@ -49,6 +50,13 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     col *= colour;
 
     col
+}
+
+fn with_params(uniforms: &Uniforms, params: shader_shared::ShaderParams) -> Uniforms {
+    Uniforms {
+        params,
+        ..uniforms.clone()
+    }
 }
 
 fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {

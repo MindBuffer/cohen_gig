@@ -134,6 +134,10 @@ pub struct MixingInfo {
     pub xfade_left: f32,
     /// x fade right amount
     pub xfade_right: f32,
+    /// Per-slot shader params so each slot is independent.
+    pub params_left: ShaderParams,
+    pub params_right: ShaderParams,
+    pub params_colourise: ShaderParams,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

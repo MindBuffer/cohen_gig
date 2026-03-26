@@ -83,6 +83,7 @@ widget_ids! {
 
         led_preview_left_image,
         led_preview_right_image,
+        led_preview_colourise_image,
 
         shader_mod_sliders[],
         shader_int_sliders[],
@@ -180,6 +181,7 @@ pub struct UpdateContext<'a> {
     >,
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
+    pub preview_colourise_image_id: Option<ui::image::Id>,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1187,6 +1189,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         midi_values,
         preview_left_image_id,
         preview_right_image_id,
+        preview_colourise_image_id,
     } = ctx;
 
     widget::Canvas::new()
@@ -1410,6 +1413,14 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         preset
             .shader_mod_amounts_colourise
             .truncate(mod_slider_ix - mod_start);
+    }
+
+    if let Some(image_id) = preview_colourise_image_id {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .down(10.0)
+            .set(ids.led_preview_colourise_image, ui);
     }
 
     //---------------------- LED SHADER RIGHT
