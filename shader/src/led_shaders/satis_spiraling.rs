@@ -23,12 +23,9 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.satis_spiraling;
+    let params = uniforms.params.satis_spiraling;
 
     //params.speed = map_range((uniforms.time*0.01).sin() * (uniforms.time*0.001 * 10.0).cos(), -1.0, 1.0, 0.05, 0.2);
-    if uniforms.use_midi {
-        params.loops = uniforms.slider3;
-    }
 
     let t = uniforms.time * -params.speed;
     let aspect = uniforms.resolution.x / uniforms.resolution.y;
@@ -46,7 +43,6 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     uv *= vec2(0.5, 0.5);
 
-    //uv.x += dbg!(uniforms.slider1);
     uv.x += 0.025;
 
     if params.rotate {
@@ -68,7 +64,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     if params.mirror {
         rz *= smoothstep(-0.01, 0.02 * w / plr.x, PI - plr.y);
     }
-    let colour_offset = uniforms.slider4 * PI;
+    let colour_offset = params.colour_offset * PI;
     let palette = vec3(0.0, 1.4, 2.0) + vec3(colour_offset, colour_offset, colour_offset);
 
     let mut col = vec3(

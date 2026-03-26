@@ -32,15 +32,9 @@ fn sinp(p: f32) -> f32 {
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.spiral_intersect;
+    let params = uniforms.params.spiral_intersect;
 
     let mut t = uniforms.time * params.speed;
-
-    if uniforms.use_midi {
-        params.g1 = uniforms.slider3;
-        params.g2 = uniforms.slider3;
-        params.colours = uniforms.slider4;
-    }
 
     let Light::Led {
         normalised_coords, ..

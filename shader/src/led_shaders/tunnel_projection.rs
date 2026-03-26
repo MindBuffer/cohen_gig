@@ -11,11 +11,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.tunnel_projection;
-
-    if uniforms.use_midi {
-        params.res = uniforms.slider3;
-    }
+    let params = uniforms.params.tunnel_projection;
 
     let t = uniforms.time * params.speed;
 
@@ -27,7 +23,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(p.y, -1.0, 1.0, 0.0, 1.0);
     let uv = vec3(x, y, 1.0);
-    let o = vec3(0.5, uniforms.slider4, 0.5);
+    let o = vec3(0.5, params.y_offset, 0.5);
 
     let w = uv - o;
     let l = length(w);

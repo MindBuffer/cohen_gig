@@ -38,12 +38,7 @@ fn circle(uv: Vec2, r: f32, thickness: f32) -> f32 {
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.the_pulse;
-
-    if uniforms.use_midi {
-        params.scale = uniforms.slider3 * 0.8;
-        params.colour_iter = uniforms.slider4;
-    }
+    let params = uniforms.params.the_pulse;
 
     let Light::Led {
         normalised_coords, ..

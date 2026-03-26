@@ -35,20 +35,10 @@ fn palette(t: f32, signal: &Signal, a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3 
 }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.bw_gradient;
+    let params = uniforms.params.bw_gradient;
 
-    let mut direction = Direction::Vertical;
+    let direction = Direction::Vertical;
     let signal_type = Signal::SINE;
-
-    if uniforms.use_midi {
-        direction = if uniforms.slider1 > 0.5 {
-            Direction::Vertical
-        } else {
-            Direction::Horizontal
-        };
-
-        params.mirror = uniforms.slider2 > 0.5;
-    }
 
     let phase = uniforms.time * params.speed;
 

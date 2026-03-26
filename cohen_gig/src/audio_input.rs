@@ -65,11 +65,6 @@ pub struct AudioInput {
     pub release: f32,
     pub envelope: f32,
     hold_remaining: f32,
-    // Modulation depth per shader param, set by Korg rotary knobs A-D.
-    pub mod_amp1: f32,
-    pub mod_amp2: f32,
-    pub mod_amp3: f32,
-    pub mod_amp4: f32,
 }
 
 impl AudioInput {
@@ -95,10 +90,6 @@ impl AudioInput {
             release: 0.3,
             envelope: 0.0,
             hold_remaining: 0.0,
-            mod_amp1: 0.0,
-            mod_amp2: 0.0,
-            mod_amp3: 0.0,
-            mod_amp4: 0.0,
         };
 
         audio_input.refresh_available_devices();

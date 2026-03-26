@@ -11,7 +11,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.radial_lines;
+    let params = uniforms.params.radial_lines;
 
     let t = uniforms.time * params.speed;
 
@@ -24,10 +24,6 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     let y = map_range(p.y, -1.2, 1.0, 0.0, 1.0);
     let mut uv = vec2(x, y);
     uv.x -= 0.5;
-    if uniforms.use_midi {
-        uv.y -= map_range(uniforms.slider2, 0.0, 1.0, -1.0, 2.0);
-        params.zoom_amount = uniforms.slider1;
-    }
     uv *= uniforms.resolution.x / uniforms.resolution.y;
 
     let n = 1.2.powf((0.95 + t.sin() * 0.5) * (20.0 + params.zoom_amount * 10.0));

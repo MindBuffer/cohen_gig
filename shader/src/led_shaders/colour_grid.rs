@@ -22,11 +22,8 @@ use crate::signals::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.colour_grid;
+    let params = uniforms.params.colour_grid;
 
-    if uniforms.use_midi {
-        params.zoom_amount = uniforms.slider3;
-    }
     let t = uniforms.time * params.speed;
 
     let Light::Led {
@@ -46,7 +43,7 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
                 .sin())
                 * 43758.545)
                 .cos()
-            * uniforms.slider4;
+            * params.colour_amount;
 
     let signal_type = Signal::SINE;
     let co = vec3(

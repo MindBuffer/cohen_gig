@@ -13,12 +13,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.square_tunnel;
-
-    if uniforms.use_midi {
-        params.rotation_offset = uniforms.slider1;
-        params.zoom = uniforms.slider2;
-    }
+    let params = uniforms.params.square_tunnel;
 
     let t = uniforms.time * (params.speed * 2.0);
 

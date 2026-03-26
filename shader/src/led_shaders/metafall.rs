@@ -14,11 +14,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.metafall;
-
-    if uniforms.use_midi {
-        params.scale = uniforms.slider1;
-    }
+    let params = uniforms.params.metafall;
 
     let t = uniforms.time * params.speed;
 

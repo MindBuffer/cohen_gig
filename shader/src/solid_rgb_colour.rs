@@ -8,13 +8,5 @@ use shader_shared::{Uniforms, Vertex};
 // }
 
 pub fn shader(_v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.solid_rgb_colour;
-
-    if uniforms.use_midi {
-        params.red = uniforms.pot6;
-        params.green = uniforms.pot7;
-        params.blue = uniforms.pot8;
-    }
-
-    lin_srgb(params.red, params.green, params.blue)
+    lin_srgb(uniforms.pot6, uniforms.pot7, uniforms.pot8)
 }

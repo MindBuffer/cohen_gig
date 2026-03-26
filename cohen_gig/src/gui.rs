@@ -125,6 +125,19 @@ widget_ids! {
         madmapper_filename_text,
         madmapper_stats_text,
         madmapper_remove_button,
+
+        // MIDI tab
+        midi_tab_button,
+        midi_preset_ddl,
+        midi_preset_name_text_box,
+        midi_preset_save_button,
+        midi_preset_new_button,
+        midi_preset_delete_button,
+        midi_mapping_category_headers[],
+        midi_mapping_param_labels[],
+        midi_mapping_port_texts[],
+        midi_mapping_cc_texts[],
+        midi_mapping_learn_buttons[],
     }
 }
 
@@ -134,6 +147,7 @@ type LedColors = [LinSrgb];
 pub enum LeftPanelTab {
     Live,
     Output,
+    Midi,
 }
 
 pub struct UpdateContext<'a> {
@@ -153,22 +167,28 @@ pub struct UpdateContext<'a> {
     pub resolved_layout: &'a mut Option<crate::layout::ResolvedLayout>,
     pub pending_file_dialog:
         &'a mut Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
+    pub midi_mapping: &'a mut crate::midi::mapping::MidiMapping,
+    pub midi_learn: &'a mut crate::midi::learn::LearnState,
+    pub midi_values: &'a mut std::collections::HashMap<
+        crate::midi::mapping::MidiTarget,
+        crate::MidiTargetState,
+    >,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
-trait Params {
+pub trait Params {
     /// The total number of parameters.
     fn param_count(&self) -> usize;
     /// The parameter at the given index.
     fn param_mut(&mut self, ix: usize) -> ParamMut<'_>;
 }
 
-struct ParamMut<'a> {
-    name: &'static str,
-    kind: ParamKindMut<'a>,
+pub struct ParamMut<'a> {
+    pub name: &'static str,
+    pub kind: ParamKindMut<'a>,
 }
 
-enum ParamKindMut<'a> {
+pub enum ParamKindMut<'a> {
     F32 { value: &'a mut f32, max: f32 },
     Bool(&'a mut bool),
     Usize { value: &'a mut usize, max: usize },
@@ -179,6 +199,8 @@ struct ShaderWidgetState<'a> {
     int_slider_ix: &'a mut usize,
     button_ix: &'a mut usize,
     mod_amounts: &'a mut Vec<f32>,
+    /// Offset into mod_amounts for this slot (mod_slider_ix is global for widget IDs).
+    mod_amounts_offset: usize,
     envelope: f32,
 }
 
@@ -291,7 +313,7 @@ impl Params for shader_shared::BwGradient {
 
 impl Params for shader_shared::ColourGrid {
     fn param_count(&self) -> usize {
-        2
+        3
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
@@ -306,6 +328,13 @@ impl Params for shader_shared::ColourGrid {
                 name: "zoom_amount",
                 kind: ParamKindMut::F32 {
                     value: &mut self.zoom_amount,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "colour_amount",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_amount,
                     max: 1.0,
                 },
             },
@@ -670,7 +699,7 @@ impl Params for shader_shared::RadialLines {
 
 impl Params for shader_shared::SatisSpiraling {
     fn param_count(&self) -> usize {
-        4
+        5
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
@@ -695,6 +724,13 @@ impl Params for shader_shared::SatisSpiraling {
             3 => ParamMut {
                 name: "rotate",
                 kind: ParamKindMut::Bool(&mut self.rotate),
+            },
+            4 => ParamMut {
+                name: "colour_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.colour_offset,
+                    max: 1.0,
+                },
             },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
@@ -834,7 +870,7 @@ impl Params for shader_shared::ThePulse {
 
 impl Params for shader_shared::TunnelProjection {
     fn param_count(&self) -> usize {
-        2
+        3
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
@@ -849,6 +885,13 @@ impl Params for shader_shared::TunnelProjection {
                 name: "res",
                 kind: ParamKindMut::F32 {
                     value: &mut self.res,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "y_offset",
+                kind: ParamKindMut::F32 {
+                    value: &mut self.y_offset,
                     max: 1.0,
                 },
             },
@@ -1131,6 +1174,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         mad_project,
         resolved_layout,
         pending_file_dialog,
+        midi_mapping,
+        midi_learn,
+        midi_values,
     } = ctx;
 
     widget::Canvas::new()
@@ -1164,10 +1210,12 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .mid_top_of(ids.column_1_id)
         .set(ids.title_text, ui);
 
+    let tab_w = (COLUMN_W - PAD * 0.5) / 3.0;
+
     if button()
         .color(tab_button_color(*left_panel_tab == LeftPanelTab::Live))
         .label("Live")
-        .w(HALF_WIDGET_W)
+        .w(tab_w)
         .mid_left_of(ids.column_1_id)
         .down(PAD * 1.5)
         .set(ids.live_tab_button, ui)
@@ -1179,12 +1227,23 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     if button()
         .color(tab_button_color(*left_panel_tab == LeftPanelTab::Output))
         .label("Output")
-        .right(PAD * 0.5)
-        .w(HALF_WIDGET_W)
+        .right(PAD * 0.25)
+        .w(tab_w)
         .set(ids.output_tab_button, ui)
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Output;
+    }
+
+    if button()
+        .color(tab_button_color(*left_panel_tab == LeftPanelTab::Midi))
+        .label("MIDI")
+        .right(PAD * 0.25)
+        .w(tab_w)
+        .set(ids.midi_tab_button, ui)
+        .was_clicked()
+    {
+        *left_panel_tab = LeftPanelTab::Midi;
     }
 
     match *left_panel_tab {
@@ -1218,6 +1277,17 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 sacn_output_monitor,
                 sacn_error,
                 sacn_transport_label,
+            );
+        }
+        LeftPanelTab::Midi => {
+            set_midi_tab_widgets(
+                ui,
+                ids,
+                midi_mapping,
+                midi_learn,
+                midi_values,
+                config,
+                assets,
             );
         }
     }
@@ -1257,7 +1327,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     let mut button_ix = 0;
 
     {
-        let params = shader_params(preset.shader_left, &mut preset.shader_params);
+        let mod_start = mod_slider_ix;
+        let params = shader_params(preset.shader_left, &mut preset.shader_params_left);
         set_shader_widgets(
             ui,
             ids,
@@ -1266,10 +1337,14 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
                 button_ix: &mut button_ix,
-                mod_amounts: &mut preset.shader_mod_amounts,
+                mod_amounts: &mut preset.shader_mod_amounts_left,
+                mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
         );
+        preset
+            .shader_mod_amounts_left
+            .truncate(mod_slider_ix - mod_start);
     }
 
     //---------------------- COLOUR POST PROCESS SHADER
@@ -1299,7 +1374,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     }
 
     {
-        let params = shader_params(preset.colourise, &mut preset.shader_params);
+        let mod_start = mod_slider_ix;
+        let params = shader_params(preset.colourise, &mut preset.shader_params_colourise);
         set_shader_widgets(
             ui,
             ids,
@@ -1308,10 +1384,14 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
                 button_ix: &mut button_ix,
-                mod_amounts: &mut preset.shader_mod_amounts,
+                mod_amounts: &mut preset.shader_mod_amounts_colourise,
+                mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
         );
+        preset
+            .shader_mod_amounts_colourise
+            .truncate(mod_slider_ix - mod_start);
     }
 
     //---------------------- LED SHADER RIGHT
@@ -1337,7 +1417,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     }
 
     {
-        let params = shader_params(preset.shader_right, &mut preset.shader_params);
+        let mod_start = mod_slider_ix;
+        let params = shader_params(preset.shader_right, &mut preset.shader_params_right);
         set_shader_widgets(
             ui,
             ids,
@@ -1346,13 +1427,15 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
                 button_ix: &mut button_ix,
-                mod_amounts: &mut preset.shader_mod_amounts,
+                mod_amounts: &mut preset.shader_mod_amounts_right,
+                mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
         );
+        preset
+            .shader_mod_amounts_right
+            .truncate(mod_slider_ix - mod_start);
     }
-
-    preset.shader_mod_amounts.truncate(mod_slider_ix);
 
     //---------------------- BLEND MODES
     text("LED Blend Mode")
@@ -2005,6 +2088,237 @@ fn format_measured_fps(smoothed_fps: f32, total_frames: u64) -> String {
     }
 }
 
+fn set_midi_tab_widgets(
+    ui: &mut UiCell,
+    ids: &mut Ids,
+    midi_mapping: &mut crate::midi::mapping::MidiMapping,
+    midi_learn: &mut crate::midi::learn::LearnState,
+    midi_values: &mut std::collections::HashMap<
+        crate::midi::mapping::MidiTarget,
+        crate::MidiTargetState,
+    >,
+    config: &mut Config,
+    assets: &Path,
+) {
+    use crate::midi::mapping::{MidiMappingPreset, MidiTarget};
+
+    let midi_mappings_dir = assets.join("midi_mappings");
+
+    // --- Preset management ---
+
+    // Preset dropdown.
+    let preset_names = MidiMappingPreset::list_presets(&midi_mappings_dir);
+    let current_idx = preset_names
+        .iter()
+        .position(|n| *n == midi_mapping.preset.name);
+    let preset_labels: Vec<&str> = preset_names.iter().map(|s| s.as_str()).collect();
+
+    if !preset_labels.is_empty() {
+        if let Some(selected_idx) =
+            widget::DropDownList::new(&preset_labels, current_idx)
+                .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+                .mid_left_of(ids.column_1_id)
+                .down_from(ids.live_tab_button, PAD * 0.5)
+                .max_visible_items(10)
+                .rgb(0.176, 0.513, 0.639)
+                .label("MIDI Preset")
+                .label_font_size(12)
+                .label_rgb(1.0, 1.0, 1.0)
+                .scrollbar_on_top()
+                .set(ids.midi_preset_ddl, ui)
+        {
+            let name = &preset_names[selected_idx];
+            let path = midi_mappings_dir.join(format!("{name}.json"));
+            if let Ok(preset) = MidiMappingPreset::load(&path) {
+                midi_mapping.set_preset(preset);
+                midi_values.clear();
+            }
+        }
+    } else {
+        text("No presets saved")
+            .mid_left_of(ids.column_1_id)
+            .down_from(ids.live_tab_button, PAD * 0.5)
+            .font_size(11)
+            .color(Color::Rgba(0.5, 0.5, 0.5, 1.0))
+            .set(ids.midi_preset_ddl, ui);
+    }
+
+    // Save / New / Delete buttons.
+    if button()
+        .label("Save")
+        .w(WIDGET_W * 0.32)
+        .align_left_of(ids.column_1_id)
+        .down(8.0)
+        .h(DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.midi_preset_save_button, ui)
+        .was_clicked()
+    {
+        let _ = midi_mapping.preset.save(&midi_mappings_dir);
+    }
+
+    if button()
+        .label("New")
+        .w(WIDGET_W * 0.32)
+        .right(PAD * 0.25)
+        .h(DEFAULT_WIDGET_H)
+        .color(BUTTON_COLOR)
+        .set(ids.midi_preset_new_button, ui)
+        .was_clicked()
+    {
+        midi_mapping.set_preset(MidiMappingPreset::new("Untitled".to_string()));
+        midi_values.clear();
+    }
+
+    if button()
+        .label("Delete")
+        .w(WIDGET_W * 0.32)
+        .right(PAD * 0.25)
+        .h(DEFAULT_WIDGET_H)
+        .color(Color::Rgba(0.5, 0.15, 0.15, 1.0))
+        .set(ids.midi_preset_delete_button, ui)
+        .was_clicked()
+    {
+        let path = midi_mappings_dir.join(format!("{}.json", midi_mapping.preset.name));
+        let _ = std::fs::remove_file(path);
+        midi_mapping.set_preset(MidiMappingPreset::default());
+        midi_values.clear();
+    }
+
+    // Preset name text box.
+    for event in widget::TextBox::new(&midi_mapping.preset.name)
+        .down(8.0)
+        .align_left_of(ids.column_1_id)
+        .w_h(WIDGET_W, DEFAULT_WIDGET_H)
+        .font_size(12)
+        .color(Color::Rgba(0.15, 0.15, 0.15, 1.0))
+        .text_color(color::WHITE)
+        .set(ids.midi_preset_name_text_box, ui)
+    {
+        if let widget::text_box::Event::Update(new_name) = event {
+            midi_mapping.preset.name = new_name;
+        }
+    }
+
+    // --- Mapping table ---
+    let all_targets = MidiTarget::all();
+    let num_targets = all_targets.len();
+
+    // Resize dynamic widget ID arrays.
+    ids.midi_mapping_param_labels
+        .resize(num_targets, &mut ui.widget_id_generator());
+    ids.midi_mapping_port_texts
+        .resize(num_targets, &mut ui.widget_id_generator());
+    ids.midi_mapping_cc_texts
+        .resize(num_targets, &mut ui.widget_id_generator());
+    ids.midi_mapping_learn_buttons
+        .resize(num_targets, &mut ui.widget_id_generator());
+
+    let categories = MidiTarget::categories();
+    ids.midi_mapping_category_headers
+        .resize(categories.len(), &mut ui.widget_id_generator());
+
+    let label_w = WIDGET_W * 0.48;
+    let port_w = WIDGET_W * 0.22;
+    let cc_w = WIDGET_W * 0.08;
+    let learn_w = WIDGET_W * 0.18;
+    let row_h = DEFAULT_SLIDER_H - 2.0;
+    let row_spacing = 1.0;
+
+    let mut seen_categories = std::collections::HashSet::new();
+    let mut cat_idx = 0;
+    // Track the last left-edge widget ID so each row can anchor from it.
+    let mut last_row_anchor: widget::Id = ids.midi_preset_name_text_box;
+
+    for (i, target) in all_targets.iter().enumerate() {
+        let category = target.category();
+
+        // Category header (only first time we see each category).
+        if seen_categories.insert(category) {
+            let header_id = ids.midi_mapping_category_headers[cat_idx];
+            text(category)
+                .align_left_of(ids.column_1_id)
+                .down_from(last_row_anchor, PAD * 0.5)
+                .font_size(11)
+                .color(Color::Rgba(0.5, 0.85, 1.0, 1.0))
+                .set(header_id, ui);
+            last_row_anchor = header_id;
+            cat_idx += 1;
+        }
+
+        let label = format!("  {}", target.label());
+
+        // Param label — anchored to left edge, below last row.
+        text(&label)
+            .align_left_of(ids.column_1_id)
+            .down_from(last_row_anchor, row_spacing)
+            .w(label_w)
+            .font_size(10)
+            .color(color::WHITE)
+            .set(ids.midi_mapping_param_labels[i], ui);
+
+        // Port name — to the right of label.
+        let entry = midi_mapping.entry_for(*target);
+        let port_label = entry
+            .map(|e| truncate_port_name(&e.port_name))
+            .unwrap_or_else(|| "—".to_string());
+        text(&port_label)
+            .right(2.0)
+            .w(port_w)
+            .font_size(9)
+            .color(Color::Rgba(0.6, 0.6, 0.6, 1.0))
+            .set(ids.midi_mapping_port_texts[i], ui);
+
+        // CC number — to the right of port.
+        let cc_label = entry
+            .map(|e| format!("{}", e.cc))
+            .unwrap_or_else(|| "—".to_string());
+        text(&cc_label)
+            .right(2.0)
+            .w(cc_w)
+            .font_size(10)
+            .color(Color::Rgba(0.8, 0.8, 0.8, 1.0))
+            .set(ids.midi_mapping_cc_texts[i], ui);
+
+        // Learn button — to the right of CC.
+        let is_learning = midi_learn.is_listening_for(*target);
+        let learn_label = if is_learning { "..." } else { "Learn" };
+        let learn_color = if is_learning {
+            Color::Rgba(0.9, 0.4, 0.1, 1.0)
+        } else {
+            BUTTON_COLOR
+        };
+
+        if widget::Button::new()
+            .label(learn_label)
+            .label_font_size(9)
+            .right(2.0)
+            .w(learn_w)
+            .h(row_h)
+            .color(learn_color)
+            .set(ids.midi_mapping_learn_buttons[i], ui)
+            .was_clicked()
+        {
+            if is_learning {
+                *midi_learn = crate::midi::learn::LearnState::cancel();
+            } else {
+                *midi_learn = crate::midi::learn::LearnState::start(*target);
+            }
+        }
+
+        // Next row anchors from the learn button (tallest element in the row).
+        last_row_anchor = ids.midi_mapping_learn_buttons[i];
+    }
+}
+
+fn truncate_port_name(name: &str) -> String {
+    if name.len() > 15 {
+        format!("{}…", &name[..14])
+    } else {
+        name.to_string()
+    }
+}
+
 pub fn set_presets_widgets(
     ui: &mut UiCell,
     ids: &Ids,
@@ -2182,6 +2496,7 @@ fn set_shader_widgets(
         int_slider_ix,
         button_ix,
         mod_amounts,
+        mod_amounts_offset,
         envelope,
     } = state;
 
@@ -2194,11 +2509,12 @@ fn set_shader_widgets(
                     ids.shader_mod_sliders
                         .resize(*mod_slider_ix + 1, &mut ui.widget_id_generator());
                 }
-                if mod_amounts.len() <= *mod_slider_ix {
-                    mod_amounts.resize(*mod_slider_ix + 1, 0.0);
+                let local_ix = *mod_slider_ix - mod_amounts_offset;
+                if mod_amounts.len() <= local_ix {
+                    mod_amounts.resize(local_ix + 1, 0.0);
                 }
                 let id = ids.shader_mod_sliders[*mod_slider_ix];
-                let mod_amt = mod_amounts[*mod_slider_ix];
+                let mod_amt = mod_amounts[local_ix];
 
                 if let Some((v, m)) = ModSlider::new(*value, mod_amt, envelope, 0.0, max)
                     .label(name)
@@ -2207,7 +2523,7 @@ fn set_shader_widgets(
                     .set(id, ui)
                 {
                     *value = v;
-                    mod_amounts[*mod_slider_ix] = m;
+                    mod_amounts[local_ix] = m;
                 }
 
                 *mod_slider_ix += 1;
@@ -2337,14 +2653,20 @@ pub fn apply_shader_modulation(
 }
 
 pub fn normalise_preset_shader_mod_amounts(preset: &mut crate::conf::Preset) {
-    let left_count = shader_modulation_slot_count(preset.shader_left, &mut preset.shader_params);
-    let colourise_count = shader_modulation_slot_count(preset.colourise, &mut preset.shader_params);
-    let right_count = shader_modulation_slot_count(preset.shader_right, &mut preset.shader_params);
-    let mod_slot_count = left_count + colourise_count + right_count;
-    preset.shader_mod_amounts.resize(mod_slot_count, 0.0);
+    let left_count =
+        shader_modulation_slot_count(preset.shader_left, &mut preset.shader_params_left);
+    let colourise_count =
+        shader_modulation_slot_count(preset.colourise, &mut preset.shader_params_colourise);
+    let right_count =
+        shader_modulation_slot_count(preset.shader_right, &mut preset.shader_params_right);
+    preset.shader_mod_amounts_left.resize(left_count, 0.0);
+    preset
+        .shader_mod_amounts_colourise
+        .resize(colourise_count, 0.0);
+    preset.shader_mod_amounts_right.resize(right_count, 0.0);
 }
 
-fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -> usize {
+pub fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -> usize {
     let p: &mut dyn Params = shader_params(shader, params);
     let mut count = 0;
     for ix in 0..p.param_count() {
@@ -2356,7 +2678,7 @@ fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -> us
     count
 }
 
-fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
+pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {
     match shader {
         Shader::AcidGradient => &mut params.acid_gradient,
         Shader::BlinkyCircles => &mut params.blinky_circles,

@@ -12,12 +12,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.escher_tilings;
-
-    if uniforms.use_midi {
-        params.scale = uniforms.slider1;
-        params.shape_iter = uniforms.slider2;
-    }
+    let params = uniforms.params.escher_tilings;
 
     let t = uniforms.time * params.speed;
 

@@ -25,12 +25,7 @@ use crate::helpers::*;
 // }
 
 pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
-    let mut params = uniforms.params.life_led_wall;
-
-    if uniforms.use_midi {
-        params.size = uniforms.slider3;
-        params.colour_offset = uniforms.slider4 * 0.01;
-    }
+    let params = uniforms.params.life_led_wall;
 
     let Light::Led {
         normalised_coords, ..
