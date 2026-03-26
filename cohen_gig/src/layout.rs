@@ -141,16 +141,9 @@ pub fn resolve_from_mad_project(project: &mad_mapper::MadProject) -> ResolvedLay
     let mut dmx_entries = Vec::with_capacity(fixtures.len());
     let mut led_offset = 0usize;
 
-    // Determine row count and pixels-per-row for normalised coordinate calculation.
-    // Group fixtures by Y position to determine rows.
-    let row_count = {
-        let mut ys: Vec<f64> = fixtures.iter().map(|f| f.position[1]).collect();
-        ys.dedup_by(|a, b| (*a - *b).abs() < 0.01);
-        ys.len().max(1)
-    };
+    // Each fixture is treated as its own row for normalised coordinates.
+    let row_count = fixtures.len();
 
-    // For normalised coords, we treat each fixture as one row and spread
-    // its pixels across the X range [-1, 1].
     for (fixture_idx, fixture) in fixtures.iter().enumerate() {
         let row = fixture_idx;
         for pixel_ix in 0..fixture.pixel_count {

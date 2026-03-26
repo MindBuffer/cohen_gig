@@ -92,6 +92,7 @@ pub enum Light {
 
 /// Data that is uniform across all shader calls for a single frame.
 #[repr(C)]
+#[derive(Clone)]
 pub struct Uniforms {
     pub time: f32,
     pub resolution: Vec2,
@@ -115,6 +116,7 @@ pub enum Button {
 }
 
 /// The state of a button that has been interacted with.
+#[derive(Clone)]
 pub struct ButtonState {
     /// Seconds since the button was pressed.
     pub secs: f32,
@@ -132,6 +134,10 @@ pub struct MixingInfo {
     pub xfade_left: f32,
     /// x fade right amount
     pub xfade_right: f32,
+    /// Per-slot shader params so each slot is independent.
+    pub params_left: ShaderParams,
+    pub params_right: ShaderParams,
+    pub params_colourise: ShaderParams,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

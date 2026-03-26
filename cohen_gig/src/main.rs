@@ -53,6 +53,14 @@ struct MidiTargetState {
     active: bool,
 }
 
+struct PreviewImages {
+    left_id: ui::image::Id,
+    right_id: ui::image::Id,
+    colourise_id: ui::image::Id,
+    width: u32,
+    height: u32,
+}
+
 struct Model {
     _gui_window: window::Id,
     led_strip_window: window::Id,
@@ -70,6 +78,9 @@ struct Model {
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
+    led_colors_colourise: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
@@ -80,6 +91,7 @@ struct Model {
     mad_project: Option<mad_mapper::MadProject>,
     resolved_layout: Option<layout::ResolvedLayout>,
     pending_file_dialog: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
+    preview_images: Option<PreviewImages>,
 }
 
 type LastPresetChange = (std::time::Instant, Vec<LinSrgb>);
@@ -132,6 +144,9 @@ struct LedWorkerSharedInput {
 struct LedWorkerSharedOutput {
     frame_id: u64,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
+    led_colors_colourise: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     monitor: LedWorkerMonitorSnapshot,
     dmx_error: Option<String>,
@@ -368,6 +383,9 @@ impl LedWorker {
         let shared_output = Arc::new(Mutex::new(LedWorkerSharedOutput {
             frame_id: 0,
             led_colors: Vec::new(),
+            led_colors_left: Vec::new(),
+            led_colors_right: Vec::new(),
+            led_colors_colourise: Vec::new(),
             led_outputs: Vec::new(),
             monitor: LedWorkerMonitorSnapshot::default(),
             dmx_error: None,
@@ -536,6 +554,9 @@ fn model(app: &App) -> Model {
         colour_channels,
         buttons: Default::default(),
         led_colors,
+        led_colors_left: black_led_buffer(initial_led_count),
+        led_colors_right: black_led_buffer(initial_led_count),
+        led_colors_colourise: black_led_buffer(initial_led_count),
         led_outputs,
         last_preset_change,
         ui,
@@ -546,11 +567,183 @@ fn model(app: &App) -> Model {
         resolved_layout,
         mad_project,
         pending_file_dialog: None,
+        preview_images: None,
     }
 }
 
 fn black_led_buffer(led_count: usize) -> Vec<LinSrgb> {
     vec![lin_srgb(0.0, 0.0, 0.0); led_count]
+}
+
+fn led_colors_to_rgba(colors: &[LinSrgb], width: u32, height: u32) -> Vec<u8> {
+    let pixel_count = (width * height) as usize;
+    let mut rgba = vec![0u8; pixel_count * 4];
+    for (i, color) in colors.iter().take(pixel_count).enumerate() {
+        let offset = i * 4;
+        rgba[offset] = (color.red.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 1] = (color.green.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 2] = (color.blue.clamp(0.0, 1.0) * 255.0) as u8;
+        rgba[offset + 3] = 255;
+    }
+    rgba
+}
+
+fn preview_dimensions(
+    led_layout: &conf::LedLayout,
+    mad_project: Option<&mad_mapper::MadProject>,
+) -> (u32, u32) {
+    if let Some(project) = mad_project {
+        let fixtures = project.fixtures_by_row();
+        let rows = fixtures.len() as u32;
+        let max_cols = fixtures
+            .iter()
+            .map(|f| f.pixel_count as u32)
+            .max()
+            .unwrap_or(1);
+        (max_cols, rows.max(1))
+    } else {
+        (led_layout.leds_per_row() as u32, led_layout.row_count as u32)
+    }
+}
+
+fn update_preview_textures(app: &App, model: &mut Model) {
+    let (width, height) = preview_dimensions(
+        &model.global_config.led_layout,
+        model.mad_project.as_ref(),
+    );
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let window = match app.window(model._gui_window) {
+        Some(w) => w,
+        None => return,
+    };
+
+    let needs_recreate = match &model.preview_images {
+        Some(pi) => pi.width != width || pi.height != height,
+        None => true,
+    };
+
+    if needs_recreate {
+        let device = window.device();
+
+        let create_preview_texture = |label: &'static str| {
+            device.create_texture(&nannou::wgpu::TextureDescriptor {
+                label: Some(label),
+                size: nannou::wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: nannou::wgpu::TextureDimension::D2,
+                format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: nannou::wgpu::TextureUsages::COPY_DST
+                    | nannou::wgpu::TextureUsages::TEXTURE_BINDING,
+            })
+        };
+
+        let left_tex = create_preview_texture("preview_left");
+        let right_tex = create_preview_texture("preview_right");
+        let colourise_tex = create_preview_texture("preview_colourise");
+
+        let left_img = ui::conrod_wgpu::Image {
+            texture: left_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
+        let right_img = ui::conrod_wgpu::Image {
+            texture: right_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
+        let colourise_img = ui::conrod_wgpu::Image {
+            texture: colourise_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
+
+        if let Some(old) = model.preview_images.take() {
+            model.ui.image_map.remove(old.left_id);
+            model.ui.image_map.remove(old.right_id);
+            model.ui.image_map.remove(old.colourise_id);
+        }
+
+        let left_id = model.ui.image_map.insert(left_img);
+        let right_id = model.ui.image_map.insert(right_img);
+        let colourise_id = model.ui.image_map.insert(colourise_img);
+        model.preview_images = Some(PreviewImages {
+            left_id,
+            right_id,
+            colourise_id,
+            width,
+            height,
+        });
+    }
+
+    if let Some(ref pi) = model.preview_images {
+        let queue = window.queue();
+        let size = nannou::wgpu::Extent3d {
+            width: pi.width,
+            height: pi.height,
+            depth_or_array_layers: 1,
+        };
+        let layout = nannou::wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: std::num::NonZeroU32::new(pi.width * 4),
+            rows_per_image: std::num::NonZeroU32::new(pi.height),
+        };
+
+        let left_rgba = led_colors_to_rgba(&model.led_colors_left, pi.width, pi.height);
+        if let Some(img) = model.ui.image_map.get(&pi.left_id) {
+            queue.write_texture(
+                nannou::wgpu::ImageCopyTexture {
+                    texture: &img.texture,
+                    mip_level: 0,
+                    origin: nannou::wgpu::Origin3d::ZERO,
+                    aspect: nannou::wgpu::TextureAspect::All,
+                },
+                &left_rgba,
+                layout,
+                size,
+            );
+        }
+
+        let right_rgba = led_colors_to_rgba(&model.led_colors_right, pi.width, pi.height);
+        if let Some(img) = model.ui.image_map.get(&pi.right_id) {
+            queue.write_texture(
+                nannou::wgpu::ImageCopyTexture {
+                    texture: &img.texture,
+                    mip_level: 0,
+                    origin: nannou::wgpu::Origin3d::ZERO,
+                    aspect: nannou::wgpu::TextureAspect::All,
+                },
+                &right_rgba,
+                layout,
+                size,
+            );
+        }
+
+        let colourise_rgba = led_colors_to_rgba(&model.led_colors_colourise, pi.width, pi.height);
+        if let Some(img) = model.ui.image_map.get(&pi.colourise_id) {
+            queue.write_texture(
+                nannou::wgpu::ImageCopyTexture {
+                    texture: &img.texture,
+                    mip_level: 0,
+                    origin: nannou::wgpu::Origin3d::ZERO,
+                    aspect: nannou::wgpu::TextureAspect::All,
+                },
+                &colourise_rgba,
+                layout,
+                size,
+            );
+        }
+    }
 }
 
 fn convert_channel(f: f32) -> u8 {
@@ -705,33 +898,15 @@ fn sync_led_buffers(model: &mut Model) {
         .unwrap_or_else(|| model.global_config.led_layout.led_count());
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_colors_left.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_colors_right.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_colors_colourise.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
 }
 
 /// Copy the shader-specific fields from `src` into `dst` for the given shader type.
-fn merge_slot_params(
-    shader: shader_shared::Shader,
-    src: &ShaderParams,
-    dst: &mut ShaderParams,
-) {
-    let mut src_copy = *src;
-    let mut dst_copy = *dst;
-    let s = gui::shader_params(shader, &mut src_copy);
-    let d = gui::shader_params(shader, &mut dst_copy);
-    for ix in 0..s.param_count().min(d.param_count()) {
-        let sv = s.param_mut(ix);
-        let dv = d.param_mut(ix);
-        match (sv.kind, dv.kind) {
-            (gui::ParamKindMut::F32 { value: sv, .. }, gui::ParamKindMut::F32 { value: dv, .. }) => *dv = *sv,
-            (gui::ParamKindMut::Bool(sv), gui::ParamKindMut::Bool(dv)) => *dv = *sv,
-            (gui::ParamKindMut::Usize { value: sv, .. }, gui::ParamKindMut::Usize { value: dv, .. }) => *dv = *sv,
-            _ => {}
-        }
-    }
-    *dst = dst_copy;
-}
 
 fn apply_midi_values(model: &mut Model) {
     use midi::mapping::MidiTarget;
@@ -856,6 +1031,9 @@ fn apply_led_worker_output(model: &mut Model) {
 
     model.led_worker.last_applied_frame_id = shared_output.frame_id;
     model.led_colors.clone_from(&shared_output.led_colors);
+    model.led_colors_left.clone_from(&shared_output.led_colors_left);
+    model.led_colors_right.clone_from(&shared_output.led_colors_right);
+    model.led_colors_colourise.clone_from(&shared_output.led_colors_colourise);
     model.led_outputs.clone_from(&shared_output.led_outputs);
     model.dmx.error = shared_output.dmx_error.clone();
     model.dmx.last_send_route = shared_output.last_send_route;
@@ -895,6 +1073,9 @@ fn apply_led_worker_output(model: &mut Model) {
 struct LedWorkerRuntime {
     shader: Option<Shader>,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
+    led_colors_colourise: Vec<LinSrgb>,
     led_color_buffer: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     led_shader_inputs: Vec<CachedLedShaderInput>,
@@ -918,6 +1099,9 @@ impl LedWorkerRuntime {
         Self {
             shader: None,
             led_colors: black_led_buffer(led_count),
+            led_colors_left: black_led_buffer(led_count),
+            led_colors_right: black_led_buffer(led_count),
+            led_colors_colourise: black_led_buffer(led_count),
             led_color_buffer: black_led_buffer(led_count),
             led_outputs: black_led_buffer(led_count),
             led_shader_inputs: shader_inputs,
@@ -948,6 +1132,15 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
     if runtime.led_colors.len() != led_count {
         runtime
             .led_colors
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_colors_left
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_colors_right
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_colors_colourise
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
             .led_color_buffer
@@ -1013,6 +1206,9 @@ fn run_led_worker(
         if let Ok(mut output) = shared_output.lock() {
             output.frame_id = frame_id;
             output.led_colors.clone_from(&runtime.led_colors);
+            output.led_colors_left.clone_from(&runtime.led_colors_left);
+            output.led_colors_right.clone_from(&runtime.led_colors_right);
+            output.led_colors_colourise.clone_from(&runtime.led_colors_colourise);
             output.led_outputs.clone_from(&runtime.led_outputs);
             output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
             output.dmx_error = runtime.dmx.error.clone();
@@ -1040,6 +1236,43 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
     let lr_mix = state.config.preset.left_right_mix;
     let xfade_left = (0.5 * (1.0 + lr_mix)).sqrt();
     let xfade_right = (0.5 * (1.0 - lr_mix)).sqrt();
+    let env = state.audio_envelope;
+
+    // Build per-slot params with envelope modulation applied independently.
+    let mut params_left = state.config.preset.shader_params_left;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            state.config.preset.shader_left,
+            &mut params_left,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_left,
+            env,
+        );
+    }
+    let mut params_colourise = state.config.preset.shader_params_colourise;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            state.config.preset.colourise,
+            &mut params_colourise,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_colourise,
+            env,
+        );
+    }
+    let mut params_right = state.config.preset.shader_params_right;
+    {
+        let mut mod_ix = 0;
+        gui::apply_shader_modulation(
+            state.config.preset.shader_right,
+            &mut params_right,
+            &mut mod_ix,
+            &state.config.preset.shader_mod_amounts_right,
+            env,
+        );
+    }
+
     let mix_info = MixingInfo {
         left: state.config.preset.shader_left,
         right: state.config.preset.shader_right,
@@ -1047,57 +1280,10 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
         blend_mode: state.config.preset.blend_mode,
         xfade_left,
         xfade_right,
+        params_left,
+        params_right,
+        params_colourise,
     };
-
-    let env = state.audio_envelope;
-
-    // Merge per-slot shader params into a single ShaderParams for Uniforms.
-    // Start from left, overlay colourise, overlay right. Since each slot
-    // writes to a different shader type's fields, there's no conflict
-    // (and when two slots use the same type, the later one wins).
-    let mut shader_params = state.config.preset.shader_params_left;
-    merge_slot_params(
-        state.config.preset.colourise,
-        &state.config.preset.shader_params_colourise,
-        &mut shader_params,
-    );
-    merge_slot_params(
-        state.config.preset.shader_right,
-        &state.config.preset.shader_params_right,
-        &mut shader_params,
-    );
-
-    // Apply envelope modulation per slot.
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.shader_left,
-            &mut shader_params,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_left,
-            env,
-        );
-    }
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.colourise,
-            &mut shader_params,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_colourise,
-            env,
-        );
-    }
-    {
-        let mut mod_ix = 0;
-        gui::apply_shader_modulation(
-            state.config.preset.shader_right,
-            &mut shader_params,
-            &mut mod_ix,
-            &state.config.preset.shader_mod_amounts_right,
-            env,
-        );
-    }
 
     let buttons = state
         .buttons
@@ -1118,7 +1304,7 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
         pot6: state.colour_channels[0],
         pot7: state.colour_channels[1],
         pot8: state.colour_channels[2],
-        params: shader_params,
+        params: ShaderParams::default(),
         mix: mix_info,
         buttons,
     };
@@ -1138,6 +1324,104 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
             *color = shader(vertex, &uniforms);
         });
     std::mem::swap(&mut runtime.led_colors, &mut runtime.led_color_buffer);
+
+    // White colourise params used to bypass post-processing in left/right previews.
+    let white_colourise = ShaderParams {
+        solid_rgb_colour: shader_shared::SolidRgbColour { red: 1.0, green: 1.0, blue: 1.0 },
+        ..ShaderParams::default()
+    };
+
+    // Compute isolated left preview (Add blend, left only, no colourise).
+    {
+        let left_only_mix = MixingInfo {
+            colourise: shader_shared::Shader::SolidRgbColour,
+            blend_mode: shader_shared::BlendMode::Add,
+            xfade_left: 1.0,
+            xfade_right: 0.0,
+            params_colourise: white_colourise,
+            ..uniforms.mix.clone()
+        };
+        let left_uniforms = Uniforms {
+            mix: left_only_mix,
+            ..uniforms.clone()
+        };
+        runtime
+            .led_colors_left
+            .par_iter_mut()
+            .zip(runtime.led_shader_inputs.par_iter())
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|((color, led_input), &last_color)| {
+                let vertex = Vertex {
+                    position: led_input.position,
+                    light: led_input.light,
+                    last_color,
+                };
+                *color = shader(vertex, &left_uniforms);
+            });
+    }
+
+    // Compute isolated right preview (Add blend, right only, no colourise).
+    {
+        let right_only_mix = MixingInfo {
+            colourise: shader_shared::Shader::SolidRgbColour,
+            blend_mode: shader_shared::BlendMode::Add,
+            xfade_left: 0.0,
+            xfade_right: 1.0,
+            params_colourise: white_colourise,
+            ..uniforms.mix.clone()
+        };
+        let right_uniforms = Uniforms {
+            mix: right_only_mix,
+            ..uniforms.clone()
+        };
+        runtime
+            .led_colors_right
+            .par_iter_mut()
+            .zip(runtime.led_shader_inputs.par_iter())
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|((color, led_input), &last_color)| {
+                let vertex = Vertex {
+                    position: led_input.position,
+                    light: led_input.light,
+                    last_color,
+                };
+                *color = shader(vertex, &right_uniforms);
+            });
+    }
+
+    // Compute isolated colourise preview.
+    {
+        use shader_shared::SolidRgbColour;
+        let colourise_only_mix = MixingInfo {
+            left: shader_shared::Shader::SolidRgbColour,
+            blend_mode: shader_shared::BlendMode::Add,
+            xfade_left: 1.0,
+            xfade_right: 0.0,
+            params_left: ShaderParams {
+                solid_rgb_colour: SolidRgbColour { red: 1.0, green: 1.0, blue: 1.0 },
+                ..ShaderParams::default()
+            },
+            params_right: ShaderParams::default(),
+            ..uniforms.mix.clone()
+        };
+        let colourise_uniforms = Uniforms {
+            mix: colourise_only_mix,
+            ..uniforms.clone()
+        };
+        runtime
+            .led_colors_colourise
+            .par_iter_mut()
+            .zip(runtime.led_shader_inputs.par_iter())
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|((color, led_input), &last_color)| {
+                let vertex = Vertex {
+                    position: led_input.position,
+                    light: led_input.light,
+                    last_color,
+                };
+                *color = shader(vertex, &colourise_uniforms);
+            });
+    }
 
     let (prev_output, lerp_amt) = match runtime.last_preset_change {
         None => (&[][..], 1.0),
@@ -1323,6 +1607,7 @@ fn key_pressed(_app: &App, model: &mut Model, key: Key) {
 fn update(app: &App, model: &mut Model, update: Update) {
     model.audio_input.update();
     apply_led_worker_output(model);
+    update_preview_textures(app, model);
     model.runtime_stats.record_app_frame(update.since_last);
 
     // Apply the GUI update.
@@ -1350,6 +1635,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
             midi_mapping: &mut model.midi_mapping,
             midi_learn: &mut model.midi_learn,
             midi_values: &mut model.midi_values,
+            preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
+            preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
+            preview_colourise_image_id: model.preview_images.as_ref().map(|pi| pi.colourise_id),
         },
     );
     drop(ui);

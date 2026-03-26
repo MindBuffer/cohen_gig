@@ -63,10 +63,8 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
 
     let x = map_range(p.x, -1.0, 1.0, 0.0, 1.0);
     let y = map_range(p.y, -1.0, 1.0, 0.0, 1.0);
-    let mut uv = vec2(x, y) * uniforms.resolution;
-
     let i = 4.0 + params.scale * 35.0;
-    uv = uv / vec2(uniforms.resolution.x, uniforms.resolution.x) * vec2(i, i);
+    let mut uv = vec2(x * i, y * i);
     let mut d = uv.y;
     d = d.powf(1.5);
     let mut f;

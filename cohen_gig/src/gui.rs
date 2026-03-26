@@ -81,6 +81,10 @@ widget_ids! {
         led_shader_right_text,
         led_shader_right_ddl,
 
+        led_preview_left_image,
+        led_preview_right_image,
+        led_preview_colourise_image,
+
         shader_mod_sliders[],
         shader_int_sliders[],
         shader_buttons[],
@@ -175,6 +179,9 @@ pub struct UpdateContext<'a> {
         crate::midi::mapping::MidiTarget,
         crate::MidiTargetState,
     >,
+    pub preview_left_image_id: Option<ui::image::Id>,
+    pub preview_right_image_id: Option<ui::image::Id>,
+    pub preview_colourise_image_id: Option<ui::image::Id>,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1180,6 +1187,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         midi_mapping,
         midi_learn,
         midi_values,
+        preview_left_image_id,
+        preview_right_image_id,
+        preview_colourise_image_id,
     } = ctx;
 
     widget::Canvas::new()
@@ -1305,6 +1315,14 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .color(color::WHITE)
         .set(ids.led_shader_left_text, ui);
 
+    if let Some(image_id) = preview_left_image_id {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .down(10.0)
+            .set(ids.led_preview_left_image, ui);
+    }
+
     let shader_names: Vec<_> = shader_shared::ALL_SHADERS
         .iter()
         .map(|s| s.name())
@@ -1397,12 +1415,28 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             .truncate(mod_slider_ix - mod_start);
     }
 
+    if let Some(image_id) = preview_colourise_image_id {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .down(10.0)
+            .set(ids.led_preview_colourise_image, ui);
+    }
+
     //---------------------- LED SHADER RIGHT
 
     text("LED Shader Right")
         .top_left_of(ids.column_4_id)
         .color(color::WHITE)
         .set(ids.led_shader_right_text, ui);
+
+    if let Some(image_id) = preview_right_image_id {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .down(10.0)
+            .set(ids.led_preview_right_image, ui);
+    }
 
     let shader_idx = preset.shader_right.to_index();
     if let Some(selected_idx) = widget::DropDownList::new(&shader_names, Some(shader_idx))
