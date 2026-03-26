@@ -86,6 +86,7 @@ struct Model {
     ui: Ui,
     ids: gui::Ids,
     left_panel_tab: gui::LeftPanelTab,
+    preset_list_drag: gui::PresetListDragState,
     audio_input: audio_input::AudioInput,
     runtime_stats: RuntimeStats,
     mad_project: Option<mad_mapper::MadProject>,
@@ -573,6 +574,7 @@ fn model(app: &App) -> Model {
         ui,
         ids,
         left_panel_tab: gui::LeftPanelTab::Live,
+        preset_list_drag: gui::PresetListDragState::default(),
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
         resolved_layout,
@@ -1690,6 +1692,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
         gui::UpdateContext {
             global_config: &mut model.global_config,
             presets: &mut model.presets,
+            preset_list_drag: &mut model.preset_list_drag,
             audio_input: &mut model.audio_input,
             left_panel_tab: &mut model.left_panel_tab,
             sacn_output_monitor: &mut model.dmx.monitor,
