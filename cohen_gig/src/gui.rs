@@ -1326,6 +1326,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 last_preset_change,
                 led_colors,
                 assets,
+                hover_preview_request,
+                hover_preview_state,
             );
         }
         LeftPanelTab::Output => {
@@ -2529,6 +2531,8 @@ pub fn set_presets_widgets(
     last_preset_change: &mut Option<crate::LastPresetChange>,
     _led_colors: &LedColors,
     assets: &Path,
+    hover_preview_request: &mut Option<crate::HoverPreviewRequest>,
+    hover_preview_state: &mut HoverPreviewState,
 ) {
     const PRESET_ACTION_GAP: Scalar = 2.0;
 
@@ -2678,6 +2682,14 @@ pub fn set_presets_widgets(
                     .label_font_size(font_size)
                     .label_color(label_color);
                 item.set(button, ui);
+
+                if ui.widget_input(item.widget_id).mouse().is_some() {
+                    if item.i < presets.list.len() {
+                        *hover_preview_request =
+                            Some(crate::HoverPreviewRequest::Preset(presets.list[item.i].clone()));
+                        hover_preview_state.hovered_rect = ui.rect_of(item.widget_id);
+                    }
+                }
 
                 for drag in ui.widget_input(item.widget_id).drags().left() {
                     preset_list_drag.active = Some(ActivePresetListDrag {
