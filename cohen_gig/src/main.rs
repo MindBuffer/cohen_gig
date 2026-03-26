@@ -81,7 +81,9 @@ struct Model {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
+    hover_preview_request: Option<HoverPreviewRequest>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
@@ -99,6 +101,12 @@ struct Model {
 struct LastPresetChange {
     started_at: Instant,
     preset: conf::Preset,
+}
+
+#[derive(Clone)]
+enum HoverPreviewRequest {
+    Shader(shader_shared::Shader),
+    Preset(conf::Preset),
 }
 
 struct PresetTransitionState {
@@ -150,6 +158,7 @@ struct LedWorkerSharedInput {
     latest_state: LedWorkerInputState,
     pending_preset_change: Option<LastPresetChange>,
     pending_shader: Option<Shader>,
+    hover_preview_request: Option<HoverPreviewRequest>,
     shutdown: bool,
 }
 
@@ -159,6 +168,7 @@ struct LedWorkerSharedOutput {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     monitor: LedWorkerMonitorSnapshot,
     dmx_error: Option<String>,
@@ -390,6 +400,7 @@ impl LedWorker {
             latest_state: initial_state,
             pending_preset_change: None,
             pending_shader: None,
+            hover_preview_request: None,
             shutdown: false,
         }));
         let shared_output = Arc::new(Mutex::new(LedWorkerSharedOutput {
@@ -398,6 +409,7 @@ impl LedWorker {
             led_colors_left: Vec::new(),
             led_colors_right: Vec::new(),
             led_colors_colourise: Vec::new(),
+            led_colors_hover: Vec::new(),
             led_outputs: Vec::new(),
             monitor: LedWorkerMonitorSnapshot::default(),
             dmx_error: None,
@@ -569,7 +581,9 @@ fn model(app: &App) -> Model {
         led_colors_left: black_led_buffer(initial_led_count),
         led_colors_right: black_led_buffer(initial_led_count),
         led_colors_colourise: black_led_buffer(initial_led_count),
+        led_colors_hover: black_led_buffer(initial_led_count),
         led_outputs,
+        hover_preview_request: None,
         last_preset_change,
         ui,
         ids,
@@ -921,6 +935,9 @@ fn sync_led_buffers(model: &mut Model) {
         model
             .led_colors_colourise
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model
+            .led_colors_hover
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
@@ -1033,6 +1050,8 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
         );
         shared_input.latest_state.buttons = model.buttons.clone();
 
+        shared_input.hover_preview_request = model.hover_preview_request.clone();
+
         if let Some(last_preset_change) = model.last_preset_change.take() {
             shared_input.pending_preset_change = Some(last_preset_change);
         }
@@ -1059,6 +1078,9 @@ fn apply_led_worker_output(model: &mut Model) {
     model
         .led_colors_colourise
         .clone_from(&shared_output.led_colors_colourise);
+    model
+        .led_colors_hover
+        .clone_from(&shared_output.led_colors_hover);
     model.led_outputs.clone_from(&shared_output.led_outputs);
     model.dmx.error = shared_output.dmx_error.clone();
     model.dmx.last_send_route = shared_output.last_send_route;
@@ -1101,6 +1123,7 @@ struct LedWorkerRuntime {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_color_buffer: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     led_shader_inputs: Vec<CachedLedShaderInput>,
@@ -1127,6 +1150,7 @@ impl LedWorkerRuntime {
             led_colors_left: black_led_buffer(led_count),
             led_colors_right: black_led_buffer(led_count),
             led_colors_colourise: black_led_buffer(led_count),
+            led_colors_hover: black_led_buffer(led_count),
             led_color_buffer: black_led_buffer(led_count),
             led_outputs: black_led_buffer(led_count),
             led_shader_inputs: shader_inputs,
@@ -1168,6 +1192,9 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
             .led_colors_colourise
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
+            .led_colors_hover
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
             .led_color_buffer
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
@@ -1200,7 +1227,7 @@ fn run_led_worker(
     let mut frame_id = 0u64;
 
     loop {
-        let (state, pending_shader, pending_preset_change, shutdown) = {
+        let (state, pending_shader, pending_preset_change, hover_preview_request, shutdown) = {
             let mut input = match shared_input.lock() {
                 Ok(input) => input,
                 Err(_) => break,
@@ -1209,6 +1236,7 @@ fn run_led_worker(
                 input.latest_state.clone(),
                 input.pending_shader.take(),
                 input.pending_preset_change.take(),
+                input.hover_preview_request.clone(),
                 input.shutdown,
             )
         };
@@ -1230,7 +1258,7 @@ fn run_led_worker(
         }
 
         sync_led_worker_buffers(&mut runtime, &state.config);
-        render_led_worker_frame(&state, &mut runtime);
+        render_led_worker_frame(&state, &mut runtime, &hover_preview_request);
 
         frame_id = frame_id.wrapping_add(1);
         if let Ok(mut output) = shared_output.lock() {
@@ -1243,6 +1271,9 @@ fn run_led_worker(
             output
                 .led_colors_colourise
                 .clone_from(&runtime.led_colors_colourise);
+            output
+                .led_colors_hover
+                .clone_from(&runtime.led_colors_hover);
             output.led_outputs.clone_from(&runtime.led_outputs);
             output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
             output.dmx_error = runtime.dmx.error.clone();
@@ -1253,7 +1284,11 @@ fn run_led_worker(
     }
 }
 
-fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerRuntime) {
+fn render_led_worker_frame(
+    state: &LedWorkerInputState,
+    runtime: &mut LedWorkerRuntime,
+    _hover_preview_request: &Option<HoverPreviewRequest>,
+) {
     let shader: ShaderFnPtr = runtime
         .shader
         .as_ref()
