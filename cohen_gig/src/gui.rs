@@ -26,6 +26,8 @@ pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
 pub const PRESET_LIST_SELECTED_COLOR: Color = Color::Rgba(0.28, 0.54, 1.0, 1.0); // light blue
+pub const PRESET_LIST_DRAGGING_COLOR: Color = Color::Rgba(0.73, 0.43, 0.12, 1.0); // amber
+pub const PRESET_LIST_DROP_TARGET_COLOR: Color = Color::Rgba(0.08, 0.5, 0.32, 1.0); // green
 pub const PRESET_ENTRY_COLOR: Color = Color::Rgba(0.05, 0.1, 0.2, 1.0); // dark blue
 
 widget_ids! {
@@ -66,6 +68,7 @@ widget_ids! {
         presets_text_box,
         presets_list,
         enter_preset_name_text,
+        presets_reorder_hint,
 
         universe_starts_text,
         led_start_universe_dialer,
@@ -155,9 +158,21 @@ pub enum LeftPanelTab {
     Midi,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PresetListDragState {
+    active: Option<ActivePresetListDrag>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ActivePresetListDrag {
+    source_index: usize,
+    target_index: usize,
+}
+
 pub struct UpdateContext<'a> {
     pub global_config: &'a mut GlobalConfig,
     pub presets: &'a mut crate::conf::Presets,
+    pub preset_list_drag: &'a mut PresetListDragState,
     pub audio_input: &'a mut crate::audio_input::AudioInput,
     pub left_panel_tab: &'a mut LeftPanelTab,
     pub sacn_output_monitor: &'a mut crate::SacnOutputMonitor,
@@ -1167,6 +1182,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
     let UpdateContext {
         global_config,
         presets,
+        preset_list_drag,
         audio_input,
         left_panel_tab,
         sacn_output_monitor,
@@ -1272,6 +1288,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 ids,
                 global_config,
                 presets,
+                preset_list_drag,
                 last_preset_change,
                 led_colors,
                 assets,
@@ -2360,6 +2377,7 @@ pub fn set_presets_widgets(
     ids: &Ids,
     global_config: &mut GlobalConfig,
     presets: &mut crate::conf::Presets,
+    preset_list_drag: &mut PresetListDragState,
     last_preset_change: &mut Option<crate::LastPresetChange>,
     _led_colors: &LedColors,
     assets: &Path,
@@ -2462,6 +2480,12 @@ pub fn set_presets_widgets(
         }
     }
 
+    widget::Text::new("Drag presets to reorder. Press Save to keep the new order.")
+        .down(8.0)
+        .font_size(10)
+        .color(color::LIGHT_GREY)
+        .set(ids.presets_reorder_hint, ui);
+
     let names: Vec<_> = presets.list.iter().map(|p| p.name.clone()).collect();
 
     let font_size = TEXT_BOX_H as ui::FontSize / 2;
@@ -2470,16 +2494,30 @@ pub fn set_presets_widgets(
         .item_size(TEXT_BOX_H)
         .scrollbar_next_to()
         .w_h(WIDGET_W, 500.0)
-        .down_from(ids.presets_text_box, 10.0)
+        .down_from(ids.presets_reorder_hint, 10.0)
         .align_left()
         .set(ids.presets_list, ui);
+
+    let mut pending_reorder = None;
+    let mut drag_finished_this_frame = false;
 
     while let Some(event) = events.next(ui, |i| i == presets.selected_preset_idx) {
         use nannou_conrod::widget::list_select::Event;
         match event {
             Event::Item(item) => {
                 let label = &names[item.i];
-                let (color, label_color) = if item.i == presets.selected_preset_idx {
+                let active_drag = preset_list_drag.active;
+                let is_drag_source = active_drag
+                    .map(|drag| drag.source_index == item.i)
+                    .unwrap_or(false);
+                let is_drop_target = active_drag
+                    .map(|drag| drag.target_index == item.i && drag.source_index != item.i)
+                    .unwrap_or(false);
+                let (color, label_color) = if is_drag_source {
+                    (PRESET_LIST_DRAGGING_COLOR, TEXT_COLOR)
+                } else if is_drop_target {
+                    (PRESET_LIST_DROP_TARGET_COLOR, TEXT_COLOR)
+                } else if item.i == presets.selected_preset_idx {
                     (PRESET_LIST_SELECTED_COLOR, nannou_conrod::color::BLACK)
                 } else {
                     (PRESET_LIST_COLOR, TEXT_COLOR)
@@ -2492,10 +2530,30 @@ pub fn set_presets_widgets(
                     .label_font_size(font_size)
                     .label_color(label_color);
                 item.set(button, ui);
+
+                for drag in ui.widget_input(item.widget_id).drags().left() {
+                    preset_list_drag.active = Some(ActivePresetListDrag {
+                        source_index: item.i,
+                        target_index: preset_drag_target_index(
+                            item.i,
+                            drag.total_delta_xy[1],
+                            names.len(),
+                        ),
+                    });
+                }
+
+                for _ in ui.widget_input(item.widget_id).releases().mouse().left() {
+                    if let Some(drag) = preset_list_drag.active.take() {
+                        if drag.source_index == item.i {
+                            pending_reorder = Some((drag.source_index, drag.target_index));
+                            drag_finished_this_frame = true;
+                        }
+                    }
+                }
             }
 
             Event::Selection(selection) => {
-                if selection < presets.list.len() {
+                if !drag_finished_this_frame && selection < presets.list.len() {
                     let outgoing_preset = presets.selected().clone();
                     presets.selected_preset_idx = selection;
                     presets.selected_preset_name = presets.selected().name.clone();
@@ -2509,9 +2567,32 @@ pub fn set_presets_widgets(
         }
     }
 
+    if pending_reorder.is_none() {
+        if let Some(drag) = preset_list_drag.active {
+            if ui.global_input().current.mouse.buttons.left().is_up() {
+                preset_list_drag.active = None;
+                pending_reorder = Some((drag.source_index, drag.target_index));
+            }
+        }
+    }
+
+    if let Some((from, to)) = pending_reorder {
+        presets.move_preset(from, to);
+    }
+
     if let Some(sb) = presets_scrollbar {
         sb.set(ui);
     }
+}
+
+fn preset_drag_target_index(source_index: usize, total_drag_y: Scalar, list_len: usize) -> usize {
+    if list_len <= 1 {
+        return source_index;
+    }
+
+    let row_offset = (-total_drag_y / TEXT_BOX_H).round() as isize;
+    let max_index = list_len as isize - 1;
+    (source_index as isize + row_offset).clamp(0, max_index) as usize
 }
 
 fn set_shader_widgets(

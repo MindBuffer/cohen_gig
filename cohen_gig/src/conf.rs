@@ -130,6 +130,25 @@ impl Presets {
     pub fn selected_mut(&mut self) -> &mut Preset {
         &mut self.list[self.selected_preset_idx]
     }
+
+    /// Moves a preset to a new position while keeping the current selection on the same preset.
+    pub fn move_preset(&mut self, from: usize, to: usize) -> bool {
+        if self.list.is_empty() || from >= self.list.len() || to >= self.list.len() || from == to {
+            return false;
+        }
+
+        let preset = self.list.remove(from);
+        self.list.insert(to, preset);
+
+        self.selected_preset_idx = match self.selected_preset_idx {
+            idx if idx == from => to,
+            idx if from < idx && idx <= to => idx - 1,
+            idx if to <= idx && idx < from => idx + 1,
+            idx => idx,
+        };
+
+        true
+    }
 }
 
 impl Default for GlobalConfig {
