@@ -92,6 +92,7 @@ pub enum Light {
 
 /// Data that is uniform across all shader calls for a single frame.
 #[repr(C)]
+#[derive(Clone)]
 pub struct Uniforms {
     pub time: f32,
     pub resolution: Vec2,
@@ -115,6 +116,7 @@ pub enum Button {
 }
 
 /// The state of a button that has been interacted with.
+#[derive(Clone)]
 pub struct ButtonState {
     /// Seconds since the button was pressed.
     pub secs: f32,

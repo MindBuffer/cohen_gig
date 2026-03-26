@@ -70,6 +70,8 @@ struct Model {
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
@@ -132,6 +134,8 @@ struct LedWorkerSharedInput {
 struct LedWorkerSharedOutput {
     frame_id: u64,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     monitor: LedWorkerMonitorSnapshot,
     dmx_error: Option<String>,
@@ -368,6 +372,8 @@ impl LedWorker {
         let shared_output = Arc::new(Mutex::new(LedWorkerSharedOutput {
             frame_id: 0,
             led_colors: Vec::new(),
+            led_colors_left: Vec::new(),
+            led_colors_right: Vec::new(),
             led_outputs: Vec::new(),
             monitor: LedWorkerMonitorSnapshot::default(),
             dmx_error: None,
@@ -536,6 +542,8 @@ fn model(app: &App) -> Model {
         colour_channels,
         buttons: Default::default(),
         led_colors,
+        led_colors_left: black_led_buffer(initial_led_count),
+        led_colors_right: black_led_buffer(initial_led_count),
         led_outputs,
         last_preset_change,
         ui,
@@ -705,6 +713,8 @@ fn sync_led_buffers(model: &mut Model) {
         .unwrap_or_else(|| model.global_config.led_layout.led_count());
     if model.led_colors.len() != led_count {
         model.led_colors.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_colors_left.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model.led_colors_right.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
@@ -856,6 +866,8 @@ fn apply_led_worker_output(model: &mut Model) {
 
     model.led_worker.last_applied_frame_id = shared_output.frame_id;
     model.led_colors.clone_from(&shared_output.led_colors);
+    model.led_colors_left.clone_from(&shared_output.led_colors_left);
+    model.led_colors_right.clone_from(&shared_output.led_colors_right);
     model.led_outputs.clone_from(&shared_output.led_outputs);
     model.dmx.error = shared_output.dmx_error.clone();
     model.dmx.last_send_route = shared_output.last_send_route;
@@ -895,6 +907,8 @@ fn apply_led_worker_output(model: &mut Model) {
 struct LedWorkerRuntime {
     shader: Option<Shader>,
     led_colors: Vec<LinSrgb>,
+    led_colors_left: Vec<LinSrgb>,
+    led_colors_right: Vec<LinSrgb>,
     led_color_buffer: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     led_shader_inputs: Vec<CachedLedShaderInput>,
@@ -918,6 +932,8 @@ impl LedWorkerRuntime {
         Self {
             shader: None,
             led_colors: black_led_buffer(led_count),
+            led_colors_left: black_led_buffer(led_count),
+            led_colors_right: black_led_buffer(led_count),
             led_color_buffer: black_led_buffer(led_count),
             led_outputs: black_led_buffer(led_count),
             led_shader_inputs: shader_inputs,
@@ -948,6 +964,12 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
     if runtime.led_colors.len() != led_count {
         runtime
             .led_colors
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_colors_left
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
+            .led_colors_right
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
             .led_color_buffer
@@ -1013,6 +1035,8 @@ fn run_led_worker(
         if let Ok(mut output) = shared_output.lock() {
             output.frame_id = frame_id;
             output.led_colors.clone_from(&runtime.led_colors);
+            output.led_colors_left.clone_from(&runtime.led_colors_left);
+            output.led_colors_right.clone_from(&runtime.led_colors_right);
             output.led_outputs.clone_from(&runtime.led_outputs);
             output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
             output.dmx_error = runtime.dmx.error.clone();
@@ -1138,6 +1162,64 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
             *color = shader(vertex, &uniforms);
         });
     std::mem::swap(&mut runtime.led_colors, &mut runtime.led_color_buffer);
+
+    // Compute isolated left preview (Add blend, left only).
+    {
+        let left_only_mix = MixingInfo {
+            left: uniforms.mix.left,
+            right: uniforms.mix.right,
+            colourise: uniforms.mix.colourise,
+            blend_mode: shader_shared::BlendMode::Add,
+            xfade_left: 1.0,
+            xfade_right: 0.0,
+        };
+        let left_uniforms = Uniforms {
+            mix: left_only_mix,
+            ..uniforms.clone()
+        };
+        runtime
+            .led_colors_left
+            .par_iter_mut()
+            .zip(runtime.led_shader_inputs.par_iter())
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|((color, led_input), &last_color)| {
+                let vertex = Vertex {
+                    position: led_input.position,
+                    light: led_input.light,
+                    last_color,
+                };
+                *color = shader(vertex, &left_uniforms);
+            });
+    }
+
+    // Compute isolated right preview (Add blend, right only).
+    {
+        let right_only_mix = MixingInfo {
+            left: uniforms.mix.left,
+            right: uniforms.mix.right,
+            colourise: uniforms.mix.colourise,
+            blend_mode: shader_shared::BlendMode::Add,
+            xfade_left: 0.0,
+            xfade_right: 1.0,
+        };
+        let right_uniforms = Uniforms {
+            mix: right_only_mix,
+            ..uniforms.clone()
+        };
+        runtime
+            .led_colors_right
+            .par_iter_mut()
+            .zip(runtime.led_shader_inputs.par_iter())
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|((color, led_input), &last_color)| {
+                let vertex = Vertex {
+                    position: led_input.position,
+                    light: led_input.light,
+                    last_color,
+                };
+                *color = shader(vertex, &right_uniforms);
+            });
+    }
 
     let (prev_output, lerp_amt) = match runtime.last_preset_change {
         None => (&[][..], 1.0),
