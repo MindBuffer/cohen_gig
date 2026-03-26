@@ -113,10 +113,9 @@ pub fn parse_bytes(data: &[u8]) -> Result<MadProject, String> {
             .ok_or_else(|| format!("Truncated artnetUniverse at offset {:#x}", uni_offset))?
             as u16;
 
-        let start_channel =
-            find_nearest(&start_channel_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
-                .and_then(|off| read_int_value(data, off + start_channel_key.len()))
-                .unwrap_or(1) as u16;
+        let start_channel = find_nearest(&start_channel_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
+            .and_then(|off| read_int_value(data, off + start_channel_key.len()))
+            .unwrap_or(1) as u16;
 
         let (pixel_count, channels_per_pixel) =
             find_nearest(&pixel_mapping_offsets, uni_offset, FIXTURE_SEARCH_WINDOW)
@@ -272,9 +271,7 @@ fn read_fixture_name(data: &[u8], offset: usize) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 fn encode_utf16be(s: &str) -> Vec<u8> {
-    s.encode_utf16()
-        .flat_map(|ch| ch.to_be_bytes())
-        .collect()
+    s.encode_utf16().flat_map(|ch| ch.to_be_bytes()).collect()
 }
 
 fn decode_utf16be(data: &[u8]) -> String {
@@ -362,14 +359,14 @@ fn parse_pixel_mapping(mapping: &str) -> Option<(usize, u8)> {
         .collect();
     let pixel_count = entries.len();
     if pixel_count < 2 {
-        return if pixel_count == 1 {
-            Some((1, 3))
-        } else {
-            None
-        };
+        return if pixel_count == 1 { Some((1, 3)) } else { None };
     }
     let step = entries[1].saturating_sub(entries[0]);
-    let channels_per_pixel = if step > 0 && step <= 16 { step as u8 } else { 3 };
+    let channels_per_pixel = if step > 0 && step <= 16 {
+        step as u8
+    } else {
+        3
+    };
     Some((pixel_count, channels_per_pixel))
 }
 
@@ -496,8 +493,7 @@ mod tests {
         // MM6 stores positions under 'position' not 'positionUv'.
         // Verify we actually got distinct Y values (not all defaults).
         let ys: Vec<f64> = project.fixtures.iter().map(|f| f.position[1]).collect();
-        let distinct: std::collections::HashSet<u64> =
-            ys.iter().map(|y| y.to_bits()).collect();
+        let distinct: std::collections::HashSet<u64> = ys.iter().map(|y| y.to_bits()).collect();
         assert!(
             distinct.len() > 1,
             "All fixtures have the same Y position — position data not parsed correctly"

@@ -93,7 +93,8 @@ fn connect_port(
     tx: mpsc::Sender<MidiMessage>,
 ) -> Option<midir::MidiInputConnection<()>> {
     let midi_in = midir::MidiInput::new(name).ok()?;
-    let port_index = (0..midi_in.port_count()).find(|&i| midi_in.port_name(i).ok().as_deref() == Some(name))?;
+    let port_index =
+        (0..midi_in.port_count()).find(|&i| midi_in.port_name(i).ok().as_deref() == Some(name))?;
     let port_name = name.to_string();
     midi_in
         .connect(
