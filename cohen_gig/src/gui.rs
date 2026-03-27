@@ -85,9 +85,11 @@ widget_ids! {
         // Custom shader dropdown (left).
         shader_left_button,
         shader_left_list,
+        shader_left_anchor,
         // Custom shader dropdown (right).
         shader_right_button,
         shader_right_list,
+        shader_right_anchor,
         // Floating hover preview.
         hover_preview_image,
 
@@ -1381,7 +1383,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .map(|s| s.name())
         .collect();
 
-    if let Some(shader) = shader_dropdown(
+    let (selected, left_btn_id) = shader_dropdown(
         ui,
         ids.shader_left_button,
         ids.shader_left_list,
@@ -1390,9 +1392,13 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         &shader_names,
         hover_preview_request,
         hover_preview_state,
-    ) {
+    );
+    if let Some(shader) = selected {
         preset.shader_left = shader;
     }
+    widget::Rectangle::fill([0.0, 0.0])
+        .down_from(left_btn_id, 0.0)
+        .set(ids.shader_left_anchor, ui);
     if shader_left_dropdown.is_open {
         shader_right_dropdown.is_open = false;
     }
@@ -1492,7 +1498,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             .set(ids.led_preview_right_image, ui);
     }
 
-    if let Some(shader) = shader_dropdown(
+    let (selected, right_btn_id) = shader_dropdown(
         ui,
         ids.shader_right_button,
         ids.shader_right_list,
@@ -1501,9 +1507,13 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         &shader_names,
         hover_preview_request,
         hover_preview_state,
-    ) {
+    );
+    if let Some(shader) = selected {
         preset.shader_right = shader;
     }
+    widget::Rectangle::fill([0.0, 0.0])
+        .down_from(right_btn_id, 0.0)
+        .set(ids.shader_right_anchor, ui);
     if shader_right_dropdown.is_open {
         shader_left_dropdown.is_open = false;
     }
@@ -1570,14 +1580,20 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         global_config.fade_to_black.led = value;
     }
 
-    // Floating hover preview image.
-    if let (Some(image_id), Some(rect)) = (preview_hover_image_id, hover_preview_state.hovered_rect) {
-        widget::Image::new(image_id)
-            .w(COLUMN_W)
-            .h(COLUMN_W * 0.3)
-            .floating(true)
-            .x_y(rect.right() + COLUMN_W * 0.5 + PAD, rect.y())
-            .set(ids.hover_preview_image, ui);
+    // Floating hover preview image at mouse position.
+    if let Some(image_id) = preview_hover_image_id {
+        if hover_preview_request.is_some() {
+            let mouse_xy = ui.global_input().current.mouse.xy;
+            let preview_w = COLUMN_W;
+            let preview_h = COLUMN_W * 0.3;
+            widget::Image::new(image_id)
+                .w(preview_w)
+                .h(preview_h)
+                .x_y(mouse_xy[0], mouse_xy[1] - preview_h * 0.5 - PAD)
+                .floating(true)
+                .parent(ids.background)
+                .set(ids.hover_preview_image, ui);
+        }
     }
 }
 
@@ -2431,7 +2447,7 @@ fn shader_dropdown(
     shader_names: &[&str],
     hover_request: &mut Option<crate::HoverPreviewRequest>,
     hover_preview_state: &mut HoverPreviewState,
-) -> Option<Shader> {
+) -> (Option<Shader>, widget::Id) {
     let current_name = current.name();
 
     // Toggle button.
@@ -2449,7 +2465,7 @@ fn shader_dropdown(
     }
 
     if !state.is_open {
-        return None;
+        return (None, button_id);
     }
 
     let item_h = PAD * 2.0;
@@ -2462,7 +2478,9 @@ fn shader_dropdown(
         .item_size(item_h)
         .scrollbar_on_top()
         .w_h(COLUMN_W, list_h)
-        .down(0.0)
+        .down_from(button_id, 0.0)
+        .align_left_of(button_id)
+        .floating(true)
         .set(list_id, ui);
 
     let mut selected = None;
@@ -2486,11 +2504,13 @@ fn shader_dropdown(
                     .label_color(nannou_conrod::color::WHITE);
                 item.set(btn, ui);
 
-                // Hover detection.
-                if ui.widget_input(item.widget_id).mouse().is_some() {
+                // Hover detection: rect-based (floating list uses window coords).
+                let mouse_xy = ui.global_input().current.mouse.xy;
+                let hovered = ui.rect_of(item.widget_id)
+                    .map_or(false, |r| r.is_over(mouse_xy));
+                if hovered {
                     if let Some(shader) = Shader::from_index(item.i) {
                         *hover_request = Some(crate::HoverPreviewRequest::Shader(shader));
-                        hover_preview_state.hovered_rect = ui.rect_of(item.widget_id);
                     }
                 }
             }
@@ -2523,7 +2543,7 @@ fn shader_dropdown(
         }
     }
 
-    selected
+    (selected, button_id)
 }
 
 pub fn set_presets_widgets(
@@ -2687,11 +2707,12 @@ pub fn set_presets_widgets(
                     .label_color(label_color);
                 item.set(button, ui);
 
-                if ui.widget_input(item.widget_id).mouse().is_some() {
-                    if item.i < presets.list.len() {
+                // Hover detection for preset preview.
+                let mouse_xy = ui.global_input().current.mouse.xy;
+                if let Some(rect) = ui.rect_of(item.widget_id) {
+                    if rect.is_over(mouse_xy) && item.i < presets.list.len() {
                         *hover_preview_request =
                             Some(crate::HoverPreviewRequest::Preset(presets.list[item.i].clone()));
-                        hover_preview_state.hovered_rect = ui.rect_of(item.widget_id);
                     }
                 }
 
