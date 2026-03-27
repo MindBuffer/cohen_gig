@@ -70,6 +70,7 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::ColourGrid => led_shaders::colour_grid::shader,
         Shader::EscherTilings => led_shaders::escher_tilings::shader,
         Shader::GilmoreAcid => led_shaders::gilmore_acid::shader,
+        Shader::GradientBars => led_shaders::gradient_bars::shader,
         Shader::JustRelax => led_shaders::just_relax::shader,
         Shader::LifeLedWall => led_shaders::life_led_wall::shader,
         Shader::LineGradient => led_shaders::line_gradient::shader,

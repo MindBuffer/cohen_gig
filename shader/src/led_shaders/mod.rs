@@ -5,6 +5,7 @@ pub mod bw_gradient;
 pub mod colour_grid;
 pub mod escher_tilings;
 pub mod gilmore_acid;
+pub mod gradient_bars;
 pub mod just_relax;
 pub mod life_led_wall;
 pub mod line_gradient;
