@@ -1354,6 +1354,7 @@ fn render_led_worker_frame(
         let left_only_mix = MixingInfo {
             colourise: shader_shared::Shader::SolidRgbColour,
             blend_mode: shader_shared::BlendMode::Add,
+            tone_mapping_amount: 0.0,
             xfade_left: 1.0,
             xfade_right: 0.0,
             params_colourise: white_colourise,
@@ -1383,6 +1384,7 @@ fn render_led_worker_frame(
         let right_only_mix = MixingInfo {
             colourise: shader_shared::Shader::SolidRgbColour,
             blend_mode: shader_shared::BlendMode::Add,
+            tone_mapping_amount: 0.0,
             xfade_left: 0.0,
             xfade_right: 1.0,
             params_colourise: white_colourise,
@@ -1454,6 +1456,8 @@ fn render_led_worker_frame(
                     right: *s,
                     colourise: shader_shared::Shader::SolidRgbColour,
                     blend_mode: shader_shared::BlendMode::Add,
+                    tone_mapping: shader_shared::ToneMapping::None,
+                    tone_mapping_amount: 0.0,
                     xfade_left: 1.0,
                     xfade_right: 0.0,
                     params_left: ShaderParams::default(),
@@ -1582,6 +1586,8 @@ fn preset_uniforms(state: &LedWorkerInputState, preset: &conf::Preset) -> Unifor
         right: preset.shader_right,
         colourise: preset.colourise,
         blend_mode: preset.blend_mode,
+        tone_mapping: preset.tone_mapping,
+        tone_mapping_amount: preset.tone_mapping_amount,
         xfade_left,
         xfade_right,
         params_left,

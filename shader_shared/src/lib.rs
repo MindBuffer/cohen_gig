@@ -11,6 +11,10 @@ fn default_half() -> f32 {
     0.5
 }
 
+fn default_one() -> f32 {
+    1.0
+}
+
 // Button-related types (previously from korg_nano_kontrol_2).
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -130,6 +134,8 @@ pub struct MixingInfo {
     pub right: Shader,
     pub colourise: Shader,
     pub blend_mode: BlendMode,
+    pub tone_mapping: ToneMapping,
+    pub tone_mapping_amount: f32,
     /// x fade left amount
     pub xfade_left: f32,
     /// x fade right amount
@@ -216,6 +222,16 @@ pub enum BlendMode {
     Difference,
     Negation,
     Exclusion,
+}
+
+/// Refers to the selected tone mapping curve for the final output.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ToneMapping {
+    None,
+    Aces,
+    Hable,
+    Unreal,
+    Tanh,
 }
 
 /// For selecting between each of the available shaders at runtime.
@@ -652,6 +668,12 @@ pub struct ImitationRiley {
     pub x_mirror: f32,
     #[devault("0.2")]
     pub speed: f32,
+    #[serde(default)]
+    #[devault("0.0")]
+    pub black_level: f32,
+    #[serde(default = "default_one")]
+    #[devault("1.0")]
+    pub white_level: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -698,6 +720,14 @@ pub const ALL_BLEND_MODES: &[BlendMode] = &[
     BlendMode::Difference,
     BlendMode::Negation,
     BlendMode::Exclusion,
+];
+
+pub const ALL_TONE_MAPPINGS: &[ToneMapping] = &[
+    ToneMapping::None,
+    ToneMapping::Aces,
+    ToneMapping::Hable,
+    ToneMapping::Unreal,
+    ToneMapping::Tanh,
 ];
 
 pub const ALL_SHADERS: &[Shader] = &[
@@ -775,6 +805,40 @@ impl BlendMode {
             4 => BlendMode::Difference,
             5 => BlendMode::Negation,
             6 => BlendMode::Exclusion,
+            _ => return None,
+        };
+        Some(mode)
+    }
+}
+
+impl ToneMapping {
+    pub fn name(&self) -> &str {
+        match *self {
+            ToneMapping::None => "None",
+            ToneMapping::Aces => "ACES",
+            ToneMapping::Hable => "Hable",
+            ToneMapping::Unreal => "Unreal",
+            ToneMapping::Tanh => "Tanh",
+        }
+    }
+
+    pub fn to_index(&self) -> usize {
+        match *self {
+            ToneMapping::None => 0,
+            ToneMapping::Aces => 1,
+            ToneMapping::Hable => 2,
+            ToneMapping::Unreal => 3,
+            ToneMapping::Tanh => 4,
+        }
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        let mode = match index {
+            0 => ToneMapping::None,
+            1 => ToneMapping::Aces,
+            2 => ToneMapping::Hable,
+            3 => ToneMapping::Unreal,
+            4 => ToneMapping::Tanh,
             _ => return None,
         };
         Some(mode)

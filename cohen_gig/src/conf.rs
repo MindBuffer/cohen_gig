@@ -5,8 +5,8 @@ use shader_shared::{
     EscherTilings, GilmoreAcid, GradientBars, HoopLoop, ImitationRiley, JustRelax, LifeLedWall,
     LightPatternGenerator, LineGradient, Metafall, MitchWash, ParticleZoom, RadialKeta,
     RadialLines, RowTest, SatisSpiraling, Shader, ShaderParams, ShapeEnvelopes, SolidHsvColour,
-    SolidRgbColour, SpiralIntersect, SquareTunnel, ThePulse, TunnelProjection, TwoDTiles,
-    VertColourGradient,
+    SolidRgbColour, SpiralIntersect, SquareTunnel, ThePulse, ToneMapping, TunnelProjection,
+    TwoDTiles, VertColourGradient,
 };
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -99,6 +99,10 @@ pub struct Preset {
     pub shader_right: Shader,
     #[serde(default = "default::preset::colourise")]
     pub colourise: Shader,
+    #[serde(default = "default::preset::tone_mapping")]
+    pub tone_mapping: ToneMapping,
+    #[serde(default = "default::preset::tone_mapping_amount")]
+    pub tone_mapping_amount: f32,
     #[serde(default = "default::preset::left_right_mix")]
     pub left_right_mix: f32,
     #[serde(default = "default::preset::blend_mode")]
@@ -136,6 +140,10 @@ struct StoredPreset {
     shader_right: Shader,
     #[serde(default = "default::preset::colourise")]
     colourise: Shader,
+    #[serde(default = "default::preset::tone_mapping")]
+    tone_mapping: ToneMapping,
+    #[serde(default = "default::preset::tone_mapping_amount")]
+    tone_mapping_amount: f32,
     #[serde(default = "default::preset::left_right_mix")]
     left_right_mix: f32,
     #[serde(default = "default::preset::blend_mode")]
@@ -572,6 +580,8 @@ impl Default for Preset {
             shader_right: default::preset::shader_right(),
             left_right_mix: default::preset::left_right_mix(),
             colourise: default::preset::colourise(),
+            tone_mapping: default::preset::tone_mapping(),
+            tone_mapping_amount: default::preset::tone_mapping_amount(),
             blend_mode: default::preset::blend_mode(),
             shader_params_left: ShaderParams::default(),
             shader_params_colourise: ShaderParams::default(),
@@ -593,6 +603,8 @@ impl StoredPreset {
             shader_left: preset.shader_left,
             shader_right: preset.shader_right,
             colourise: preset.colourise,
+            tone_mapping: preset.tone_mapping,
+            tone_mapping_amount: preset.tone_mapping_amount,
             left_right_mix: preset.left_right_mix,
             blend_mode: preset.blend_mode,
             shader_params_left: SparseShaderParams::from_runtime(
@@ -630,6 +642,8 @@ impl StoredPreset {
             shader_left: self.shader_left,
             shader_right: self.shader_right,
             colourise: self.colourise,
+            tone_mapping: self.tone_mapping,
+            tone_mapping_amount: self.tone_mapping_amount,
             left_right_mix: self.left_right_mix,
             blend_mode: self.blend_mode,
             shader_params_left: self.shader_params_left.into_runtime(self.shader_left),
@@ -709,14 +723,11 @@ impl SparseShaderParams {
                 params.escher_tilings = self.escher_tilings.unwrap_or_default()
             }
             Shader::GilmoreAcid => params.gilmore_acid = self.gilmore_acid.unwrap_or_default(),
-            Shader::GradientBars => {
-                params.gradient_bars = self.gradient_bars.unwrap_or_default()
-            }
+            Shader::GradientBars => params.gradient_bars = self.gradient_bars.unwrap_or_default(),
             Shader::JustRelax => params.just_relax = self.just_relax.unwrap_or_default(),
             Shader::LifeLedWall => params.life_led_wall = self.life_led_wall.unwrap_or_default(),
             Shader::LightPatternGenerator => {
-                params.light_pattern_generator =
-                    self.light_pattern_generator.unwrap_or_default()
+                params.light_pattern_generator = self.light_pattern_generator.unwrap_or_default()
             }
             Shader::LineGradient => params.line_gradient = self.line_gradient.unwrap_or_default(),
             Shader::Metafall => params.metafall = self.metafall.unwrap_or_default(),
@@ -728,9 +739,7 @@ impl SparseShaderParams {
             Shader::SpiralIntersect => {
                 params.spiral_intersect = self.spiral_intersect.unwrap_or_default()
             }
-            Shader::SquareTunnel => {
-                params.square_tunnel = self.square_tunnel.unwrap_or_default()
-            }
+            Shader::SquareTunnel => params.square_tunnel = self.square_tunnel.unwrap_or_default(),
             Shader::ThePulse => params.the_pulse = self.the_pulse.unwrap_or_default(),
             Shader::TunnelProjection => {
                 params.tunnel_projection = self.tunnel_projection.unwrap_or_default()
@@ -774,11 +783,16 @@ fn try_save_presets(
     fs::create_dir_all(&preset_dir)
         .map_err(|err| format!("failed to create {:?}: {}", preset_dir, err))?;
 
-    let keep_ids: HashSet<_> = presets.list.iter().map(|preset| preset.id.clone()).collect();
+    let keep_ids: HashSet<_> = presets
+        .list
+        .iter()
+        .map(|preset| preset.id.clone())
+        .collect();
     for preset in &presets.list {
         let path = preset_dir.join(&preset.id).with_extension("json");
         let stored = StoredPreset::from_runtime(preset);
-        save_to_json(&path, &stored).map_err(|err| format!("failed to save {:?}: {}", path, err))?;
+        save_to_json(&path, &stored)
+            .map_err(|err| format!("failed to save {:?}: {}", path, err))?;
     }
 
     cleanup_removed_preset_files(&preset_dir, &keep_ids)?;
@@ -820,7 +834,10 @@ fn load_preset_files(preset_dir: &Path) -> BTreeMap<String, Preset> {
     presets
 }
 
-fn cleanup_removed_preset_files(preset_dir: &Path, keep_ids: &HashSet<String>) -> Result<(), String> {
+fn cleanup_removed_preset_files(
+    preset_dir: &Path,
+    keep_ids: &HashSet<String>,
+) -> Result<(), String> {
     let entries = match fs::read_dir(preset_dir) {
         Ok(entries) => entries,
         Err(err) => return Err(format!("failed to read {:?}: {}", preset_dir, err)),
@@ -928,7 +945,7 @@ pub mod default {
     }
 
     pub mod preset {
-        use shader_shared::{BlendMode, Shader};
+        use shader_shared::{BlendMode, Shader, ToneMapping};
         pub fn shader_left() -> Shader {
             Shader::SatisSpiraling
         }
@@ -937,6 +954,12 @@ pub mod default {
         }
         pub fn colourise() -> Shader {
             Shader::SolidHsvColour
+        }
+        pub fn tone_mapping() -> ToneMapping {
+            ToneMapping::Aces
+        }
+        pub fn tone_mapping_amount() -> f32 {
+            1.0
         }
         pub fn left_right_mix() -> f32 {
             0.0
@@ -1003,6 +1026,8 @@ mod tests {
             shader_left: Shader::ThePulse,
             shader_right: Shader::AcidGradient,
             colourise: Shader::SolidHsvColour,
+            tone_mapping: ToneMapping::Unreal,
+            tone_mapping_amount: 0.35,
             ..Preset::default()
         };
         preset.shader_params_left.the_pulse.speed = 0.42;
@@ -1012,14 +1037,23 @@ mod tests {
         let stored = StoredPreset::from_runtime(&preset);
         let value = serde_json::to_value(&stored).unwrap();
 
-        let left = value.get("shader_params_left").unwrap().as_object().unwrap();
+        let left = value
+            .get("shader_params_left")
+            .unwrap()
+            .as_object()
+            .unwrap();
         assert_eq!(left.len(), 1);
         assert!(left.contains_key("the_pulse"));
 
         let round_trip: StoredPreset = serde_json::from_value(value).unwrap();
         let loaded = round_trip.into_runtime("pulse-gradient".to_string());
+        assert_eq!(loaded.tone_mapping, ToneMapping::Unreal);
+        assert_eq!(loaded.tone_mapping_amount, 0.35);
         assert_eq!(loaded.shader_params_left.the_pulse.speed, 0.42);
-        assert_eq!(loaded.shader_params_left.acid_gradient, AcidGradient::default());
+        assert_eq!(
+            loaded.shader_params_left.acid_gradient,
+            AcidGradient::default()
+        );
         assert_eq!(loaded.shader_params_right.acid_gradient.offset, 0.33);
     }
 }

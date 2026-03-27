@@ -1,6 +1,8 @@
 use nannou_core::prelude::*;
 use shader_shared::{Light, Uniforms, Vertex};
 
+use crate::helpers::mix;
+
 fn glsl_mod(value: f32, modulus: f32) -> f32 {
     value - modulus * (value / modulus).floor()
 }
@@ -27,7 +29,9 @@ pub fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
         glsl_mod(uv_steps.y, 2.0).floor(),
     );
     let value = uv_mod.x * uv_mod.y + (1.0 - uv_mod.x) * (1.0 - uv_mod.y);
-    let value = value.clamp(0.15, 0.9);
+    let black_level = params.black_level.clamp(0.0, 1.0);
+    let white_level = params.white_level.clamp(black_level, 1.0);
+    let value = mix(black_level, white_level, value);
 
     lin_srgb(value, value, value)
 }
