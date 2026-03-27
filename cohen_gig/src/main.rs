@@ -1459,7 +1459,10 @@ fn render_led_worker_frame(
                     params_right: ShaderParams::default(),
                     params_colourise: white_colourise,
                 };
-                Uniforms { mix, ..uniforms.clone() }
+                Uniforms {
+                    mix,
+                    ..uniforms.clone()
+                }
             }
             HoverPreviewRequest::Preset(preset) => preset_uniforms(state, preset),
         };
