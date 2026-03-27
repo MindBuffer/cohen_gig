@@ -1,0 +1,46 @@
+{
+  "id": "no-surprises-breakdown-time",
+  "name": "No surprises breakdown time",
+  "shader_left": "EscherTilings",
+  "shader_right": "SatisSpiraling",
+  "colourise": "ColourPalettes",
+  "left_right_mix": 0.24409449,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "escher_tilings": {
+      "speed": 0.2,
+      "scale": 0.2,
+      "shape_iter": 0.2
+    }
+  },
+  "shader_params_colourise": {
+    "colour_palettes": {
+      "speed": 0.1,
+      "interval": 0.05,
+      "selected": 0
+    }
+  },
+  "shader_params_right": {
+    "satis_spiraling": {
+      "speed": 0.5,
+      "loops": 0.8,
+      "mirror": true,
+      "rotate": true,
+      "colour_offset": 0.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

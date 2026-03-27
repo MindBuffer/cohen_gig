@@ -1,0 +1,43 @@
+{
+  "id": "bloom-use-midi",
+  "name": "Bloom USE MIDI",
+  "shader_left": "BlinkyCircles",
+  "shader_right": "RadialLines",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": -0.088932276,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "blinky_circles": {
+      "speed": 0.5125,
+      "zoom": 0.05,
+      "offset": 0.25
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "radial_lines": {
+      "speed": 0.05,
+      "zoom_amount": 0.8
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "ghost-blue-line-gradient-no-midi",
+  "name": "Ghost blue line gradient no midi",
+  "shader_left": "EscherTilings",
+  "shader_right": "LineGradient",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": -0.07613933,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "escher_tilings": {
+      "speed": 0.2,
+      "scale": 0.2,
+      "shape_iter": 0.2
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "line_gradient": {
+      "speed": 0.03,
+      "num_stripes": 1.0,
+      "stripe_width": 0.9,
+      "angle": 0.5,
+      "smooth_width": 0.155
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

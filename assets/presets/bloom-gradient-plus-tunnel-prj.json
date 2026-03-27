@@ -1,0 +1,42 @@
+{
+  "id": "bloom-gradient-plus-tunnel-prj",
+  "name": "Bloom Gradient plus tunnel prj",
+  "shader_left": "TunnelProjection",
+  "shader_right": "RadialLines",
+  "colourise": "ColourPalettes",
+  "left_right_mix": -1.0,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "tunnel_projection": {
+      "speed": 0.5,
+      "res": 0.5,
+      "y_offset": 0.5
+    }
+  },
+  "shader_params_colourise": {
+    "colour_palettes": {
+      "speed": 0.1,
+      "interval": 0.05,
+      "selected": 0
+    }
+  },
+  "shader_params_right": {
+    "radial_lines": {
+      "speed": 0.05,
+      "zoom_amount": 0.8
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

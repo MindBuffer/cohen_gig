@@ -1,0 +1,45 @@
+{
+  "id": "monochrome-escher-shifts",
+  "name": "Monochrome Escher Shifts",
+  "shader_left": "EscherTilings",
+  "shader_right": "JustRelax",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.37007874,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "escher_tilings": {
+      "speed": 0.2,
+      "scale": 0.2,
+      "shape_iter": 0.2
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "just_relax": {
+      "speed": 0.6,
+      "shape_offset": 0.728,
+      "iter": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

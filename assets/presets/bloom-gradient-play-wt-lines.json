@@ -1,0 +1,48 @@
+{
+  "id": "bloom-gradient-play-wt-lines",
+  "name": "Bloom Gradient play wt lines",
+  "shader_left": "VertColourGradient",
+  "shader_right": "RadialLines",
+  "colourise": "ColourPalettes",
+  "left_right_mix": -0.6220703,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "vert_colour_gradient": {
+      "speed": 0.5,
+      "scale": 0.83,
+      "colour_iter": 0.015,
+      "line_amp": 0.0,
+      "diag_amp": 0.0,
+      "boarder_amp": 0.65
+    }
+  },
+  "shader_params_colourise": {
+    "colour_palettes": {
+      "speed": 0.1,
+      "interval": 0.05,
+      "selected": 0
+    }
+  },
+  "shader_params_right": {
+    "radial_lines": {
+      "speed": 0.05,
+      "zoom_amount": 0.8
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

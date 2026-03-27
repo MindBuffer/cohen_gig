@@ -1,0 +1,43 @@
+{
+  "id": "android-pulse-play-with-speed",
+  "name": "Android pulse play with speed",
+  "shader_left": "TunnelProjection",
+  "shader_right": "MitchWash",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.79527557,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "tunnel_projection": {
+      "speed": 0.5,
+      "res": 0.5,
+      "y_offset": 0.5
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "mitch_wash": {
+      "speed": 1.0,
+      "pulse_speed": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

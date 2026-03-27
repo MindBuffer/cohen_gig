@@ -2949,7 +2949,7 @@ pub fn set_presets_widgets(
     _led_colors: &LedColors,
     assets: &Path,
     hover_preview_request: &mut Option<crate::HoverPreviewRequest>,
-    hover_preview_state: &mut HoverPreviewState,
+    _hover_preview_state: &mut HoverPreviewState,
 ) {
     const PRESET_ACTION_GAP: Scalar = 2.0;
 
@@ -2976,7 +2976,7 @@ pub fn set_presets_widgets(
         .set(ids.presets_save_button, ui)
     {
         presets.selected_mut().name = presets.selected_preset_name.clone();
-        super::save_presets(assets, presets);
+        super::save_presets(assets, global_config, presets);
     }
 
     for _click in button()
@@ -2989,7 +2989,9 @@ pub fn set_presets_widgets(
         presets.list.remove(presets.selected_preset_idx);
 
         if presets.list.is_empty() {
-            presets.list.push(Default::default());
+            let mut preset = crate::conf::Preset::default();
+            preset.id = presets.next_preset_id(&preset.name);
+            presets.list.push(preset);
         }
 
         if presets.selected_preset_idx >= presets.list.len() {
@@ -3006,7 +3008,8 @@ pub fn set_presets_widgets(
         .color(BUTTON_COLOR)
         .set(ids.presets_new_button, ui)
     {
-        let new_preset = crate::conf::Preset::default();
+        let mut new_preset = crate::conf::Preset::default();
+        new_preset.id = presets.next_preset_id(&new_preset.name);
         presets.selected_preset_name = new_preset.name.clone();
         presets.list.push(new_preset);
         presets.selected_preset_idx = presets.list.len() - 1;
@@ -3021,6 +3024,7 @@ pub fn set_presets_widgets(
     {
         let mut new_preset = presets.selected().clone();
         new_preset.name = presets.selected_preset_name.clone();
+        new_preset.id = presets.next_preset_id(&new_preset.name);
         presets.list.push(new_preset);
         presets.selected_preset_idx = presets.list.len() - 1;
     }
@@ -3044,7 +3048,7 @@ pub fn set_presets_widgets(
             Event::Update(text) => presets.selected_preset_name = text,
             Event::Enter => {
                 presets.selected_mut().name = presets.selected_preset_name.clone();
-                super::save_presets(assets, presets);
+                super::save_presets(assets, global_config, presets);
             }
         }
     }
@@ -3162,6 +3166,8 @@ pub fn set_presets_widgets(
     if let Some(sb) = presets_scrollbar {
         sb.set(ui);
     }
+
+    presets.sync_global_config(global_config);
 }
 
 fn preset_drag_target_index(source_index: usize, total_drag_y: Scalar, list_len: usize) -> usize {

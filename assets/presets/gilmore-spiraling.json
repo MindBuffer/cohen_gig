@@ -1,0 +1,59 @@
+{
+  "id": "gilmore-spiraling",
+  "name": "Gilmore Spiraling",
+  "shader_left": "GilmoreAcid",
+  "shader_right": "SatisSpiraling",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.79527557,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "gilmore_acid": {
+      "speed": 0.025,
+      "displace": 0.01,
+      "colour_offset": 0.85,
+      "grid_size": 0.345,
+      "wave": 0.088,
+      "zoom_amount": 0.0,
+      "rotation_amount": 0.0,
+      "brightness": 1.0,
+      "saturation": 0.15
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "satis_spiraling": {
+      "speed": 0.5,
+      "loops": 0.8,
+      "mirror": true,
+      "rotate": true,
+      "colour_offset": 0.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

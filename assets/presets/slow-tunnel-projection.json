@@ -1,0 +1,45 @@
+{
+  "id": "slow-tunnel-projection",
+  "name": "Slow Tunnel Projection",
+  "shader_left": "TunnelProjection",
+  "shader_right": "SolidHsvColour",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.65462244,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "tunnel_projection": {
+      "speed": 0.5,
+      "res": 0.5,
+      "y_offset": 0.5
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

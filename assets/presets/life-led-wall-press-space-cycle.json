@@ -1,0 +1,51 @@
+{
+  "id": "life-led-wall-press-space-cycle",
+  "name": "Life Led Wall (Press space / cycle)",
+  "shader_left": "LifeLedWall",
+  "shader_right": "MitchWash",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": -0.19078779,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "life_led_wall": {
+      "speed": 0.25,
+      "size": 0.73,
+      "red": 0.5,
+      "green": 0.2,
+      "blue": 0.1,
+      "saturation": 1.0,
+      "colour_offset": 0.01
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "mitch_wash": {
+      "speed": 1.0,
+      "pulse_speed": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

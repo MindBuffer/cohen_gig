@@ -1,0 +1,48 @@
+{
+  "id": "line-relax-palette",
+  "name": "Line Relax Palette",
+  "shader_left": "LineGradient",
+  "shader_right": "JustRelax",
+  "colourise": "ColourPalettes",
+  "left_right_mix": 0.051367164,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "line_gradient": {
+      "speed": 0.03,
+      "num_stripes": 1.0,
+      "stripe_width": 0.9,
+      "angle": 0.5,
+      "smooth_width": 0.155
+    }
+  },
+  "shader_params_colourise": {
+    "colour_palettes": {
+      "speed": 0.1,
+      "interval": 0.05,
+      "selected": 0
+    }
+  },
+  "shader_params_right": {
+    "just_relax": {
+      "speed": 0.6,
+      "shape_offset": 0.728,
+      "iter": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

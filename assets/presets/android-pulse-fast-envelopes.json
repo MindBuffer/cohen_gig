@@ -1,0 +1,45 @@
+{
+  "id": "android-pulse-fast-envelopes",
+  "name": "Android pulse fast envelopes",
+  "shader_left": "ShapeEnvelopes",
+  "shader_right": "MitchWash",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.984252,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "shape_envelopes": {
+      "speed": 1.0,
+      "pulse_speed": 1.0,
+      "line_thickness": 0.0,
+      "shape_thickness": 0.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "mitch_wash": {
+      "speed": 1.0,
+      "pulse_speed": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0
+  ]
+}

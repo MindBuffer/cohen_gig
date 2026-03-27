@@ -1,0 +1,55 @@
+{
+  "id": "everything-in-place-slow",
+  "name": "Everything in Place slow",
+  "shader_left": "LineGradient",
+  "shader_right": "SpiralIntersect",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.984252,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "line_gradient": {
+      "speed": 0.03,
+      "num_stripes": 1.0,
+      "stripe_width": 0.9,
+      "angle": 0.5,
+      "smooth_width": 0.155
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "spiral_intersect": {
+      "speed": 0.02,
+      "g1": 0.4,
+      "g2": 0.6,
+      "rot1": 1.0,
+      "rot2": 0.5,
+      "colours": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}
