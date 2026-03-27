@@ -6,6 +6,8 @@ pub mod colour_grid;
 pub mod escher_tilings;
 pub mod gilmore_acid;
 pub mod gradient_bars;
+pub mod hoop_loop;
+pub mod imitation_riley;
 pub mod just_relax;
 pub mod life_led_wall;
 pub mod light_pattern_generator;

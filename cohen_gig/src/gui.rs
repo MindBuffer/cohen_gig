@@ -798,6 +798,175 @@ impl Params for shader_shared::RadialKeta {
     }
 }
 
+impl Params for shader_shared::ImitationRiley {
+    fn param_count(&self) -> usize {
+        4
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "steps",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.steps,
+                    min: 1.0,
+                    max: 40.0,
+                },
+            },
+            1 => ParamMut {
+                name: "offset",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.offset,
+                    min: 0.1,
+                    max: 2.0,
+                },
+            },
+            2 => ParamMut {
+                name: "xMirror",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.x_mirror,
+                    min: -0.1,
+                    max: 0.1,
+                },
+            },
+            3 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.speed,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
+impl Params for shader_shared::HoopLoop {
+    fn param_count(&self) -> usize {
+        15
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "invert",
+                kind: ParamKindMut::Bool(&mut self.invert),
+            },
+            1 => ParamMut {
+                name: "zoom",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.zoom,
+                    min: 0.0,
+                    max: 20.0,
+                },
+            },
+            2 => ParamMut {
+                name: "animate",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.animate,
+                    min: -PI as f32,
+                    max: PI as f32,
+                },
+            },
+            3 => ParamMut {
+                name: "size",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.size,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "thickness",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.thickness,
+                    min: 0.001,
+                    max: 0.5,
+                },
+            },
+            5 => ParamMut {
+                name: "lineEffect",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.line_effect,
+                    min: 0.0,
+                    max: 0.2,
+                },
+            },
+            6 => ParamMut {
+                name: "patternOffset",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.pattern_offset,
+                    min: -1.0,
+                    max: 1.0,
+                },
+            },
+            7 => ParamMut {
+                name: "rSin",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.r_sin,
+                    min: -5.0,
+                    max: 5.0,
+                },
+            },
+            8 => ParamMut {
+                name: "xCos",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.x_cos,
+                    min: -5.0,
+                    max: 5.0,
+                },
+            },
+            9 => ParamMut {
+                name: "ySin",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.y_sin,
+                    min: -5.0,
+                    max: 5.0,
+                },
+            },
+            10 => ParamMut {
+                name: "blur",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.blur,
+                    min: 0.001,
+                    max: 0.5,
+                },
+            },
+            11 => ParamMut {
+                name: "function",
+                kind: ParamKindMut::Select {
+                    value: &mut self.function,
+                    labels: shader_shared::HOOP_LOOP_FUNCTION_LABELS,
+                },
+            },
+            12 => ParamMut {
+                name: "rotate",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.rotate,
+                    min: -1.0,
+                    max: 1.0,
+                },
+            },
+            13 => ParamMut {
+                name: "posX",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.pos_x,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            14 => ParamMut {
+                name: "posY",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.pos_y,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::LineGradient {
     fn param_count(&self) -> usize {
         5
@@ -3275,6 +3444,8 @@ pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Para
         Shader::EscherTilings => &mut params.escher_tilings,
         Shader::GilmoreAcid => &mut params.gilmore_acid,
         Shader::GradientBars => &mut params.gradient_bars,
+        Shader::HoopLoop => &mut params.hoop_loop,
+        Shader::ImitationRiley => &mut params.imitation_riley,
         Shader::JustRelax => &mut params.just_relax,
         Shader::LifeLedWall => &mut params.life_led_wall,
         Shader::LightPatternGenerator => &mut params.light_pattern_generator,

@@ -71,6 +71,8 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::EscherTilings => led_shaders::escher_tilings::shader,
         Shader::GilmoreAcid => led_shaders::gilmore_acid::shader,
         Shader::GradientBars => led_shaders::gradient_bars::shader,
+        Shader::HoopLoop => led_shaders::hoop_loop::shader,
+        Shader::ImitationRiley => led_shaders::imitation_riley::shader,
         Shader::JustRelax => led_shaders::just_relax::shader,
         Shader::LifeLedWall => led_shaders::life_led_wall::shader,
         Shader::LightPatternGenerator => led_shaders::light_pattern_generator::shader,

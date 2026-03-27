@@ -200,6 +200,10 @@ pub struct ShaderParams {
     pub two_d_tiles: TwoDTiles,
     #[serde(default)]
     pub radial_keta: RadialKeta,
+    #[serde(default)]
+    pub imitation_riley: ImitationRiley,
+    #[serde(default)]
+    pub hoop_loop: HoopLoop,
 }
 
 /// Refers to the selected blend mode type for a preset.
@@ -246,6 +250,8 @@ pub enum Shader {
     BarTest,
     TwoDTiles,
     RadialKeta,
+    ImitationRiley,
+    HoopLoop,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -636,6 +642,54 @@ pub struct RadialKeta {
     pub iter: f32,
 }
 
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct ImitationRiley {
+    #[devault("20.0")]
+    pub steps: f32,
+    #[devault("1.32")]
+    pub offset: f32,
+    #[devault("0.0")]
+    pub x_mirror: f32,
+    #[devault("0.2")]
+    pub speed: f32,
+}
+
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct HoopLoop {
+    #[devault("false")]
+    pub invert: bool,
+    #[devault("2.0")]
+    pub zoom: f32,
+    #[devault("0.3")]
+    pub animate: f32,
+    #[devault("0.35")]
+    pub size: f32,
+    #[devault("0.001")]
+    pub thickness: f32,
+    #[devault("0.001")]
+    pub line_effect: f32,
+    #[devault("0.0")]
+    pub pattern_offset: f32,
+    #[devault("0.0")]
+    pub r_sin: f32,
+    #[devault("1.0")]
+    pub x_cos: f32,
+    #[devault("1.0")]
+    pub y_sin: f32,
+    #[devault("0.005")]
+    pub blur: f32,
+    #[devault("0")]
+    pub function: usize,
+    #[devault("0.0")]
+    pub rotate: f32,
+    #[devault("0.5")]
+    pub pos_x: f32,
+    #[devault("0.5")]
+    pub pos_y: f32,
+}
+
+pub const HOOP_LOOP_FUNCTION_LABELS: &[&str] = &["abs", "fract"];
+
 pub const ALL_BLEND_MODES: &[BlendMode] = &[
     BlendMode::Add,
     BlendMode::Subtract,
@@ -676,6 +730,8 @@ pub const ALL_SHADERS: &[Shader] = &[
     Shader::BarTest,
     Shader::TwoDTiles,
     Shader::RadialKeta,
+    Shader::ImitationRiley,
+    Shader::HoopLoop,
 ];
 
 pub const SOLID_COLOUR_SHADERS: &[Shader] = &[
@@ -758,6 +814,8 @@ impl Shader {
             Shader::BarTest => "BarTest",
             Shader::TwoDTiles => "2dTiles",
             Shader::RadialKeta => "RadialKeta",
+            Shader::ImitationRiley => "ImitationRiley",
+            Shader::HoopLoop => "HoopLoop",
         }
     }
 
@@ -792,6 +850,8 @@ impl Shader {
             Shader::BarTest => 26,
             Shader::TwoDTiles => 27,
             Shader::RadialKeta => 28,
+            Shader::ImitationRiley => 29,
+            Shader::HoopLoop => 30,
         }
     }
 
@@ -826,6 +886,8 @@ impl Shader {
             26 => Shader::BarTest,
             27 => Shader::TwoDTiles,
             28 => Shader::RadialKeta,
+            29 => Shader::ImitationRiley,
+            30 => Shader::HoopLoop,
             _ => return None,
         };
         Some(shader)
