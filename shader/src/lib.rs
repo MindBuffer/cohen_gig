@@ -1,12 +1,13 @@
 //! The shader function hotloaded at runtime by the cohen_gig crate.
 
 use nannou_core::prelude::*;
-use shader_shared::{BlendMode, Shader, Uniforms, Vertex};
+use shader_shared::{BlendMode, Shader, ToneMapping, Uniforms, Vertex};
 
 mod blend_modes;
 pub mod helpers;
 pub mod shaders;
 pub mod signals;
+mod tone_mapping;
 
 mod colour_palettes;
 mod solid_hsv_colour;
@@ -49,7 +50,7 @@ fn shader(v: Vertex, uniforms: &Uniforms) -> LinSrgb {
     // Colourise.
     col *= colour;
 
-    col
+    apply_tone_mapping(col, mix.tone_mapping, mix.tone_mapping_amount)
 }
 
 fn with_params(uniforms: &Uniforms, params: shader_shared::ShaderParams) -> Uniforms {
@@ -93,4 +94,15 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::MitchWash => wash_shaders::mitch_wash::shader,
         Shader::ShapeEnvelopes => wash_shaders::shape_envelopes::shader,
     }
+}
+
+fn apply_tone_mapping(col: LinSrgb, tone_mapping: ToneMapping, amount: f32) -> LinSrgb {
+    let amount = amount.clamp(0.0, 1.0);
+    if amount <= f32::EPSILON || matches!(tone_mapping, ToneMapping::None) {
+        return col;
+    }
+
+    let hdr = vec3(col.red.max(0.0), col.green.max(0.0), col.blue.max(0.0));
+    let mapped = tone_mapping::apply(hdr, tone_mapping);
+    helpers::lerp_lin_srgb(col, lin_srgb(mapped.x, mapped.y, mapped.z), amount)
 }

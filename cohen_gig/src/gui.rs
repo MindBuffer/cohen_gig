@@ -6,7 +6,7 @@ use nannou_conrod as ui;
 use nannou_conrod::prelude::*;
 use nannou_conrod::Color;
 
-use shader_shared::{BlendMode, Shader, ShaderParams};
+use shader_shared::{BlendMode, Shader, ShaderParams, ToneMapping};
 use std::f64::consts::PI;
 use std::path::Path;
 
@@ -104,6 +104,9 @@ widget_ids! {
 
         colour_post_process_text,
         colour_post_process_ddl,
+        tone_mapping_text,
+        tone_mapping_ddl,
+        tone_mapping_amount,
 
         blend_mode_text,
         blend_mode_ddl,
@@ -1833,6 +1836,14 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .color(color::WHITE)
         .set(ids.colour_post_process_text, ui);
 
+    if let Some(image_id) = preview_colourise_image_id {
+        widget::Image::new(image_id)
+            .w(COLUMN_W)
+            .h(COLUMN_W * 0.3)
+            .down(10.0)
+            .set(ids.led_preview_colourise_image, ui);
+    }
+
     let colour_names: Vec<_> = shader_shared::SOLID_COLOUR_SHADERS
         .iter()
         .map(|s| s.name())
@@ -1844,7 +1855,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .down(10.0)
         .max_visible_items(15)
         .rgb(0.176, 0.513, 0.639)
-        .label("Wash Shader Preset")
+        .label("Colour Shader")
         .label_font_size(15)
         .label_rgb(1.0, 1.0, 1.0)
         .scrollbar_on_top()
@@ -1875,12 +1886,37 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             .truncate(mod_slider_ix - mod_start);
     }
 
-    if let Some(image_id) = preview_colourise_image_id {
-        widget::Image::new(image_id)
-            .w(COLUMN_W)
-            .h(COLUMN_W * 0.3)
+    text("Tone Mapping")
+        .down(20.0)
+        .color(color::WHITE)
+        .set(ids.tone_mapping_text, ui);
+
+    let tone_mapping_names: Vec<_> = shader_shared::ALL_TONE_MAPPINGS
+        .iter()
+        .map(|tone_mapping| tone_mapping.name())
+        .collect();
+    let tone_mapping_idx = preset.tone_mapping.to_index();
+    if let Some(selected_idx) =
+        widget::DropDownList::new(&tone_mapping_names, Some(tone_mapping_idx))
+            .w_h(COLUMN_W, PAD * 2.0)
             .down(10.0)
-            .set(ids.led_preview_colourise_image, ui);
+            .max_visible_items(tone_mapping_names.len().min(12))
+            .rgb(0.176, 0.513, 0.639)
+            .label("Tone Mapping")
+            .label_font_size(15)
+            .label_rgb(1.0, 1.0, 1.0)
+            .scrollbar_on_top()
+            .set(ids.tone_mapping_ddl, ui)
+    {
+        preset.tone_mapping = ToneMapping::from_index(selected_idx).unwrap();
+    }
+
+    if let Some(value) = slider(preset.tone_mapping_amount, 0.0, 1.0)
+        .down(10.0)
+        .label("Tone Mapping Amount")
+        .set(ids.tone_mapping_amount, ui)
+    {
+        preset.tone_mapping_amount = value;
     }
 
     //---------------------- LED SHADER RIGHT
@@ -1956,7 +1992,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .down(10.0)
         .max_visible_items(15)
         .rgb(0.176, 0.513, 0.639)
-        .label("Wash Shader Preset")
+        .label("Blend Mode")
         .label_font_size(15)
         .label_rgb(1.0, 1.0, 1.0)
         .scrollbar_on_top()
