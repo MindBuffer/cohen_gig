@@ -8,6 +8,7 @@ pub mod gilmore_acid;
 pub mod gradient_bars;
 pub mod just_relax;
 pub mod life_led_wall;
+pub mod light_pattern_generator;
 pub mod line_gradient;
 pub mod metafall;
 pub mod particle_zoom;

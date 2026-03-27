@@ -73,6 +73,7 @@ fn get_shader(shader: Shader) -> fn(Vertex, &Uniforms) -> LinSrgb {
         Shader::GradientBars => led_shaders::gradient_bars::shader,
         Shader::JustRelax => led_shaders::just_relax::shader,
         Shader::LifeLedWall => led_shaders::life_led_wall::shader,
+        Shader::LightPatternGenerator => led_shaders::light_pattern_generator::shader,
         Shader::LineGradient => led_shaders::line_gradient::shader,
         Shader::Metafall => led_shaders::metafall::shader,
         Shader::ParticleZoom => led_shaders::particle_zoom::shader,
