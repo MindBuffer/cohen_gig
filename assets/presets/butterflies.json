@@ -1,0 +1,46 @@
+{
+  "id": "butterflies",
+  "name": "Butterflies",
+  "shader_left": "LightPatternGenerator",
+  "shader_right": "BwGradient",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.23557943,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "light_pattern_generator": {
+      "zoom": 0.23433815,
+      "offset": 10.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 0.0,
+      "saturation": 0.0,
+      "value": 0.4782024
+    }
+  },
+  "shader_params_right": {
+    "bw_gradient": {
+      "speed": 0.039375737,
+      "dc": 0.0,
+      "amp": 0.33002284,
+      "freq": 0.75138193,
+      "mirror": false
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

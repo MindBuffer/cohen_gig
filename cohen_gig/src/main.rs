@@ -456,6 +456,7 @@ fn model(app: &App) -> Model {
         preset.migrate_legacy();
         gui::normalise_preset_shader_mod_amounts(preset);
     }
+    presets.sync_global_config(&mut global_config);
 
     let gui_window = app
         .new_window()
@@ -2161,9 +2162,8 @@ fn save_global_config(assets: &Path, global_config: &GlobalConfig) {
     save_to_json(path, global_config).expect("failed to save global config");
 }
 
-fn save_presets(assets: &Path, presets: &conf::Presets) {
-    let path = conf::presets_path(assets);
-    save_to_json(path, presets).expect("failed to save presets");
+fn save_presets(assets: &Path, global_config: &mut GlobalConfig, presets: &conf::Presets) {
+    conf::save_presets(assets, global_config, presets);
 }
 
 fn exit(_app: &App, mut model: Model) {

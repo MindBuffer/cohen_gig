@@ -1,0 +1,44 @@
+{
+  "id": "no-surprises-slow",
+  "name": "No surprises slow",
+  "shader_left": "EscherTilings",
+  "shader_right": "SolidHsvColour",
+  "colourise": "ColourPalettes",
+  "left_right_mix": 1.0,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "escher_tilings": {
+      "speed": 0.2,
+      "scale": 0.2,
+      "shape_iter": 0.2
+    }
+  },
+  "shader_params_colourise": {
+    "colour_palettes": {
+      "speed": 0.1,
+      "interval": 0.05,
+      "selected": 0
+    }
+  },
+  "shader_params_right": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

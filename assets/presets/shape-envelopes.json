@@ -1,0 +1,49 @@
+{
+  "id": "shape-envelopes",
+  "name": "Shape Envelopes",
+  "shader_left": "ShapeEnvelopes",
+  "shader_right": "ThePulse",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.075846374,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "shape_envelopes": {
+      "speed": 1.0,
+      "pulse_speed": 1.0,
+      "line_thickness": 0.0,
+      "shape_thickness": 0.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "the_pulse": {
+      "speed": 0.08,
+      "scale": 0.1,
+      "colour_iter": 0.25,
+      "thickness": 0.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

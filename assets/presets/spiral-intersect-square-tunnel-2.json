@@ -1,0 +1,53 @@
+{
+  "id": "spiral-intersect-square-tunnel-2",
+  "name": "Spiral Intersect Square Tunnel",
+  "shader_left": "SpiralIntersect",
+  "shader_right": "SquareTunnel",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.09967446,
+  "blend_mode": "Multiply",
+  "shader_params_left": {
+    "spiral_intersect": {
+      "speed": 0.02,
+      "g1": 0.4,
+      "g2": 0.6,
+      "rot1": 1.0,
+      "rot2": 0.5,
+      "colours": 1.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "square_tunnel": {
+      "speed": 0.6,
+      "rotation_speed": 0.025,
+      "rotation_offset": 0.0,
+      "zoom": 0.8
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "magenta-mirror-gradient",
+  "name": "Magenta Mirror Gradient",
+  "shader_left": "BwGradient",
+  "shader_right": "BwGradient",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.0,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "bw_gradient": {
+      "speed": 0.5125,
+      "dc": 0.05,
+      "amp": 0.5,
+      "freq": 0.5,
+      "mirror": false
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "bw_gradient": {
+      "speed": 0.5125,
+      "dc": 0.05,
+      "amp": 0.5,
+      "freq": 0.5,
+      "mirror": false
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

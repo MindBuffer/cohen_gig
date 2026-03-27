@@ -1,0 +1,47 @@
+{
+  "id": "satis-relaxation-2",
+  "name": "Satis Relaxation",
+  "shader_left": "SatisSpiraling",
+  "shader_right": "JustRelax",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.47291666,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "satis_spiraling": {
+      "speed": 0.5,
+      "loops": 0.8,
+      "mirror": true,
+      "rotate": true,
+      "colour_offset": 0.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "just_relax": {
+      "speed": 0.6,
+      "shape_offset": 0.728,
+      "iter": 1.0
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

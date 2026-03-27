@@ -1,0 +1,47 @@
+{
+  "id": "pulse-gradient",
+  "name": "Pulse Gradient",
+  "shader_left": "ThePulse",
+  "shader_right": "AcidGradient",
+  "colourise": "SolidHsvColour",
+  "left_right_mix": 0.07344514,
+  "blend_mode": "Add",
+  "shader_params_left": {
+    "the_pulse": {
+      "speed": 0.08,
+      "scale": 0.1,
+      "colour_iter": 0.25,
+      "thickness": 0.0
+    }
+  },
+  "shader_params_colourise": {
+    "solid_hsv_colour": {
+      "hue": 1.0,
+      "saturation": 0.0,
+      "value": 1.0
+    }
+  },
+  "shader_params_right": {
+    "acid_gradient": {
+      "speed": 0.5125,
+      "zoom": 0.0,
+      "offset": 0.75
+    }
+  },
+  "shader_mod_amounts_left": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_colourise": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "shader_mod_amounts_right": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}
