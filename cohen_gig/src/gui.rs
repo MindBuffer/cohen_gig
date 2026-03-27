@@ -693,6 +693,33 @@ impl Params for shader_shared::LifeLedWall {
     }
 }
 
+impl Params for shader_shared::LightPatternGenerator {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "Zoom",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.zoom,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            1 => ParamMut {
+                name: "Offset",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.offset,
+                    min: 0.0,
+                    max: 10.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::LineGradient {
     fn param_count(&self) -> usize {
         5
@@ -3172,6 +3199,7 @@ pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Para
         Shader::GradientBars => &mut params.gradient_bars,
         Shader::JustRelax => &mut params.just_relax,
         Shader::LifeLedWall => &mut params.life_led_wall,
+        Shader::LightPatternGenerator => &mut params.light_pattern_generator,
         Shader::LineGradient => &mut params.line_gradient,
         Shader::Metafall => &mut params.metafall,
         Shader::ParticleZoom => &mut params.particle_zoom,

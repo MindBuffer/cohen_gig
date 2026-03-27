@@ -161,6 +161,8 @@ pub struct ShaderParams {
     #[serde(default)]
     pub life_led_wall: LifeLedWall,
     #[serde(default)]
+    pub light_pattern_generator: LightPatternGenerator,
+    #[serde(default)]
     pub line_gradient: LineGradient,
     #[serde(default)]
     pub metafall: Metafall,
@@ -223,6 +225,7 @@ pub enum Shader {
     GradientBars,
     JustRelax,
     LifeLedWall,
+    LightPatternGenerator,
     LineGradient,
     Metafall,
     ParticleZoom,
@@ -401,6 +404,14 @@ pub struct LifeLedWall {
     pub saturation: f32,
     #[devault("0.01")]
     pub colour_offset: f32,
+}
+
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct LightPatternGenerator {
+    #[devault("0.5")]
+    pub zoom: f32,
+    #[devault("0.2")]
+    pub offset: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
@@ -620,6 +631,7 @@ pub const ALL_SHADERS: &[Shader] = &[
     Shader::GradientBars,
     Shader::JustRelax,
     Shader::LifeLedWall,
+    Shader::LightPatternGenerator,
     Shader::LineGradient,
     Shader::Metafall,
     Shader::ParticleZoom,
@@ -699,6 +711,7 @@ impl Shader {
             Shader::GradientBars => "GradientBars",
             Shader::JustRelax => "JustRelax",
             Shader::LifeLedWall => "LifeLedWall",
+            Shader::LightPatternGenerator => "LightPatternGenerator",
             Shader::LineGradient => "LineGradient",
             Shader::Metafall => "Metafall",
             Shader::ParticleZoom => "ParticleZoom",
@@ -730,20 +743,21 @@ impl Shader {
             Shader::GradientBars => 9,
             Shader::JustRelax => 10,
             Shader::LifeLedWall => 11,
-            Shader::LineGradient => 12,
-            Shader::Metafall => 13,
-            Shader::ParticleZoom => 14,
-            Shader::RadialLines => 15,
-            Shader::SatisSpiraling => 16,
-            Shader::SpiralIntersect => 17,
-            Shader::SquareTunnel => 18,
-            Shader::ThePulse => 19,
-            Shader::TunnelProjection => 20,
-            Shader::VertColourGradient => 21,
-            Shader::MitchWash => 22,
-            Shader::ShapeEnvelopes => 23,
-            Shader::RowTest => 24,
-            Shader::BarTest => 25,
+            Shader::LightPatternGenerator => 12,
+            Shader::LineGradient => 13,
+            Shader::Metafall => 14,
+            Shader::ParticleZoom => 15,
+            Shader::RadialLines => 16,
+            Shader::SatisSpiraling => 17,
+            Shader::SpiralIntersect => 18,
+            Shader::SquareTunnel => 19,
+            Shader::ThePulse => 20,
+            Shader::TunnelProjection => 21,
+            Shader::VertColourGradient => 22,
+            Shader::MitchWash => 23,
+            Shader::ShapeEnvelopes => 24,
+            Shader::RowTest => 25,
+            Shader::BarTest => 26,
         }
     }
 
@@ -761,20 +775,21 @@ impl Shader {
             9 => Shader::GradientBars,
             10 => Shader::JustRelax,
             11 => Shader::LifeLedWall,
-            12 => Shader::LineGradient,
-            13 => Shader::Metafall,
-            14 => Shader::ParticleZoom,
-            15 => Shader::RadialLines,
-            16 => Shader::SatisSpiraling,
-            17 => Shader::SpiralIntersect,
-            18 => Shader::SquareTunnel,
-            19 => Shader::ThePulse,
-            20 => Shader::TunnelProjection,
-            21 => Shader::VertColourGradient,
-            22 => Shader::MitchWash,
-            23 => Shader::ShapeEnvelopes,
-            24 => Shader::RowTest,
-            25 => Shader::BarTest,
+            12 => Shader::LightPatternGenerator,
+            13 => Shader::LineGradient,
+            14 => Shader::Metafall,
+            15 => Shader::ParticleZoom,
+            16 => Shader::RadialLines,
+            17 => Shader::SatisSpiraling,
+            18 => Shader::SpiralIntersect,
+            19 => Shader::SquareTunnel,
+            20 => Shader::ThePulse,
+            21 => Shader::TunnelProjection,
+            22 => Shader::VertColourGradient,
+            23 => Shader::MitchWash,
+            24 => Shader::ShapeEnvelopes,
+            25 => Shader::RowTest,
+            26 => Shader::BarTest,
             _ => return None,
         };
         Some(shader)
