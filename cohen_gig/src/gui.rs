@@ -1586,12 +1586,19 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             let mouse_xy = ui.global_input().current.mouse.xy;
             let preview_w = COLUMN_W;
             let preview_h = COLUMN_W * 0.3;
+            let preview_parent = if shader_left_dropdown.is_open {
+                ids.shader_left_list
+            } else if shader_right_dropdown.is_open {
+                ids.shader_right_list
+            } else {
+                ids.background
+            };
             widget::Image::new(image_id)
                 .w(preview_w)
                 .h(preview_h)
                 .x_y(mouse_xy[0], mouse_xy[1] - preview_h * 0.5 - PAD)
                 .floating(true)
-                .parent(ids.background)
+                .parent(preview_parent)
                 .set(ids.hover_preview_image, ui);
         }
     }
