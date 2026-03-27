@@ -800,7 +800,7 @@ impl Params for shader_shared::RadialKeta {
 
 impl Params for shader_shared::ImitationRiley {
     fn param_count(&self) -> usize {
-        4
+        6
     }
     fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
         match ix {
@@ -832,6 +832,22 @@ impl Params for shader_shared::ImitationRiley {
                 name: "speed",
                 kind: ParamKindMut::F32Range {
                     value: &mut self.speed,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "blackLevel",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.black_level,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "whiteLevel",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.white_level,
                     min: 0.0,
                     max: 1.0,
                 },

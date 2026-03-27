@@ -11,6 +11,10 @@ fn default_half() -> f32 {
     0.5
 }
 
+fn default_one() -> f32 {
+    1.0
+}
+
 // Button-related types (previously from korg_nano_kontrol_2).
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -652,6 +656,12 @@ pub struct ImitationRiley {
     pub x_mirror: f32,
     #[devault("0.2")]
     pub speed: f32,
+    #[serde(default)]
+    #[devault("0.0")]
+    pub black_level: f32,
+    #[serde(default = "default_one")]
+    #[devault("1.0")]
+    pub white_level: f32,
 }
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
