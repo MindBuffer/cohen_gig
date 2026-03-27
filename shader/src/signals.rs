@@ -81,7 +81,7 @@ impl Signal {
     pub const QUAD_IN: Self = Signal::Ease(EasingType::QuadIn);
     pub const QUAD_IN_OUT: Self = Signal::Ease(EasingType::QuadInOut);
     pub const QUAD_OUT: Self = Signal::Ease(EasingType::QuadOut);
-    pub const QUART_IN: Self = Signal::Ease(EasingType::QuadIn);
+    pub const QUART_IN: Self = Signal::Ease(EasingType::QuartIn);
     pub const QUART_IN_OUT: Self = Signal::Ease(EasingType::QuartInOut);
     pub const QUART_OUT: Self = Signal::Ease(EasingType::QuartOut);
     pub const QUINT_IN: Self = Signal::Ease(EasingType::QuintIn);
@@ -239,14 +239,14 @@ pub fn ease_lfo(ease_type: EasingType, phase: f32) -> f32 {
         // Quart
         EasingType::QuartIn => quart::ease_in(phase, from, distance, duration),
         EasingType::QuartInOut => quart::ease_in_out(phase, from, distance, duration),
-        EasingType::QuartOut => quart::ease_in_out(phase, from, distance, duration),
+        EasingType::QuartOut => quart::ease_out(phase, from, distance, duration),
         // Quint
         EasingType::QuintIn => quint::ease_in(phase, from, distance, duration),
         EasingType::QuintInOut => quint::ease_in_out(phase, from, distance, duration),
-        EasingType::QuintOut => quint::ease_in_out(phase, from, distance, duration),
+        EasingType::QuintOut => quint::ease_out(phase, from, distance, duration),
         // Sine
         EasingType::SineIn => sine::ease_in(phase, from, distance, duration),
         EasingType::SineInOut => sine::ease_in_out(phase, from, distance, duration),
-        EasingType::SineOut => sine::ease_in_out(phase, from, distance, duration),
+        EasingType::SineOut => sine::ease_out(phase, from, distance, duration),
     }
 }

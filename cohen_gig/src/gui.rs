@@ -99,6 +99,7 @@ widget_ids! {
 
         shader_mod_sliders[],
         shader_int_sliders[],
+        shader_param_dropdowns[],
         shader_buttons[],
 
         colour_post_process_text,
@@ -234,14 +235,30 @@ pub struct ParamMut<'a> {
 }
 
 pub enum ParamKindMut<'a> {
-    F32 { value: &'a mut f32, max: f32 },
+    F32 {
+        value: &'a mut f32,
+        max: f32,
+    },
+    F32Range {
+        value: &'a mut f32,
+        min: f32,
+        max: f32,
+    },
     Bool(&'a mut bool),
-    Usize { value: &'a mut usize, max: usize },
+    Select {
+        value: &'a mut usize,
+        labels: &'static [&'static str],
+    },
+    Usize {
+        value: &'a mut usize,
+        max: usize,
+    },
 }
 
 struct ShaderWidgetState<'a> {
     mod_slider_ix: &'a mut usize,
     int_slider_ix: &'a mut usize,
+    dropdown_ix: &'a mut usize,
     button_ix: &'a mut usize,
     mod_amounts: &'a mut Vec<f32>,
     /// Offset into mod_amounts for this slot (mod_slider_ix is global for widget IDs).
@@ -488,6 +505,96 @@ impl Params for shader_shared::GilmoreAcid {
                     value: &mut self.saturation,
                     max: 1.0,
                 },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
+impl Params for shader_shared::GradientBars {
+    fn param_count(&self) -> usize {
+        11
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "Easing Type",
+                kind: ParamKindMut::Select {
+                    value: &mut self.easing_type,
+                    labels: shader_shared::GRADIENT_BARS_EASING_LABELS,
+                },
+            },
+            1 => ParamMut {
+                name: "Gradient Power",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.gradient_pow,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            2 => ParamMut {
+                name: "Balance",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.balance,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "Speed",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.speed,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            4 => ParamMut {
+                name: "Invert Speed",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.invert_speed,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            5 => ParamMut {
+                name: "Offset",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.offset,
+                    min: 0.0,
+                    max: 16.0,
+                },
+            },
+            6 => ParamMut {
+                name: "Use Odd Directions",
+                kind: ParamKindMut::Bool(&mut self.use_odd_dirs),
+            },
+            7 => ParamMut {
+                name: "Phase Iterations",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.phase_iter,
+                    min: 1.0,
+                    max: 16.0,
+                },
+            },
+            8 => ParamMut {
+                name: "Number of Columns",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.num_columns,
+                    min: 1.0,
+                    max: 32.0,
+                },
+            },
+            9 => ParamMut {
+                name: "X Iterations",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.x_iter,
+                    min: 1.0,
+                    max: 2.0,
+                },
+            },
+            10 => ParamMut {
+                name: "Use Columns",
+                kind: ParamKindMut::Bool(&mut self.use_columns),
             },
             _ => panic!("no parameter for index {}: check `param_count` impl", ix),
         }
@@ -1405,6 +1512,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
 
     let mut mod_slider_ix = 0;
     let mut int_slider_ix = 0;
+    let mut dropdown_ix = 0;
     let mut button_ix = 0;
 
     {
@@ -1417,6 +1525,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             ShaderWidgetState {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
+                dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_left,
                 mod_amounts_offset: mod_start,
@@ -1464,6 +1573,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             ShaderWidgetState {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
+                dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_colourise,
                 mod_amounts_offset: mod_start,
@@ -1528,6 +1638,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             ShaderWidgetState {
                 mod_slider_ix: &mut mod_slider_ix,
                 int_slider_ix: &mut int_slider_ix,
+                dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_right,
                 mod_amounts_offset: mod_start,
@@ -2513,7 +2624,8 @@ fn shader_dropdown(
 
                 // Hover detection: rect-based (floating list uses window coords).
                 let mouse_xy = ui.global_input().current.mouse.xy;
-                let hovered = ui.rect_of(item.widget_id)
+                let hovered = ui
+                    .rect_of(item.widget_id)
                     .map_or(false, |r| r.is_over(mouse_xy));
                 if hovered {
                     if let Some(shader) = Shader::from_index(item.i) {
@@ -2718,8 +2830,9 @@ pub fn set_presets_widgets(
                 let mouse_xy = ui.global_input().current.mouse.xy;
                 if let Some(rect) = ui.rect_of(item.widget_id) {
                     if rect.is_over(mouse_xy) && item.i < presets.list.len() {
-                        *hover_preview_request =
-                            Some(crate::HoverPreviewRequest::Preset(presets.list[item.i].clone()));
+                        *hover_preview_request = Some(crate::HoverPreviewRequest::Preset(
+                            presets.list[item.i].clone(),
+                        ));
                     }
                 }
 
@@ -2797,6 +2910,7 @@ fn set_shader_widgets(
     let ShaderWidgetState {
         mod_slider_ix,
         int_slider_ix,
+        dropdown_ix,
         button_ix,
         mod_amounts,
         mod_amounts_offset,
@@ -2832,6 +2946,31 @@ fn set_shader_widgets(
                 *mod_slider_ix += 1;
             }
 
+            ParamKindMut::F32Range { value, min, max } => {
+                if ids.shader_mod_sliders.len() <= *mod_slider_ix {
+                    ids.shader_mod_sliders
+                        .resize(*mod_slider_ix + 1, &mut ui.widget_id_generator());
+                }
+                let local_ix = *mod_slider_ix - mod_amounts_offset;
+                if mod_amounts.len() <= local_ix {
+                    mod_amounts.resize(local_ix + 1, 0.0);
+                }
+                let id = ids.shader_mod_sliders[*mod_slider_ix];
+                let mod_amt = mod_amounts[local_ix];
+
+                if let Some((v, m)) = ModSlider::new(*value, mod_amt, envelope, min, max)
+                    .label(name)
+                    .w_h(COLUMN_W, 30.0)
+                    .down(10.0)
+                    .set(id, ui)
+                {
+                    *value = v;
+                    mod_amounts[local_ix] = m;
+                }
+
+                *mod_slider_ix += 1;
+            }
+
             ParamKindMut::Usize { value, max } => {
                 if ids.shader_int_sliders.len() <= *int_slider_ix {
                     ids.shader_int_sliders
@@ -2848,6 +2987,39 @@ fn set_shader_widgets(
                 }
 
                 *int_slider_ix += 1;
+            }
+
+            ParamKindMut::Select { value, labels } => {
+                if ids.shader_param_dropdowns.len() <= *dropdown_ix {
+                    ids.shader_param_dropdowns
+                        .resize(*dropdown_ix + 1, &mut ui.widget_id_generator());
+                }
+                let id = ids.shader_param_dropdowns[*dropdown_ix];
+                let selected = if labels.is_empty() {
+                    None
+                } else {
+                    let clamped = (*value).min(labels.len() - 1);
+                    if clamped != *value {
+                        *value = clamped;
+                    }
+                    Some(clamped)
+                };
+
+                if let Some(v) = widget::DropDownList::new(labels, selected)
+                    .w_h(COLUMN_W, PAD * 2.0)
+                    .down(10.0)
+                    .max_visible_items(labels.len().min(12))
+                    .rgb(0.176, 0.513, 0.639)
+                    .label(name)
+                    .label_font_size(13)
+                    .label_rgb(1.0, 1.0, 1.0)
+                    .scrollbar_on_top()
+                    .set(id, ui)
+                {
+                    *value = v;
+                }
+
+                *dropdown_ix += 1;
             }
 
             ParamKindMut::Bool(value) => {
@@ -2950,7 +3122,14 @@ pub fn apply_shader_modulation(
                 }
                 *mod_slider_ix += 1;
             }
-            ParamKindMut::Usize { .. } | ParamKindMut::Bool(_) => {}
+            ParamKindMut::F32Range { value, min, max } => {
+                if let Some(&mod_amt) = mod_amounts.get(*mod_slider_ix) {
+                    let offset = (envelope * mod_amt) - (mod_amt / 2.0);
+                    *value = (*value + offset).max(min).min(max);
+                }
+                *mod_slider_ix += 1;
+            }
+            ParamKindMut::Usize { .. } | ParamKindMut::Bool(_) | ParamKindMut::Select { .. } => {}
         }
     }
 }
@@ -2974,8 +3153,9 @@ pub fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -
     let mut count = 0;
     for ix in 0..p.param_count() {
         let ParamMut { kind, .. } = p.param_mut(ix);
-        if let ParamKindMut::F32 { .. } = kind {
-            count += 1;
+        match kind {
+            ParamKindMut::F32 { .. } | ParamKindMut::F32Range { .. } => count += 1,
+            ParamKindMut::Bool(_) | ParamKindMut::Select { .. } | ParamKindMut::Usize { .. } => {}
         }
     }
     count
@@ -2989,6 +3169,7 @@ pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Para
         Shader::ColourGrid => &mut params.colour_grid,
         Shader::EscherTilings => &mut params.escher_tilings,
         Shader::GilmoreAcid => &mut params.gilmore_acid,
+        Shader::GradientBars => &mut params.gradient_bars,
         Shader::JustRelax => &mut params.just_relax,
         Shader::LifeLedWall => &mut params.life_led_wall,
         Shader::LineGradient => &mut params.line_gradient,

@@ -155,6 +155,8 @@ pub struct ShaderParams {
     #[serde(default)]
     pub gilmore_acid: GilmoreAcid,
     #[serde(default)]
+    pub gradient_bars: GradientBars,
+    #[serde(default)]
     pub just_relax: JustRelax,
     #[serde(default)]
     pub life_led_wall: LifeLedWall,
@@ -218,6 +220,7 @@ pub enum Shader {
     ColourGrid,
     EscherTilings,
     GilmoreAcid,
+    GradientBars,
     JustRelax,
     LifeLedWall,
     LineGradient,
@@ -312,6 +315,65 @@ pub struct GilmoreAcid {
     #[devault("0.15")]
     pub saturation: f32,
 }
+
+#[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
+pub struct GradientBars {
+    #[devault("0")]
+    pub easing_type: usize,
+    #[devault("0.2")]
+    pub gradient_pow: f32,
+    #[devault("0.15")]
+    pub balance: f32,
+    #[devault("0.1")]
+    pub speed: f32,
+    #[devault("0.2")]
+    pub invert_speed: f32,
+    #[devault("4.0")]
+    pub offset: f32,
+    #[devault("false")]
+    pub use_odd_dirs: bool,
+    #[devault("2.0")]
+    pub phase_iter: f32,
+    #[devault("15.0")]
+    pub num_columns: f32,
+    #[devault("2.0")]
+    pub x_iter: f32,
+    #[devault("false")]
+    pub use_columns: bool,
+}
+
+pub const GRADIENT_BARS_EASING_LABELS: &[&str] = &[
+    "Ease In Sine",
+    "Ease Out Sine",
+    "Ease InOut Sine",
+    "Ease In Quad",
+    "Ease Out Quad",
+    "Ease InOut Quad",
+    "Ease In Cubic",
+    "Ease Out Cubic",
+    "Ease InOut Cubic",
+    "Ease In Quart",
+    "Ease Out Quart",
+    "Ease InOut Quart",
+    "Ease In Quint",
+    "Ease Out Quint",
+    "Ease InOut Quint",
+    "Ease In Expo",
+    "Ease Out Expo",
+    "Ease InOut Expo",
+    "Ease In Circ",
+    "Ease Out Circ",
+    "Ease InOut Circ",
+    "Ease In Back",
+    "Ease Out Back",
+    "Ease InOut Back",
+    "Ease In Elastic",
+    "Ease Out Elastic",
+    "Ease InOut Elastic",
+    "Ease In Bounce",
+    "Ease Out Bounce",
+    "Ease InOut Bounce",
+];
 
 #[derive(Copy, Clone, Debug, Devault, PartialEq, Serialize, Deserialize)]
 pub struct JustRelax {
@@ -555,6 +617,7 @@ pub const ALL_SHADERS: &[Shader] = &[
     Shader::ColourGrid,
     Shader::EscherTilings,
     Shader::GilmoreAcid,
+    Shader::GradientBars,
     Shader::JustRelax,
     Shader::LifeLedWall,
     Shader::LineGradient,
@@ -633,6 +696,7 @@ impl Shader {
             Shader::ColourGrid => "ColourGrid",
             Shader::EscherTilings => "EscherTilings",
             Shader::GilmoreAcid => "GilmoreAcid",
+            Shader::GradientBars => "GradientBars",
             Shader::JustRelax => "JustRelax",
             Shader::LifeLedWall => "LifeLedWall",
             Shader::LineGradient => "LineGradient",
@@ -663,22 +727,23 @@ impl Shader {
             Shader::ColourGrid => 6,
             Shader::EscherTilings => 7,
             Shader::GilmoreAcid => 8,
-            Shader::JustRelax => 9,
-            Shader::LifeLedWall => 10,
-            Shader::LineGradient => 11,
-            Shader::Metafall => 12,
-            Shader::ParticleZoom => 13,
-            Shader::RadialLines => 14,
-            Shader::SatisSpiraling => 15,
-            Shader::SpiralIntersect => 16,
-            Shader::SquareTunnel => 17,
-            Shader::ThePulse => 18,
-            Shader::TunnelProjection => 19,
-            Shader::VertColourGradient => 20,
-            Shader::MitchWash => 21,
-            Shader::ShapeEnvelopes => 22,
-            Shader::RowTest => 23,
-            Shader::BarTest => 24,
+            Shader::GradientBars => 9,
+            Shader::JustRelax => 10,
+            Shader::LifeLedWall => 11,
+            Shader::LineGradient => 12,
+            Shader::Metafall => 13,
+            Shader::ParticleZoom => 14,
+            Shader::RadialLines => 15,
+            Shader::SatisSpiraling => 16,
+            Shader::SpiralIntersect => 17,
+            Shader::SquareTunnel => 18,
+            Shader::ThePulse => 19,
+            Shader::TunnelProjection => 20,
+            Shader::VertColourGradient => 21,
+            Shader::MitchWash => 22,
+            Shader::ShapeEnvelopes => 23,
+            Shader::RowTest => 24,
+            Shader::BarTest => 25,
         }
     }
 
@@ -693,22 +758,23 @@ impl Shader {
             6 => Shader::ColourGrid,
             7 => Shader::EscherTilings,
             8 => Shader::GilmoreAcid,
-            9 => Shader::JustRelax,
-            10 => Shader::LifeLedWall,
-            11 => Shader::LineGradient,
-            12 => Shader::Metafall,
-            13 => Shader::ParticleZoom,
-            14 => Shader::RadialLines,
-            15 => Shader::SatisSpiraling,
-            16 => Shader::SpiralIntersect,
-            17 => Shader::SquareTunnel,
-            18 => Shader::ThePulse,
-            19 => Shader::TunnelProjection,
-            20 => Shader::VertColourGradient,
-            21 => Shader::MitchWash,
-            22 => Shader::ShapeEnvelopes,
-            23 => Shader::RowTest,
-            24 => Shader::BarTest,
+            9 => Shader::GradientBars,
+            10 => Shader::JustRelax,
+            11 => Shader::LifeLedWall,
+            12 => Shader::LineGradient,
+            13 => Shader::Metafall,
+            14 => Shader::ParticleZoom,
+            15 => Shader::RadialLines,
+            16 => Shader::SatisSpiraling,
+            17 => Shader::SpiralIntersect,
+            18 => Shader::SquareTunnel,
+            19 => Shader::ThePulse,
+            20 => Shader::TunnelProjection,
+            21 => Shader::VertColourGradient,
+            22 => Shader::MitchWash,
+            23 => Shader::ShapeEnvelopes,
+            24 => Shader::RowTest,
+            25 => Shader::BarTest,
             _ => return None,
         };
         Some(shader)
