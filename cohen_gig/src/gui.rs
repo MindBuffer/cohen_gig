@@ -720,6 +720,84 @@ impl Params for shader_shared::LightPatternGenerator {
     }
 }
 
+impl Params for shader_shared::TwoDTiles {
+    fn param_count(&self) -> usize {
+        5
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "size",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.size,
+                    min: 2.0,
+                    max: 40.0,
+                },
+            },
+            1 => ParamMut {
+                name: "offset",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.offset,
+                    min: 0.0,
+                    max: 20.0,
+                },
+            },
+            2 => ParamMut {
+                name: "step_thresh",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.step_thresh,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            3 => ParamMut {
+                name: "power",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.power,
+                    min: 0.0,
+                    max: 100.0,
+                },
+            },
+            4 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.speed,
+                    min: 0.0,
+                    max: 1.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
+impl Params for shader_shared::RadialKeta {
+    fn param_count(&self) -> usize {
+        2
+    }
+    fn param_mut(&mut self, ix: usize) -> ParamMut<'_> {
+        match ix {
+            0 => ParamMut {
+                name: "speed",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.speed,
+                    min: 0.001,
+                    max: 0.3,
+                },
+            },
+            1 => ParamMut {
+                name: "iter",
+                kind: ParamKindMut::F32Range {
+                    value: &mut self.iter,
+                    min: 10.0,
+                    max: 50.0,
+                },
+            },
+            _ => panic!("no parameter for index {}: check `param_count` impl", ix),
+        }
+    }
+}
+
 impl Params for shader_shared::LineGradient {
     fn param_count(&self) -> usize {
         5
@@ -3217,5 +3295,7 @@ pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Para
         Shader::ShapeEnvelopes => &mut params.shape_envelopes,
         Shader::RowTest => &mut params.row_test,
         Shader::BarTest => &mut params.bar_test,
+        Shader::TwoDTiles => &mut params.two_d_tiles,
+        Shader::RadialKeta => &mut params.radial_keta,
     }
 }
