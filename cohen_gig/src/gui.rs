@@ -79,10 +79,19 @@ widget_ids! {
         led_layout_stats_text,
 
         led_shader_left_text,
-        led_shader_left_ddl,
 
         led_shader_right_text,
-        led_shader_right_ddl,
+
+        // Custom shader dropdown (left).
+        shader_left_button,
+        shader_left_list,
+        shader_left_anchor,
+        // Custom shader dropdown (right).
+        shader_right_button,
+        shader_right_list,
+        shader_right_anchor,
+        // Floating hover preview.
+        hover_preview_image,
 
         led_preview_left_image,
         led_preview_right_image,
@@ -169,6 +178,16 @@ struct ActivePresetListDrag {
     target_index: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ShaderDropdownState {
+    pub is_open: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct HoverPreviewState {
+    pub hovered_rect: Option<nannou_conrod::Rect>,
+}
+
 pub struct UpdateContext<'a> {
     pub global_config: &'a mut GlobalConfig,
     pub presets: &'a mut crate::conf::Presets,
@@ -194,6 +213,11 @@ pub struct UpdateContext<'a> {
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
     pub preview_colourise_image_id: Option<ui::image::Id>,
+    pub preview_hover_image_id: Option<ui::image::Id>,
+    pub hover_preview_request: &'a mut Option<crate::HoverPreviewRequest>,
+    pub shader_left_dropdown: &'a mut ShaderDropdownState,
+    pub shader_right_dropdown: &'a mut ShaderDropdownState,
+    pub hover_preview_state: &'a mut HoverPreviewState,
 }
 
 /// Implemented for all sets of shader parameters to allow for generic GUI layout.
@@ -1203,7 +1227,15 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         preview_left_image_id,
         preview_right_image_id,
         preview_colourise_image_id,
+        preview_hover_image_id,
+        hover_preview_request,
+        shader_left_dropdown,
+        shader_right_dropdown,
+        hover_preview_state,
     } = ctx;
+    // Clear previous frame's hover state — re-set by dropdown/list hover detection if still hovering.
+    *hover_preview_request = None;
+    hover_preview_state.hovered_rect = None;
 
     widget::Canvas::new()
         .pad(PAD)
@@ -1248,6 +1280,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Live;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     if button()
@@ -1259,6 +1293,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Output;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     if button()
@@ -1270,6 +1306,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .was_clicked()
     {
         *left_panel_tab = LeftPanelTab::Midi;
+        shader_left_dropdown.is_open = false;
+        shader_right_dropdown.is_open = false;
     }
 
     match *left_panel_tab {
@@ -1292,6 +1330,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 last_preset_change,
                 led_colors,
                 assets,
+                hover_preview_request,
+                hover_preview_state,
             );
         }
         LeftPanelTab::Output => {
@@ -1342,20 +1382,25 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         .iter()
         .map(|s| s.name())
         .collect();
-    let shader_idx = preset.shader_left.to_index();
 
-    if let Some(selected_idx) = widget::DropDownList::new(&shader_names, Some(shader_idx))
-        .w_h(COLUMN_W, PAD * 2.0)
-        .down(10.0)
-        .max_visible_items(15)
-        .rgb(0.176, 0.513, 0.639)
-        .label("LED Shader Preset")
-        .label_font_size(15)
-        .label_rgb(1.0, 1.0, 1.0)
-        .scrollbar_on_top()
-        .set(ids.led_shader_left_ddl, ui)
-    {
-        preset.shader_left = Shader::from_index(selected_idx).unwrap();
+    let (selected, left_btn_id) = shader_dropdown(
+        ui,
+        ids.shader_left_button,
+        ids.shader_left_list,
+        shader_left_dropdown,
+        preset.shader_left,
+        &shader_names,
+        hover_preview_request,
+        hover_preview_state,
+    );
+    if let Some(shader) = selected {
+        preset.shader_left = shader;
+    }
+    widget::Rectangle::fill([0.0, 0.0])
+        .down_from(left_btn_id, 0.0)
+        .set(ids.shader_left_anchor, ui);
+    if shader_left_dropdown.is_open {
+        shader_right_dropdown.is_open = false;
     }
 
     let mut mod_slider_ix = 0;
@@ -1453,19 +1498,24 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
             .set(ids.led_preview_right_image, ui);
     }
 
-    let shader_idx = preset.shader_right.to_index();
-    if let Some(selected_idx) = widget::DropDownList::new(&shader_names, Some(shader_idx))
-        .w_h(COLUMN_W, PAD * 2.0)
-        .down(10.0)
-        .max_visible_items(15)
-        .rgb(0.176, 0.513, 0.639)
-        .label("LED Shader Preset")
-        .label_font_size(15)
-        .label_rgb(1.0, 1.0, 1.0)
-        .scrollbar_on_top()
-        .set(ids.led_shader_right_ddl, ui)
-    {
-        preset.shader_right = Shader::from_index(selected_idx).unwrap();
+    let (selected, right_btn_id) = shader_dropdown(
+        ui,
+        ids.shader_right_button,
+        ids.shader_right_list,
+        shader_right_dropdown,
+        preset.shader_right,
+        &shader_names,
+        hover_preview_request,
+        hover_preview_state,
+    );
+    if let Some(shader) = selected {
+        preset.shader_right = shader;
+    }
+    widget::Rectangle::fill([0.0, 0.0])
+        .down_from(right_btn_id, 0.0)
+        .set(ids.shader_right_anchor, ui);
+    if shader_right_dropdown.is_open {
+        shader_left_dropdown.is_open = false;
     }
 
     {
@@ -1530,8 +1580,28 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         global_config.fade_to_black.led = value;
     }
 
-    // A scrollbar for the canvas.
-    //widget::Scrollbar::y_axis(ids.background).auto_hide(true).set(ids.scrollbar, ui);
+    // Floating hover preview image at mouse position.
+    if let Some(image_id) = preview_hover_image_id {
+        if hover_preview_request.is_some() {
+            let mouse_xy = ui.global_input().current.mouse.xy;
+            let preview_w = COLUMN_W;
+            let preview_h = COLUMN_W * 0.3;
+            let preview_parent = if shader_left_dropdown.is_open {
+                ids.shader_left_list
+            } else if shader_right_dropdown.is_open {
+                ids.shader_right_list
+            } else {
+                ids.background
+            };
+            widget::Image::new(image_id)
+                .w(preview_w)
+                .h(preview_h)
+                .x_y(mouse_xy[0], mouse_xy[1] - preview_h * 0.5 - PAD)
+                .floating(true)
+                .parent(preview_parent)
+                .set(ids.hover_preview_image, ui);
+        }
+    }
 }
 
 fn set_live_sidebar_widgets(
@@ -2372,6 +2442,117 @@ fn truncate_port_name(name: &str) -> String {
     }
 }
 
+/// Custom shader dropdown with per-item hover detection.
+///
+/// Returns `Some(shader)` when a selection is made.
+fn shader_dropdown(
+    ui: &mut UiCell,
+    button_id: widget::Id,
+    list_id: widget::Id,
+    state: &mut ShaderDropdownState,
+    current: Shader,
+    shader_names: &[&str],
+    hover_request: &mut Option<crate::HoverPreviewRequest>,
+    hover_preview_state: &mut HoverPreviewState,
+) -> (Option<Shader>, widget::Id) {
+    let current_name = current.name();
+
+    // Toggle button.
+    if widget::Button::new()
+        .w_h(COLUMN_W, PAD * 2.0)
+        .down(10.0)
+        .rgb(0.176, 0.513, 0.639)
+        .label(current_name)
+        .label_font_size(15)
+        .label_rgb(1.0, 1.0, 1.0)
+        .set(button_id, ui)
+        .was_clicked()
+    {
+        state.is_open = !state.is_open;
+    }
+
+    if !state.is_open {
+        return (None, button_id);
+    }
+
+    let item_h = PAD * 2.0;
+    let max_visible = 15;
+    let visible_count = shader_names.len().min(max_visible);
+    let list_h = item_h * visible_count as f64;
+
+    let (mut events, scrollbar) = widget::ListSelect::single(shader_names.len())
+        .flow_down()
+        .item_size(item_h)
+        .scrollbar_on_top()
+        .w_h(COLUMN_W, list_h)
+        .down_from(button_id, 0.0)
+        .align_left_of(button_id)
+        .floating(true)
+        .set(list_id, ui);
+
+    let mut selected = None;
+
+    while let Some(event) = events.next(ui, |i| i == current.to_index()) {
+        use nannou_conrod::widget::list_select::Event;
+        match event {
+            Event::Item(item) => {
+                let label = shader_names[item.i];
+                let is_current = item.i == current.to_index();
+                let color = if is_current {
+                    nannou_conrod::color::rgb(0.25, 0.6, 0.75)
+                } else {
+                    nannou_conrod::color::rgb(0.176, 0.513, 0.639)
+                };
+                let btn = widget::Button::new()
+                    .border(0.0)
+                    .color(color)
+                    .label(label)
+                    .label_font_size(13)
+                    .label_color(nannou_conrod::color::WHITE);
+                item.set(btn, ui);
+
+                // Hover detection: rect-based (floating list uses window coords).
+                let mouse_xy = ui.global_input().current.mouse.xy;
+                let hovered = ui.rect_of(item.widget_id)
+                    .map_or(false, |r| r.is_over(mouse_xy));
+                if hovered {
+                    if let Some(shader) = Shader::from_index(item.i) {
+                        *hover_request = Some(crate::HoverPreviewRequest::Shader(shader));
+                    }
+                }
+            }
+            Event::Selection(idx) => {
+                selected = Shader::from_index(idx);
+                state.is_open = false;
+                *hover_request = None;
+                hover_preview_state.hovered_rect = None;
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(sb) = scrollbar {
+        sb.set(ui);
+    }
+
+    // Close on click outside: if mouse clicked but not on our list or button.
+    if state.is_open {
+        let mouse = ui.global_input().current.mouse.buttons.left();
+        if mouse.is_down() {
+            let mouse_xy = ui.global_input().current.mouse.xy;
+            let over_button = ui.rect_of(button_id).map_or(false, |r| r.is_over(mouse_xy));
+            let over_list = ui.rect_of(list_id).map_or(false, |r| r.is_over(mouse_xy));
+            if !over_button && !over_list {
+                state.is_open = false;
+                *hover_request = None;
+                hover_preview_state.hovered_rect = None;
+            }
+        }
+    }
+
+    (selected, button_id)
+}
+
 pub fn set_presets_widgets(
     ui: &mut UiCell,
     ids: &Ids,
@@ -2381,6 +2562,8 @@ pub fn set_presets_widgets(
     last_preset_change: &mut Option<crate::LastPresetChange>,
     _led_colors: &LedColors,
     assets: &Path,
+    hover_preview_request: &mut Option<crate::HoverPreviewRequest>,
+    hover_preview_state: &mut HoverPreviewState,
 ) {
     const PRESET_ACTION_GAP: Scalar = 2.0;
 
@@ -2530,6 +2713,15 @@ pub fn set_presets_widgets(
                     .label_font_size(font_size)
                     .label_color(label_color);
                 item.set(button, ui);
+
+                // Hover detection for preset preview.
+                let mouse_xy = ui.global_input().current.mouse.xy;
+                if let Some(rect) = ui.rect_of(item.widget_id) {
+                    if rect.is_over(mouse_xy) && item.i < presets.list.len() {
+                        *hover_preview_request =
+                            Some(crate::HoverPreviewRequest::Preset(presets.list[item.i].clone()));
+                    }
+                }
 
                 for drag in ui.widget_input(item.widget_id).drags().left() {
                     preset_list_drag.active = Some(ActivePresetListDrag {

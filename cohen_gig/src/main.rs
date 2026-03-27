@@ -57,6 +57,7 @@ struct PreviewImages {
     left_id: ui::image::Id,
     right_id: ui::image::Id,
     colourise_id: ui::image::Id,
+    hover_id: ui::image::Id,
     width: u32,
     height: u32,
 }
@@ -81,12 +82,17 @@ struct Model {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
+    hover_preview_request: Option<HoverPreviewRequest>,
     last_preset_change: Option<LastPresetChange>,
     ui: Ui,
     ids: gui::Ids,
     left_panel_tab: gui::LeftPanelTab,
     preset_list_drag: gui::PresetListDragState,
+    shader_left_dropdown: gui::ShaderDropdownState,
+    shader_right_dropdown: gui::ShaderDropdownState,
+    hover_preview_state: gui::HoverPreviewState,
     audio_input: audio_input::AudioInput,
     runtime_stats: RuntimeStats,
     mad_project: Option<mad_mapper::MadProject>,
@@ -99,6 +105,12 @@ struct Model {
 struct LastPresetChange {
     started_at: Instant,
     preset: conf::Preset,
+}
+
+#[derive(Clone)]
+pub(crate) enum HoverPreviewRequest {
+    Shader(shader_shared::Shader),
+    Preset(conf::Preset),
 }
 
 struct PresetTransitionState {
@@ -150,6 +162,7 @@ struct LedWorkerSharedInput {
     latest_state: LedWorkerInputState,
     pending_preset_change: Option<LastPresetChange>,
     pending_shader: Option<Shader>,
+    hover_preview_request: Option<HoverPreviewRequest>,
     shutdown: bool,
 }
 
@@ -159,6 +172,7 @@ struct LedWorkerSharedOutput {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     monitor: LedWorkerMonitorSnapshot,
     dmx_error: Option<String>,
@@ -390,6 +404,7 @@ impl LedWorker {
             latest_state: initial_state,
             pending_preset_change: None,
             pending_shader: None,
+            hover_preview_request: None,
             shutdown: false,
         }));
         let shared_output = Arc::new(Mutex::new(LedWorkerSharedOutput {
@@ -398,6 +413,7 @@ impl LedWorker {
             led_colors_left: Vec::new(),
             led_colors_right: Vec::new(),
             led_colors_colourise: Vec::new(),
+            led_colors_hover: Vec::new(),
             led_outputs: Vec::new(),
             monitor: LedWorkerMonitorSnapshot::default(),
             dmx_error: None,
@@ -569,12 +585,17 @@ fn model(app: &App) -> Model {
         led_colors_left: black_led_buffer(initial_led_count),
         led_colors_right: black_led_buffer(initial_led_count),
         led_colors_colourise: black_led_buffer(initial_led_count),
+        led_colors_hover: black_led_buffer(initial_led_count),
         led_outputs,
+        hover_preview_request: None,
         last_preset_change,
         ui,
         ids,
         left_panel_tab: gui::LeftPanelTab::Live,
         preset_list_drag: gui::PresetListDragState::default(),
+        shader_left_dropdown: gui::ShaderDropdownState::default(),
+        shader_right_dropdown: gui::ShaderDropdownState::default(),
+        hover_preview_state: gui::HoverPreviewState::default(),
         audio_input,
         runtime_stats: RuntimeStats { app_fps: 0.0 },
         resolved_layout,
@@ -662,6 +683,7 @@ fn update_preview_textures(app: &App, model: &mut Model) {
         let left_tex = create_preview_texture("preview_left");
         let right_tex = create_preview_texture("preview_right");
         let colourise_tex = create_preview_texture("preview_colourise");
+        let hover_tex = create_preview_texture("preview_hover");
 
         let left_img = ui::conrod_wgpu::Image {
             texture: left_tex,
@@ -681,20 +703,29 @@ fn update_preview_textures(app: &App, model: &mut Model) {
             width,
             height,
         };
+        let hover_img = ui::conrod_wgpu::Image {
+            texture: hover_tex,
+            texture_format: nannou::wgpu::TextureFormat::Rgba8UnormSrgb,
+            width,
+            height,
+        };
 
         if let Some(old) = model.preview_images.take() {
             model.ui.image_map.remove(old.left_id);
             model.ui.image_map.remove(old.right_id);
             model.ui.image_map.remove(old.colourise_id);
+            model.ui.image_map.remove(old.hover_id);
         }
 
         let left_id = model.ui.image_map.insert(left_img);
         let right_id = model.ui.image_map.insert(right_img);
         let colourise_id = model.ui.image_map.insert(colourise_img);
+        let hover_id = model.ui.image_map.insert(hover_img);
         model.preview_images = Some(PreviewImages {
             left_id,
             right_id,
             colourise_id,
+            hover_id,
             width,
             height,
         });
@@ -756,6 +787,23 @@ fn update_preview_textures(app: &App, model: &mut Model) {
                 layout,
                 size,
             );
+        }
+
+        if !model.led_colors_hover.is_empty() {
+            let hover_rgba = led_colors_to_rgba(&model.led_colors_hover, pi.width, pi.height);
+            if let Some(img) = model.ui.image_map.get(&pi.hover_id) {
+                queue.write_texture(
+                    nannou::wgpu::ImageCopyTexture {
+                        texture: &img.texture,
+                        mip_level: 0,
+                        origin: nannou::wgpu::Origin3d::ZERO,
+                        aspect: nannou::wgpu::TextureAspect::All,
+                    },
+                    &hover_rgba,
+                    layout,
+                    size,
+                );
+            }
         }
     }
 }
@@ -921,6 +969,9 @@ fn sync_led_buffers(model: &mut Model) {
         model
             .led_colors_colourise
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        model
+            .led_colors_hover
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.led_outputs.resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         model.last_preset_change = None;
     }
@@ -1033,6 +1084,8 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
         );
         shared_input.latest_state.buttons = model.buttons.clone();
 
+        shared_input.hover_preview_request = model.hover_preview_request.clone();
+
         if let Some(last_preset_change) = model.last_preset_change.take() {
             shared_input.pending_preset_change = Some(last_preset_change);
         }
@@ -1059,6 +1112,9 @@ fn apply_led_worker_output(model: &mut Model) {
     model
         .led_colors_colourise
         .clone_from(&shared_output.led_colors_colourise);
+    model
+        .led_colors_hover
+        .clone_from(&shared_output.led_colors_hover);
     model.led_outputs.clone_from(&shared_output.led_outputs);
     model.dmx.error = shared_output.dmx_error.clone();
     model.dmx.last_send_route = shared_output.last_send_route;
@@ -1101,6 +1157,7 @@ struct LedWorkerRuntime {
     led_colors_left: Vec<LinSrgb>,
     led_colors_right: Vec<LinSrgb>,
     led_colors_colourise: Vec<LinSrgb>,
+    led_colors_hover: Vec<LinSrgb>,
     led_color_buffer: Vec<LinSrgb>,
     led_outputs: Vec<LinSrgb>,
     led_shader_inputs: Vec<CachedLedShaderInput>,
@@ -1127,6 +1184,7 @@ impl LedWorkerRuntime {
             led_colors_left: black_led_buffer(led_count),
             led_colors_right: black_led_buffer(led_count),
             led_colors_colourise: black_led_buffer(led_count),
+            led_colors_hover: black_led_buffer(led_count),
             led_color_buffer: black_led_buffer(led_count),
             led_outputs: black_led_buffer(led_count),
             led_shader_inputs: shader_inputs,
@@ -1168,6 +1226,9 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
             .led_colors_colourise
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
+            .led_colors_hover
+            .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
+        runtime
             .led_color_buffer
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
         runtime
@@ -1200,7 +1261,7 @@ fn run_led_worker(
     let mut frame_id = 0u64;
 
     loop {
-        let (state, pending_shader, pending_preset_change, shutdown) = {
+        let (state, pending_shader, pending_preset_change, hover_preview_request, shutdown) = {
             let mut input = match shared_input.lock() {
                 Ok(input) => input,
                 Err(_) => break,
@@ -1209,6 +1270,7 @@ fn run_led_worker(
                 input.latest_state.clone(),
                 input.pending_shader.take(),
                 input.pending_preset_change.take(),
+                input.hover_preview_request.clone(),
                 input.shutdown,
             )
         };
@@ -1230,7 +1292,7 @@ fn run_led_worker(
         }
 
         sync_led_worker_buffers(&mut runtime, &state.config);
-        render_led_worker_frame(&state, &mut runtime);
+        render_led_worker_frame(&state, &mut runtime, &hover_preview_request);
 
         frame_id = frame_id.wrapping_add(1);
         if let Ok(mut output) = shared_output.lock() {
@@ -1243,6 +1305,9 @@ fn run_led_worker(
             output
                 .led_colors_colourise
                 .clone_from(&runtime.led_colors_colourise);
+            output
+                .led_colors_hover
+                .clone_from(&runtime.led_colors_hover);
             output.led_outputs.clone_from(&runtime.led_outputs);
             output.monitor = LedWorkerMonitorSnapshot::from_monitor(&runtime.dmx.monitor);
             output.dmx_error = runtime.dmx.error.clone();
@@ -1253,7 +1318,11 @@ fn run_led_worker(
     }
 }
 
-fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerRuntime) {
+fn render_led_worker_frame(
+    state: &LedWorkerInputState,
+    runtime: &mut LedWorkerRuntime,
+    hover_preview_request: &Option<HoverPreviewRequest>,
+) {
     let shader: ShaderFnPtr = runtime
         .shader
         .as_ref()
@@ -1373,6 +1442,34 @@ fn render_led_worker_frame(state: &LedWorkerInputState, runtime: &mut LedWorkerR
                 };
                 *color = shader(vertex, &colourise_uniforms);
             });
+    }
+
+    // Hover preview: render only when a request is active.
+    if let Some(ref request) = hover_preview_request {
+        let hover_uniforms = match request {
+            HoverPreviewRequest::Shader(s) => {
+                let mix = MixingInfo {
+                    left: *s,
+                    right: *s,
+                    colourise: shader_shared::Shader::SolidRgbColour,
+                    blend_mode: shader_shared::BlendMode::Add,
+                    xfade_left: 1.0,
+                    xfade_right: 0.0,
+                    params_left: ShaderParams::default(),
+                    params_right: ShaderParams::default(),
+                    params_colourise: white_colourise,
+                };
+                Uniforms { mix, ..uniforms.clone() }
+            }
+            HoverPreviewRequest::Preset(preset) => preset_uniforms(state, preset),
+        };
+        render_preset_graph(
+            shader,
+            &runtime.led_shader_inputs,
+            &hover_uniforms,
+            &runtime.led_colors,
+            &mut runtime.led_colors_hover,
+        );
     }
 
     let mut clear_transition = state.config.preset_lerp_secs <= 0.0;
@@ -1713,6 +1810,11 @@ fn update(app: &App, model: &mut Model, update: Update) {
             preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
             preview_colourise_image_id: model.preview_images.as_ref().map(|pi| pi.colourise_id),
+            preview_hover_image_id: model.preview_images.as_ref().map(|pi| pi.hover_id),
+            hover_preview_request: &mut model.hover_preview_request,
+            shader_left_dropdown: &mut model.shader_left_dropdown,
+            shader_right_dropdown: &mut model.shader_right_dropdown,
+            hover_preview_state: &mut model.hover_preview_state,
         },
     );
     drop(ui);
