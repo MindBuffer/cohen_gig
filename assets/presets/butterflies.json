@@ -4,7 +4,9 @@
   "shader_left": "LightPatternGenerator",
   "shader_right": "BwGradient",
   "colourise": "SolidHsvColour",
-  "left_right_mix": 0.23557943,
+  "tone_mapping": "Aces",
+  "tone_mapping_amount": 1.0,
+  "left_right_mix": 0.19685018,
   "blend_mode": "Multiply",
   "shader_params_left": {
     "light_pattern_generator": {
@@ -29,7 +31,7 @@
     }
   },
   "shader_mod_amounts_left": [
-    0.0,
+    1.3e-44,
     0.0
   ],
   "shader_mod_amounts_colourise": [

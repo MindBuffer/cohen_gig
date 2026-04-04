@@ -1,26 +1,27 @@
 {
   "dmx_on": true,
   "preview_window_on": true,
-  "audio_input_device": "",
+  "audio_input_device": "MacBook Pro Microphone",
   "led_start_universe": 1,
   "fade_to_black": {
     "led": 1.0
   },
-  "sacn_interface_ip": "",
-  "led_output_fps": "Free",
+  "sacn_interface_ip": "10.0.0.254",
+  "led_output_fps": "Fps80",
   "led_layout": {
     "leds_per_metre": 100,
-    "metres_per_row": 6,
-    "row_count": 7
+    "metres_per_row": 20,
+    "row_count": 17
   },
   "madmapper_project_path": "/Users/joshuabatty/Documents/rust/nannou_projects/cohen_gig/assets/map_mapper_projects/SJ02-JOSH_COHEN-MM6-01.mad",
-  "preset_lerp_secs": 2.5284667,
+  "preset_lerp_secs": 10.0,
   "shader_preset_index": {
-    "selected_preset_id": "butterflies",
+    "selected_preset_id": "everything-in-place-relax-quite",
     "order": [
-      "pulse-gradient",
-      "satis-relaxation",
       "gilmore-spiraling",
+      "pulse-gradient",
+      "butterflies",
+      "satis-relaxation",
       "magenta-mirror-gradient",
       "monochrome-escher-shifts",
       "slow-tunnel-projection",
@@ -69,7 +70,7 @@
       "spiral-intersect-square-tunnel-3",
       "exit-music-gilmore-spiraling-2",
       "exit-music-faster-gilmore-spiraling-2",
-      "butterflies"
+      "empty"
     ]
   }
 }
