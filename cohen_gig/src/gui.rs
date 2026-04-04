@@ -24,6 +24,8 @@ pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
 pub const GLOBAL_PHASE_OFFSET_MIN: f32 = -0.2;
 pub const GLOBAL_PHASE_OFFSET_MAX: f32 = 0.2;
+pub const PRESET_LERP_MAX_SECS: f32 = 60.0;
+pub const PRESET_LERP_SLIDER_EXPONENT: f32 = 2.0;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
@@ -3048,13 +3050,14 @@ pub fn set_presets_widgets(
         .set(ids.presets_text, ui);
 
     let label = format!("Lerp Duration: {:.2} secs", global_config.preset_lerp_secs);
-    if let Some(v) = slider(global_config.preset_lerp_secs, 0.0, 10.0)
+    let slider_value = preset_lerp_secs_to_slider_value(global_config.preset_lerp_secs);
+    if let Some(v) = slider(slider_value, 0.0, 1.0)
         .down(10.0)
         .w_h(WIDGET_W, DEFAULT_WIDGET_H)
         .label(&label)
         .set(ids.presets_lerp_slider, ui)
     {
-        global_config.preset_lerp_secs = v;
+        global_config.preset_lerp_secs = preset_lerp_slider_value_to_secs(v);
     }
 
     for _click in button()
@@ -3463,6 +3466,16 @@ pub fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
         .rgb(0.176, 0.513, 0.639)
         .label_rgb(1.0, 1.0, 1.0)
         .border(0.0)
+}
+
+fn preset_lerp_secs_to_slider_value(secs: f32) -> f32 {
+    (secs / PRESET_LERP_MAX_SECS)
+        .clamp(0.0, 1.0)
+        .powf(1.0 / PRESET_LERP_SLIDER_EXPONENT)
+}
+
+fn preset_lerp_slider_value_to_secs(slider_value: f32) -> f32 {
+    PRESET_LERP_MAX_SECS * slider_value.clamp(0.0, 1.0).powf(PRESET_LERP_SLIDER_EXPONENT)
 }
 
 fn column_canvas(background: widget::Id) -> widget::Canvas<'static> {
