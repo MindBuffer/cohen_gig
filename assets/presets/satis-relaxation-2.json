@@ -4,6 +4,8 @@
   "shader_left": "SatisSpiraling",
   "shader_right": "JustRelax",
   "colourise": "SolidHsvColour",
+  "tone_mapping": "Aces",
+  "tone_mapping_amount": 1.0,
   "left_right_mix": 0.47291666,
   "blend_mode": "Add",
   "shader_params_left": {
@@ -30,7 +32,7 @@
     }
   },
   "shader_mod_amounts_left": [
-    0.0,
+    1.3e-44,
     0.0,
     0.0
   ],

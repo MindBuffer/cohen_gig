@@ -4,6 +4,8 @@
   "shader_left": "ThePulse",
   "shader_right": "AcidGradient",
   "colourise": "SolidHsvColour",
+  "tone_mapping": "Aces",
+  "tone_mapping_amount": 1.0,
   "left_right_mix": 0.07344514,
   "blend_mode": "Add",
   "shader_params_left": {
