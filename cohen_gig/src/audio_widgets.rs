@@ -10,6 +10,7 @@ pub fn set_widgets(
     ids: &gui::Ids,
     audio: &mut AudioInput,
     preferred_device_name: &mut String,
+    smoothing_speed: &mut f32,
     anchor_id: widget::Id,
 ) {
     widget::Text::new("AUDIO INPUT")
@@ -148,6 +149,22 @@ pub fn set_widgets(
         ids.audio_envelope_scope,
         &audio.envelope_history,
     );
+
+    widget::Text::new("GLOBAL PARAMS")
+        .down_from(ids.audio_envelope_scope_bg, COLUMN_ONE_SECTION_GAP)
+        .align_left_of(ids.column_1_id)
+        .color(TEXT_COLOR)
+        .font_size(14)
+        .set(ids.global_params_text, ui);
+
+    let label = format!("Smoothing Speed: {:.4}", *smoothing_speed);
+    if let Some(v) = slider(*smoothing_speed, 0.0008, 0.08)
+        .down(5.0)
+        .label(&label)
+        .set(ids.smoothing_speed_slider, ui)
+    {
+        *smoothing_speed = v;
+    }
 }
 
 fn draw_waveform(

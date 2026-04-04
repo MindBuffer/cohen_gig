@@ -7,6 +7,7 @@ const GAP: Scalar = 4.0;
 pub struct ModSlider<'a> {
     common: widget::CommonBuilder,
     value: f32,
+    smoothed_value: f32,
     mod_amount: f32,
     modulation: f32,
     min: f32,
@@ -31,10 +32,18 @@ widget_ids! {
 }
 
 impl<'a> ModSlider<'a> {
-    pub fn new(value: f32, mod_amount: f32, modulation: f32, min: f32, max: f32) -> Self {
+    pub fn new(
+        value: f32,
+        smoothed_value: f32,
+        mod_amount: f32,
+        modulation: f32,
+        min: f32,
+        max: f32,
+    ) -> Self {
         ModSlider {
             common: widget::CommonBuilder::default(),
             value,
+            smoothed_value,
             mod_amount,
             modulation,
             min,
@@ -83,6 +92,7 @@ impl<'a> Widget for ModSlider<'a> {
         } = args;
         let ModSlider {
             value,
+            smoothed_value,
             mod_amount,
             modulation,
             min,
@@ -130,7 +140,7 @@ impl<'a> Widget for ModSlider<'a> {
 
         // Mod bar: sits just above the slider, shows final output.
         let cur_mod = new_mod.unwrap_or(mod_amount);
-        let cur_val = new_value.unwrap_or(value);
+        let cur_val = smoothed_value;
         let offset = (modulation * cur_mod) - (cur_mod / 2.0);
         let final_val = (cur_val + offset).max(min).min(max);
         let final_norm = ((final_val - min) / (max - min)) as Scalar;

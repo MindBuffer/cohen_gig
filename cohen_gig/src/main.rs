@@ -75,6 +75,7 @@ struct Model {
     shader_rx: ShaderReceiver,
     global_config: GlobalConfig,
     presets: conf::Presets,
+    smoothed_preset: conf::Preset,
     smoothing_speed: f32,
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
@@ -552,6 +553,7 @@ fn model(app: &App) -> Model {
 
     let audio_input = audio_input::AudioInput::new(128, global_config.audio_input_device.clone());
     let colour_channels = [1.0, 0.0, 1.0]; // R/H, G/S, B/V defaults
+    let smoothed_preset = presets.selected().clone();
 
     let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
 
@@ -559,7 +561,7 @@ fn model(app: &App) -> Model {
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
         &global_config,
-        &presets,
+        &smoothed_preset,
         &audio_input,
         colour_channels,
         gui::LeftPanelTab::Live,
@@ -579,6 +581,7 @@ fn model(app: &App) -> Model {
         shader_rx,
         global_config,
         presets,
+        smoothed_preset,
         smoothing_speed: 0.05,
         colour_channels,
         buttons: Default::default(),
@@ -925,7 +928,7 @@ pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedS
 fn build_led_worker_input_state(
     app_time: f32,
     global_config: &GlobalConfig,
-    presets: &conf::Presets,
+    preset: &conf::Preset,
     audio_input: &audio_input::AudioInput,
     colour_channels: [f32; 3],
     left_panel_tab: gui::LeftPanelTab,
@@ -943,7 +946,7 @@ fn build_led_worker_input_state(
             fade_to_black_led: global_config.fade_to_black.led,
             preset_lerp_secs: global_config.preset_lerp_secs,
             led_layout: global_config.led_layout.clone(),
-            preset: presets.selected().clone(),
+            preset: preset.clone(),
             resolved_layout,
         },
         colour_channels,
@@ -1077,7 +1080,7 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
         shared_input.latest_state = build_led_worker_input_state(
             app.time,
             &model.global_config,
-            &model.presets,
+            &model.smoothed_preset,
             &model.audio_input,
             model.colour_channels,
             model.left_panel_tab,
@@ -1091,6 +1094,90 @@ fn queue_led_worker_update(app: &App, model: &mut Model) {
             shared_input.pending_preset_change = Some(last_preset_change);
         }
     }
+}
+
+fn smooth_shader_params_toward(
+    shader: shader_shared::Shader,
+    current: ShaderParams,
+    target: ShaderParams,
+    smoothing_speed: f32,
+) -> ShaderParams {
+    let mut current = current;
+    let mut target = target;
+    let mut smoothed = target;
+
+    let current_params: &mut dyn gui::Params = gui::shader_params(shader, &mut current);
+    let target_params: &mut dyn gui::Params = gui::shader_params(shader, &mut target);
+    let smoothed_params: &mut dyn gui::Params = gui::shader_params(shader, &mut smoothed);
+
+    for ix in 0..target_params.param_count() {
+        let gui::ParamMut {
+            kind: current_kind, ..
+        } = current_params.param_mut(ix);
+        let gui::ParamMut {
+            kind: target_kind, ..
+        } = target_params.param_mut(ix);
+        let gui::ParamMut {
+            kind: smoothed_kind,
+            ..
+        } = smoothed_params.param_mut(ix);
+
+        match (current_kind, target_kind, smoothed_kind) {
+            (
+                gui::ParamKindMut::F32 { value: current, .. },
+                gui::ParamKindMut::F32 { value: target, .. },
+                gui::ParamKindMut::F32 {
+                    value: smoothed, ..
+                },
+            )
+            | (
+                gui::ParamKindMut::F32Range { value: current, .. },
+                gui::ParamKindMut::F32Range { value: target, .. },
+                gui::ParamKindMut::F32Range {
+                    value: smoothed, ..
+                },
+            ) => {
+                *smoothed = *current * (1.0 - smoothing_speed) + *target * smoothing_speed;
+            }
+            _ => {}
+        }
+    }
+
+    smoothed
+}
+
+fn update_smoothed_preset(model: &mut Model) {
+    let target = model.presets.selected().clone();
+    let should_reset = model.smoothed_preset.id != target.id
+        || model.smoothed_preset.shader_left != target.shader_left
+        || model.smoothed_preset.colourise != target.colourise
+        || model.smoothed_preset.shader_right != target.shader_right;
+
+    if should_reset {
+        model.smoothed_preset = target;
+        return;
+    }
+
+    let current = model.smoothed_preset.clone();
+    model.smoothed_preset = target.clone();
+    model.smoothed_preset.shader_params_left = smooth_shader_params_toward(
+        target.shader_left,
+        current.shader_params_left,
+        target.shader_params_left,
+        model.smoothing_speed,
+    );
+    model.smoothed_preset.shader_params_colourise = smooth_shader_params_toward(
+        target.colourise,
+        current.shader_params_colourise,
+        target.shader_params_colourise,
+        model.smoothing_speed,
+    );
+    model.smoothed_preset.shader_params_right = smooth_shader_params_toward(
+        target.shader_right,
+        current.shader_params_right,
+        target.shader_params_right,
+        model.smoothing_speed,
+    );
 }
 
 fn apply_led_worker_output(model: &mut Model) {
@@ -1817,6 +1904,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
             midi_mapping: &mut model.midi_mapping,
             midi_learn: &mut model.midi_learn,
             midi_values: &mut model.midi_values,
+            smoothing_speed: &mut model.smoothing_speed,
+            smoothed_preset: &model.smoothed_preset,
             preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
             preview_colourise_image_id: model.preview_images.as_ref().map(|pi| pi.colourise_id),
@@ -1900,6 +1989,8 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     // Apply smoothed MIDI values to their destinations.
     apply_midi_values(model);
+
+    update_smoothed_preset(model);
 
     queue_led_worker_update(app, model);
 }
