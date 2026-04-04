@@ -1,5 +1,7 @@
 use crate::audio_input::{AudioInput, MAX_INPUT_GAIN_DB};
 use crate::gui::{self, slider, COLUMN_ONE_SECTION_GAP, COLUMN_W, TEXT_COLOR};
+use crate::mod_slider::ModSlider;
+use crate::mod_slider::SmoothedSlider;
 use nannou_conrod::prelude::*;
 use std::collections::VecDeque;
 
@@ -10,6 +12,12 @@ pub fn set_widgets(
     ids: &gui::Ids,
     audio: &mut AudioInput,
     preferred_device_name: &mut String,
+    smoothing_speed: &mut f32,
+    master_speed: &mut f32,
+    smoothed_master_speed: f32,
+    phase_offset: &mut f32,
+    phase_offset_mod_amount: &mut f32,
+    smoothed_phase_offset: f32,
     anchor_id: widget::Id,
 ) {
     widget::Text::new("AUDIO INPUT")
@@ -148,6 +156,51 @@ pub fn set_widgets(
         ids.audio_envelope_scope,
         &audio.envelope_history,
     );
+
+    widget::Text::new("GLOBAL PARAMS")
+        .down_from(ids.audio_envelope_scope_bg, COLUMN_ONE_SECTION_GAP)
+        .align_left_of(ids.column_1_id)
+        .color(TEXT_COLOR)
+        .font_size(14)
+        .set(ids.global_params_text, ui);
+
+    let label = format!("Smoothing Speed: {:.4}", *smoothing_speed);
+    if let Some(v) = slider(*smoothing_speed, 0.0008, 0.08)
+        .down(5.0)
+        .w_h(COLUMN_W, 30.0)
+        .label(&label)
+        .set(ids.smoothing_speed_slider, ui)
+    {
+        *smoothing_speed = v;
+    }
+
+    let label = format!("Master Speed: {:.3}", *master_speed);
+    if let Some(v) = SmoothedSlider::new(*master_speed, smoothed_master_speed, 0.0, 1.0)
+        .down(5.0)
+        .w_h(COLUMN_W, 30.0)
+        .label(&label)
+        .set(ids.master_speed_slider, ui)
+    {
+        *master_speed = v;
+    }
+
+    let label = format!("Phase Offset: {:+.3}", *phase_offset);
+    if let Some((v, m)) = ModSlider::new(
+        *phase_offset,
+        smoothed_phase_offset,
+        *phase_offset_mod_amount,
+        audio.envelope,
+        gui::GLOBAL_PHASE_OFFSET_MIN,
+        gui::GLOBAL_PHASE_OFFSET_MAX,
+    )
+    .down(5.0)
+    .label(&label)
+    .w_h(COLUMN_W, 30.0)
+    .set(ids.phase_offset_slider, ui)
+    {
+        *phase_offset = v;
+        *phase_offset_mod_amount = m;
+    }
 }
 
 fn draw_waveform(

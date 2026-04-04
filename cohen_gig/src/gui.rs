@@ -22,6 +22,8 @@ pub const WINDOW_WIDTH: u32 =
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
+pub const GLOBAL_PHASE_OFFSET_MIN: f32 = -0.2;
+pub const GLOBAL_PHASE_OFFSET_MAX: f32 = 0.2;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
@@ -128,6 +130,10 @@ widget_ids! {
         audio_release_slider,
         audio_envelope_scope_bg,
         audio_envelope_scope,
+        global_params_text,
+        smoothing_speed_slider,
+        master_speed_slider,
+        phase_offset_slider,
 
         sacn_output_title_text,
         sacn_output_status_text,
@@ -214,6 +220,10 @@ pub struct UpdateContext<'a> {
     pub midi_learn: &'a mut crate::midi::learn::LearnState,
     pub midi_values:
         &'a mut std::collections::HashMap<crate::midi::mapping::MidiTarget, crate::MidiTargetState>,
+    pub smoothing_speed: &'a mut f32,
+    pub smoothed_master_speed: f32,
+    pub smoothed_phase_offset: f32,
+    pub smoothed_preset: &'a crate::conf::Preset,
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
     pub preview_colourise_image_id: Option<ui::image::Id>,
@@ -264,6 +274,7 @@ struct ShaderWidgetState<'a> {
     dropdown_ix: &'a mut usize,
     button_ix: &'a mut usize,
     mod_amounts: &'a mut Vec<f32>,
+    smoothed_values: &'a [f32],
     /// Offset into mod_amounts for this slot (mod_slider_ix is global for widget IDs).
     mod_amounts_offset: usize,
     envelope: f32,
@@ -1624,6 +1635,10 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         midi_mapping,
         midi_learn,
         midi_values,
+        smoothing_speed,
+        smoothed_master_speed,
+        smoothed_phase_offset,
+        smoothed_preset,
         preview_left_image_id,
         preview_right_image_id,
         preview_colourise_image_id,
@@ -1719,6 +1734,12 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 ids,
                 audio_input,
                 &mut global_config.audio_input_device,
+                smoothing_speed,
+                &mut global_config.master_speed,
+                smoothed_master_speed,
+                &mut global_config.phase_offset,
+                &mut global_config.phase_offset_mod_amount,
+                smoothed_phase_offset,
                 audio_anchor,
             );
             set_presets_widgets(
@@ -1803,6 +1824,19 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         shader_right_dropdown.is_open = false;
     }
 
+    let smoothed_left_values = shader_param_f32_values(
+        smoothed_preset.shader_left,
+        smoothed_preset.shader_params_left,
+    );
+    let smoothed_colourise_values = shader_param_f32_values(
+        smoothed_preset.colourise,
+        smoothed_preset.shader_params_colourise,
+    );
+    let smoothed_right_values = shader_param_f32_values(
+        smoothed_preset.shader_right,
+        smoothed_preset.shader_params_right,
+    );
+
     let mut mod_slider_ix = 0;
     let mut int_slider_ix = 0;
     let mut dropdown_ix = 0;
@@ -1821,6 +1855,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_left,
+                smoothed_values: &smoothed_left_values,
                 mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
@@ -1877,6 +1912,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_colourise,
+                smoothed_values: &smoothed_colourise_values,
                 mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
@@ -1967,6 +2003,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 dropdown_ix: &mut dropdown_ix,
                 button_ix: &mut button_ix,
                 mod_amounts: &mut preset.shader_mod_amounts_right,
+                smoothed_values: &smoothed_right_values,
                 mod_amounts_offset: mod_start,
                 envelope: audio_input.envelope,
             },
@@ -3245,6 +3282,7 @@ fn set_shader_widgets(
         dropdown_ix,
         button_ix,
         mod_amounts,
+        smoothed_values,
         mod_amounts_offset,
         envelope,
     } = state;
@@ -3264,12 +3302,14 @@ fn set_shader_widgets(
                 }
                 let id = ids.shader_mod_sliders[*mod_slider_ix];
                 let mod_amt = mod_amounts[local_ix];
+                let smoothed_value = smoothed_values.get(local_ix).copied().unwrap_or(*value);
 
-                if let Some((v, m)) = ModSlider::new(*value, mod_amt, envelope, 0.0, max)
-                    .label(name)
-                    .w_h(COLUMN_W, 30.0)
-                    .down(10.0)
-                    .set(id, ui)
+                if let Some((v, m)) =
+                    ModSlider::new(*value, smoothed_value, mod_amt, envelope, 0.0, max)
+                        .label(name)
+                        .w_h(COLUMN_W, 30.0)
+                        .down(10.0)
+                        .set(id, ui)
                 {
                     *value = v;
                     mod_amounts[local_ix] = m;
@@ -3289,12 +3329,14 @@ fn set_shader_widgets(
                 }
                 let id = ids.shader_mod_sliders[*mod_slider_ix];
                 let mod_amt = mod_amounts[local_ix];
+                let smoothed_value = smoothed_values.get(local_ix).copied().unwrap_or(*value);
 
-                if let Some((v, m)) = ModSlider::new(*value, mod_amt, envelope, min, max)
-                    .label(name)
-                    .w_h(COLUMN_W, 30.0)
-                    .down(10.0)
-                    .set(id, ui)
+                if let Some((v, m)) =
+                    ModSlider::new(*value, smoothed_value, mod_amt, envelope, min, max)
+                        .label(name)
+                        .w_h(COLUMN_W, 30.0)
+                        .down(10.0)
+                        .set(id, ui)
                 {
                     *value = v;
                     mod_amounts[local_ix] = m;
@@ -3491,6 +3533,21 @@ pub fn shader_modulation_slot_count(shader: Shader, params: &mut ShaderParams) -
         }
     }
     count
+}
+
+pub fn shader_param_f32_values(shader: Shader, mut params: ShaderParams) -> Vec<f32> {
+    let p: &mut dyn Params = shader_params(shader, &mut params);
+    let mut values = Vec::new();
+    for ix in 0..p.param_count() {
+        let ParamMut { kind, .. } = p.param_mut(ix);
+        match kind {
+            ParamKindMut::F32 { value, .. } | ParamKindMut::F32Range { value, .. } => {
+                values.push(*value);
+            }
+            ParamKindMut::Bool(_) | ParamKindMut::Select { .. } | ParamKindMut::Usize { .. } => {}
+        }
+    }
+    values
 }
 
 pub fn shader_params(shader: Shader, params: &mut ShaderParams) -> &mut dyn Params {

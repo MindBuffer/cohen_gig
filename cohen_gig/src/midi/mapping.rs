@@ -7,9 +7,13 @@ pub const MAX_SHADER_PARAMS: u8 = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MidiTarget {
+    // Global
+    SmoothingSpeed,
+    MasterSpeed,
+    PhaseOffset,
+    PhaseOffsetMod,
     // Blending/Mix
     LeftRightMix,
-    SmoothingSpeed,
     FadeToBlack,
     // Audio
     AudioGain,
@@ -33,9 +37,13 @@ pub enum MidiTarget {
 impl MidiTarget {
     pub fn all() -> Vec<MidiTarget> {
         let mut targets = vec![
+            // Global
+            MidiTarget::SmoothingSpeed,
+            MidiTarget::MasterSpeed,
+            MidiTarget::PhaseOffset,
+            MidiTarget::PhaseOffsetMod,
             // Blending/Mix
             MidiTarget::LeftRightMix,
-            MidiTarget::SmoothingSpeed,
             MidiTarget::FadeToBlack,
             // Audio
             MidiTarget::AudioGain,
@@ -68,8 +76,11 @@ impl MidiTarget {
 
     pub fn label(&self) -> &'static str {
         match self {
-            MidiTarget::LeftRightMix => "Left/Right Mix",
             MidiTarget::SmoothingSpeed => "Smoothing Speed",
+            MidiTarget::MasterSpeed => "Global Speed",
+            MidiTarget::PhaseOffset => "Phase Offset",
+            MidiTarget::PhaseOffsetMod => "Phase Offset Mod",
+            MidiTarget::LeftRightMix => "Left/Right Mix",
             MidiTarget::FadeToBlack => "Fade to Black",
             MidiTarget::AudioGain => "Audio Gain",
             MidiTarget::AudioThreshold => "Audio Threshold",
@@ -103,9 +114,11 @@ impl MidiTarget {
 
     pub fn category(&self) -> &'static str {
         match self {
-            MidiTarget::LeftRightMix | MidiTarget::SmoothingSpeed | MidiTarget::FadeToBlack => {
-                "Blending/Mix"
-            }
+            MidiTarget::SmoothingSpeed
+            | MidiTarget::MasterSpeed
+            | MidiTarget::PhaseOffset
+            | MidiTarget::PhaseOffsetMod => "Global",
+            MidiTarget::LeftRightMix | MidiTarget::FadeToBlack => "Blending/Mix",
             MidiTarget::AudioGain
             | MidiTarget::AudioThreshold
             | MidiTarget::AudioAttack
@@ -122,6 +135,7 @@ impl MidiTarget {
 
     pub fn categories() -> &'static [&'static str] {
         &[
+            "Global",
             "Blending/Mix",
             "Audio",
             "Colour",
