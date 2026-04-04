@@ -77,6 +77,8 @@ struct Model {
     presets: conf::Presets,
     smoothed_preset: conf::Preset,
     smoothing_speed: f32,
+    smoothed_master_speed: f32,
+    master_phase: f32,
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
     led_colors: Vec<LinSrgb>,
@@ -199,6 +201,7 @@ struct LedWorkerConfig {
     led_start_universe: u16,
     fade_to_black_led: f32,
     preset_lerp_secs: f32,
+    master_speed: f32,
     led_layout: conf::LedLayout,
     preset: conf::Preset,
     /// Resolved layout from MadMapper, if active.
@@ -554,12 +557,14 @@ fn model(app: &App) -> Model {
     let audio_input = audio_input::AudioInput::new(128, global_config.audio_input_device.clone());
     let colour_channels = [1.0, 0.0, 1.0]; // R/H, G/S, B/V defaults
     let smoothed_preset = presets.selected().clone();
+    let smoothed_master_speed = global_config.master_speed;
 
     let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
 
     let last_preset_change = None;
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
+        smoothed_master_speed,
         &global_config,
         &smoothed_preset,
         &audio_input,
@@ -583,6 +588,8 @@ fn model(app: &App) -> Model {
         presets,
         smoothed_preset,
         smoothing_speed: 0.05,
+        smoothed_master_speed,
+        master_phase: 0.0,
         colour_channels,
         buttons: Default::default(),
         led_colors,
@@ -927,6 +934,7 @@ pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedS
 
 fn build_led_worker_input_state(
     app_time: f32,
+    master_speed: f32,
     global_config: &GlobalConfig,
     preset: &conf::Preset,
     audio_input: &audio_input::AudioInput,
@@ -945,6 +953,7 @@ fn build_led_worker_input_state(
             led_start_universe: global_config.led_start_universe,
             fade_to_black_led: global_config.fade_to_black.led,
             preset_lerp_secs: global_config.preset_lerp_secs,
+            master_speed,
             led_layout: global_config.led_layout.clone(),
             preset: preset.clone(),
             resolved_layout,
@@ -1075,10 +1084,11 @@ fn apply_midi_values(model: &mut Model) {
     }
 }
 
-fn queue_led_worker_update(app: &App, model: &mut Model) {
+fn queue_led_worker_update(_app: &App, model: &mut Model) {
     if let Ok(mut shared_input) = model.led_worker.shared_input.lock() {
         shared_input.latest_state = build_led_worker_input_state(
-            app.time,
+            model.master_phase,
+            model.smoothed_master_speed,
             &model.global_config,
             &model.smoothed_preset,
             &model.audio_input,
@@ -1178,6 +1188,12 @@ fn update_smoothed_preset(model: &mut Model) {
         target.shader_params_right,
         model.smoothing_speed,
     );
+}
+
+fn update_smoothed_master_speed(model: &mut Model) {
+    let target = model.global_config.master_speed;
+    model.smoothed_master_speed = model.smoothed_master_speed * (1.0 - model.smoothing_speed)
+        + target * model.smoothing_speed;
 }
 
 fn apply_led_worker_output(model: &mut Model) {
@@ -1694,7 +1710,8 @@ fn preset_uniforms(state: &LedWorkerInputState, preset: &conf::Preset) -> Unifor
             (button, state)
         })
         .collect();
-    let time = state.app_time + state.snapshot_at.elapsed().as_secs_f32();
+    let time =
+        state.app_time + state.snapshot_at.elapsed().as_secs_f32() * state.config.master_speed;
     Uniforms {
         time,
         resolution: layout::shader_resolution(led_layout),
@@ -1905,6 +1922,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
             midi_learn: &mut model.midi_learn,
             midi_values: &mut model.midi_values,
             smoothing_speed: &mut model.smoothing_speed,
+            smoothed_master_speed: model.smoothed_master_speed,
             smoothed_preset: &model.smoothed_preset,
             preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),
@@ -1990,7 +2008,9 @@ fn update(app: &App, model: &mut Model, update: Update) {
     // Apply smoothed MIDI values to their destinations.
     apply_midi_values(model);
 
+    update_smoothed_master_speed(model);
     update_smoothed_preset(model);
+    model.master_phase += update.since_last.as_secs_f32() * model.smoothed_master_speed;
 
     queue_led_worker_update(app, model);
 }

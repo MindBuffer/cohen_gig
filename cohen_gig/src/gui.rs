@@ -130,6 +130,7 @@ widget_ids! {
         audio_envelope_scope,
         global_params_text,
         smoothing_speed_slider,
+        master_speed_slider,
 
         sacn_output_title_text,
         sacn_output_status_text,
@@ -217,6 +218,7 @@ pub struct UpdateContext<'a> {
     pub midi_values:
         &'a mut std::collections::HashMap<crate::midi::mapping::MidiTarget, crate::MidiTargetState>,
     pub smoothing_speed: &'a mut f32,
+    pub smoothed_master_speed: f32,
     pub smoothed_preset: &'a crate::conf::Preset,
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
@@ -1630,6 +1632,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         midi_learn,
         midi_values,
         smoothing_speed,
+        smoothed_master_speed,
         smoothed_preset,
         preview_left_image_id,
         preview_right_image_id,
@@ -1727,6 +1730,8 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 audio_input,
                 &mut global_config.audio_input_device,
                 smoothing_speed,
+                &mut global_config.master_speed,
+                smoothed_master_speed,
                 audio_anchor,
             );
             set_presets_widgets(
@@ -1811,12 +1816,18 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         shader_right_dropdown.is_open = false;
     }
 
-    let smoothed_left_values =
-        shader_param_f32_values(smoothed_preset.shader_left, smoothed_preset.shader_params_left);
-    let smoothed_colourise_values =
-        shader_param_f32_values(smoothed_preset.colourise, smoothed_preset.shader_params_colourise);
-    let smoothed_right_values =
-        shader_param_f32_values(smoothed_preset.shader_right, smoothed_preset.shader_params_right);
+    let smoothed_left_values = shader_param_f32_values(
+        smoothed_preset.shader_left,
+        smoothed_preset.shader_params_left,
+    );
+    let smoothed_colourise_values = shader_param_f32_values(
+        smoothed_preset.colourise,
+        smoothed_preset.shader_params_colourise,
+    );
+    let smoothed_right_values = shader_param_f32_values(
+        smoothed_preset.shader_right,
+        smoothed_preset.shader_params_right,
+    );
 
     let mut mod_slider_ix = 0;
     let mut int_slider_ix = 0;
@@ -3287,10 +3298,10 @@ fn set_shader_widgets(
 
                 if let Some((v, m)) =
                     ModSlider::new(*value, smoothed_value, mod_amt, envelope, 0.0, max)
-                    .label(name)
-                    .w_h(COLUMN_W, 30.0)
-                    .down(10.0)
-                    .set(id, ui)
+                        .label(name)
+                        .w_h(COLUMN_W, 30.0)
+                        .down(10.0)
+                        .set(id, ui)
                 {
                     *value = v;
                     mod_amounts[local_ix] = m;
@@ -3314,10 +3325,10 @@ fn set_shader_widgets(
 
                 if let Some((v, m)) =
                     ModSlider::new(*value, smoothed_value, mod_amt, envelope, min, max)
-                    .label(name)
-                    .w_h(COLUMN_W, 30.0)
-                    .down(10.0)
-                    .set(id, ui)
+                        .label(name)
+                        .w_h(COLUMN_W, 30.0)
+                        .down(10.0)
+                        .set(id, ui)
                 {
                     *value = v;
                     mod_amounts[local_ix] = m;

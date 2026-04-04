@@ -47,6 +47,8 @@ pub struct GlobalConfig {
     pub madmapper_project_path: Option<String>,
     #[serde(default)]
     pub preset_lerp_secs: f32,
+    #[serde(default = "default::master_speed")]
+    pub master_speed: f32,
     /// Order and current selection of the per-file shader presets.
     #[serde(default)]
     pub shader_preset_index: ShaderPresetIndex,
@@ -380,6 +382,7 @@ impl Default for GlobalConfig {
             led_layout: Default::default(),
             madmapper_project_path: None,
             preset_lerp_secs: Default::default(),
+            master_speed: default::master_speed(),
             shader_preset_index: Default::default(),
         }
     }
@@ -916,6 +919,10 @@ pub mod default {
 
     pub fn sacn_interface_ip() -> String {
         String::new()
+    }
+
+    pub fn master_speed() -> f32 {
+        1.0
     }
 
     pub mod led_layout {
