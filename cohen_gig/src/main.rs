@@ -109,6 +109,7 @@ struct Model {
 struct LastPresetChange {
     started_at: Instant,
     preset: conf::Preset,
+    led_colors: Vec<LinSrgb>,
 }
 
 #[derive(Clone)]
@@ -122,6 +123,7 @@ struct PresetTransitionState {
     preset: conf::Preset,
     led_colors: Vec<LinSrgb>,
     led_color_buffer: Vec<LinSrgb>,
+    lerp_amt: f32,
 }
 
 #[derive(Copy, Clone)]
@@ -164,7 +166,7 @@ struct LedWorker {
 
 struct LedWorkerSharedInput {
     latest_state: LedWorkerInputState,
-    pending_preset_change: Option<LastPresetChange>,
+    pending_preset_changes: Vec<LastPresetChange>,
     pending_shader: Option<Shader>,
     hover_preview_request: Option<HoverPreviewRequest>,
     shutdown: bool,
@@ -409,7 +411,7 @@ impl LedWorker {
     fn new(initial_state: LedWorkerInputState) -> Self {
         let shared_input = Arc::new(Mutex::new(LedWorkerSharedInput {
             latest_state: initial_state,
-            pending_preset_change: None,
+            pending_preset_changes: Vec::new(),
             pending_shader: None,
             hover_preview_request: None,
             shutdown: false,
@@ -1126,7 +1128,7 @@ fn queue_led_worker_update(_app: &App, model: &mut Model) {
         shared_input.hover_preview_request = model.hover_preview_request.clone();
 
         if let Some(last_preset_change) = model.last_preset_change.take() {
-            shared_input.pending_preset_change = Some(last_preset_change);
+            shared_input.pending_preset_changes.push(last_preset_change);
         }
     }
 }
@@ -1297,7 +1299,7 @@ struct LedWorkerRuntime {
     cached_led_layout: conf::LedLayout,
     /// True when currently using a MadMapper resolved layout.
     using_mad_layout: bool,
-    preset_transition: Option<PresetTransitionState>,
+    preset_transitions: Vec<PresetTransitionState>,
     dmx: DmxRuntime,
 }
 
@@ -1323,7 +1325,7 @@ impl LedWorkerRuntime {
             led_shader_inputs: shader_inputs,
             cached_led_layout: config.led_layout.clone(),
             using_mad_layout: using_mad,
-            preset_transition: None,
+            preset_transitions: Vec::new(),
             dmx: DmxRuntime {
                 source: None,
                 requested_interface_ip: None,
@@ -1367,7 +1369,7 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
         runtime
             .led_outputs
             .resize(led_count, lin_srgb(0.0, 0.0, 0.0));
-        runtime.preset_transition = None;
+        runtime.preset_transitions.clear();
     }
     if source_changed || runtime.led_shader_inputs.len() != led_count {
         runtime.led_shader_inputs = match new_inputs {
@@ -1376,7 +1378,7 @@ fn sync_led_worker_buffers(runtime: &mut LedWorkerRuntime, config: &LedWorkerCon
         };
         runtime.cached_led_layout = config.led_layout.clone();
         runtime.using_mad_layout = now_mad;
-        runtime.preset_transition = None;
+        runtime.preset_transitions.clear();
     }
 }
 
@@ -1394,7 +1396,7 @@ fn run_led_worker(
     let mut frame_id = 0u64;
 
     loop {
-        let (state, pending_shader, pending_preset_change, hover_preview_request, shutdown) = {
+        let (state, pending_shader, pending_preset_changes, hover_preview_request, shutdown) = {
             let mut input = match shared_input.lock() {
                 Ok(input) => input,
                 Err(_) => break,
@@ -1402,7 +1404,7 @@ fn run_led_worker(
             (
                 input.latest_state.clone(),
                 input.pending_shader.take(),
-                input.pending_preset_change.take(),
+                std::mem::take(&mut input.pending_preset_changes),
                 input.hover_preview_request.clone(),
                 input.shutdown,
             )
@@ -1415,12 +1417,18 @@ fn run_led_worker(
         if let Some(shader) = pending_shader {
             runtime.shader = Some(shader);
         }
-        if let Some(last_preset_change) = pending_preset_change {
-            runtime.preset_transition = Some(PresetTransitionState {
+        for last_preset_change in pending_preset_changes {
+            let led_colors = if last_preset_change.led_colors.len() == runtime.led_colors.len() {
+                last_preset_change.led_colors
+            } else {
+                runtime.led_colors.clone()
+            };
+            runtime.preset_transitions.push(PresetTransitionState {
                 started_at: last_preset_change.started_at,
                 preset: last_preset_change.preset,
-                led_colors: runtime.led_colors.clone(),
+                led_colors,
                 led_color_buffer: black_led_buffer(runtime.led_colors.len()),
+                lerp_amt: 1.0,
             });
         }
 
@@ -1612,49 +1620,66 @@ fn render_led_worker_frame(
         );
     }
 
-    let mut clear_transition = state.config.preset_lerp_secs <= 0.0;
-    let (prev_output, lerp_amt) = match runtime.preset_transition.as_mut() {
-        None => (&[][..], 1.0),
-        Some(transition) => {
+    if state.config.preset_lerp_secs <= 0.0 {
+        runtime.preset_transitions.clear();
+    } else {
+        runtime.preset_transitions.retain_mut(|transition| {
             let elapsed_secs = transition.started_at.elapsed().as_secs_f32();
-            if elapsed_secs < state.config.preset_lerp_secs {
-                let transition_uniforms = preset_uniforms(state, &transition.preset);
-                render_preset_graph(
-                    shader,
-                    &runtime.led_shader_inputs,
-                    &transition_uniforms,
-                    &transition.led_colors,
-                    &mut transition.led_color_buffer,
-                );
-                std::mem::swap(&mut transition.led_colors, &mut transition.led_color_buffer);
-                (
-                    &transition.led_colors[..],
-                    ease_in_out((elapsed_secs / state.config.preset_lerp_secs).clamp(0.0, 1.0)),
-                )
-            } else {
-                clear_transition = true;
-                (&[][..], 1.0)
+            if elapsed_secs >= state.config.preset_lerp_secs {
+                return false;
             }
-        }
-    };
+
+            let transition_uniforms = preset_uniforms(state, &transition.preset);
+            render_preset_graph(
+                shader,
+                &runtime.led_shader_inputs,
+                &transition_uniforms,
+                &transition.led_colors,
+                &mut transition.led_color_buffer,
+            );
+            std::mem::swap(&mut transition.led_colors, &mut transition.led_color_buffer);
+            transition.lerp_amt =
+                ease_in_out((elapsed_secs / state.config.preset_lerp_secs).clamp(0.0, 1.0));
+            true
+        });
+    }
 
     let ftb = state.config.fade_to_black_led;
     let l_ftb = lin_srgb(ftb, ftb, ftb);
-    runtime
-        .led_outputs
-        .par_iter_mut()
-        .zip(runtime.led_colors.par_iter())
-        .enumerate()
-        .for_each(|(i, (output, &colour))| {
-            let new = colour * l_ftb;
-            *output = match prev_output.get(i) {
-                None => new,
-                Some(prev) => prev.lerp(&new, lerp_amt),
-            };
-        });
+    if let Some(oldest_transition) = runtime.preset_transitions.first() {
+        runtime
+            .led_outputs
+            .par_iter_mut()
+            .zip(oldest_transition.led_colors.par_iter())
+            .for_each(|(output, &colour)| {
+                *output = colour * l_ftb;
+            });
 
-    if clear_transition {
-        runtime.preset_transition = None;
+        for transition_ix in 0..runtime.preset_transitions.len() {
+            let lerp_amt = runtime.preset_transitions[transition_ix].lerp_amt;
+            let next_colours = runtime
+                .preset_transitions
+                .get(transition_ix + 1)
+                .map(|transition| transition.led_colors.as_slice())
+                .unwrap_or(runtime.led_colors.as_slice());
+
+            runtime
+                .led_outputs
+                .par_iter_mut()
+                .zip(next_colours.par_iter())
+                .for_each(|(output, &next_colour)| {
+                    let next_colour = next_colour * l_ftb;
+                    *output = output.lerp(&next_colour, lerp_amt);
+                });
+        }
+    } else {
+        runtime
+            .led_outputs
+            .par_iter_mut()
+            .zip(runtime.led_colors.par_iter())
+            .for_each(|(output, &colour)| {
+                *output = colour * l_ftb;
+            });
     }
 
     update_led_worker_dmx(state, runtime);

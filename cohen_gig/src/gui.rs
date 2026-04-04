@@ -3037,7 +3037,7 @@ pub fn set_presets_widgets(
     presets: &mut crate::conf::Presets,
     preset_list_drag: &mut PresetListDragState,
     last_preset_change: &mut Option<crate::LastPresetChange>,
-    _led_colors: &LedColors,
+    led_colors: &LedColors,
     assets: &Path,
     hover_preview_request: &mut Option<crate::HoverPreviewRequest>,
     _hover_preview_state: &mut HoverPreviewState,
@@ -3235,6 +3235,7 @@ pub fn set_presets_widgets(
                     *last_preset_change = Some(crate::LastPresetChange {
                         started_at: std::time::Instant::now(),
                         preset: outgoing_preset,
+                        led_colors: led_colors.to_vec(),
                     });
                 }
             }
