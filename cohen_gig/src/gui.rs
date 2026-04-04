@@ -22,6 +22,8 @@ pub const WINDOW_WIDTH: u32 =
 pub const WINDOW_HEIGHT: u32 = 1050 - (2.0 * PAD) as u32;
 pub const WIDGET_W: Scalar = COLUMN_W;
 pub const HALF_WIDGET_W: Scalar = WIDGET_W * 0.5 - PAD * 0.25;
+pub const GLOBAL_PHASE_OFFSET_MIN: f32 = -0.2;
+pub const GLOBAL_PHASE_OFFSET_MAX: f32 = 0.2;
 pub const BUTTON_COLOR: Color = Color::Rgba(0.11, 0.39, 0.4, 1.0); // teal
 pub const TEXT_COLOR: Color = Color::Rgba(1.0, 1.0, 1.0, 1.0);
 pub const PRESET_LIST_COLOR: Color = Color::Rgba(0.16, 0.32, 0.6, 1.0); // blue
@@ -131,6 +133,7 @@ widget_ids! {
         global_params_text,
         smoothing_speed_slider,
         master_speed_slider,
+        phase_offset_slider,
 
         sacn_output_title_text,
         sacn_output_status_text,
@@ -219,6 +222,7 @@ pub struct UpdateContext<'a> {
         &'a mut std::collections::HashMap<crate::midi::mapping::MidiTarget, crate::MidiTargetState>,
     pub smoothing_speed: &'a mut f32,
     pub smoothed_master_speed: f32,
+    pub smoothed_phase_offset: f32,
     pub smoothed_preset: &'a crate::conf::Preset,
     pub preview_left_image_id: Option<ui::image::Id>,
     pub preview_right_image_id: Option<ui::image::Id>,
@@ -1633,6 +1637,7 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
         midi_values,
         smoothing_speed,
         smoothed_master_speed,
+        smoothed_phase_offset,
         smoothed_preset,
         preview_left_image_id,
         preview_right_image_id,
@@ -1732,6 +1737,9 @@ pub fn update(ui: &mut UiCell, ctx: UpdateContext<'_>) {
                 smoothing_speed,
                 &mut global_config.master_speed,
                 smoothed_master_speed,
+                &mut global_config.phase_offset,
+                &mut global_config.phase_offset_mod_amount,
+                smoothed_phase_offset,
                 audio_anchor,
             );
             set_presets_widgets(

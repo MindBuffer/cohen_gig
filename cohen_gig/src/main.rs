@@ -78,6 +78,7 @@ struct Model {
     smoothed_preset: conf::Preset,
     smoothing_speed: f32,
     smoothed_master_speed: f32,
+    smoothed_phase_offset: f32,
     master_phase: f32,
     colour_channels: [f32; 3],
     buttons: HashMap<shader_shared::Button, ButtonState>,
@@ -202,6 +203,8 @@ struct LedWorkerConfig {
     fade_to_black_led: f32,
     preset_lerp_secs: f32,
     master_speed: f32,
+    phase_offset: f32,
+    phase_offset_mod_amount: f32,
     led_layout: conf::LedLayout,
     preset: conf::Preset,
     /// Resolved layout from MadMapper, if active.
@@ -558,6 +561,7 @@ fn model(app: &App) -> Model {
     let colour_channels = [1.0, 0.0, 1.0]; // R/H, G/S, B/V defaults
     let smoothed_preset = presets.selected().clone();
     let smoothed_master_speed = global_config.master_speed;
+    let smoothed_phase_offset = global_config.phase_offset;
 
     let resolved_layout = mad_project.as_ref().map(layout::resolve_from_mad_project);
 
@@ -565,6 +569,7 @@ fn model(app: &App) -> Model {
     let led_worker = LedWorker::new(build_led_worker_input_state(
         0.0,
         smoothed_master_speed,
+        smoothed_phase_offset,
         &global_config,
         &smoothed_preset,
         &audio_input,
@@ -589,6 +594,7 @@ fn model(app: &App) -> Model {
         smoothed_preset,
         smoothing_speed: 0.05,
         smoothed_master_speed,
+        smoothed_phase_offset,
         master_phase: 0.0,
         colour_channels,
         buttons: Default::default(),
@@ -935,6 +941,7 @@ pub fn rebuild_led_shader_inputs(led_layout: &conf::LedLayout) -> Vec<CachedLedS
 fn build_led_worker_input_state(
     app_time: f32,
     master_speed: f32,
+    phase_offset: f32,
     global_config: &GlobalConfig,
     preset: &conf::Preset,
     audio_input: &audio_input::AudioInput,
@@ -954,6 +961,8 @@ fn build_led_worker_input_state(
             fade_to_black_led: global_config.fade_to_black.led,
             preset_lerp_secs: global_config.preset_lerp_secs,
             master_speed,
+            phase_offset,
+            phase_offset_mod_amount: global_config.phase_offset_mod_amount,
             led_layout: global_config.led_layout.clone(),
             preset: preset.clone(),
             resolved_layout,
@@ -1002,6 +1011,21 @@ fn apply_midi_values(model: &mut Model) {
         match target {
             MidiTarget::SmoothingSpeed => {
                 model.smoothing_speed = map_range(v, 0.0, 1.0, 0.0008, 0.08);
+            }
+            MidiTarget::MasterSpeed => {
+                model.global_config.master_speed = v;
+            }
+            MidiTarget::PhaseOffset => {
+                model.global_config.phase_offset = map_range(
+                    v,
+                    0.0,
+                    1.0,
+                    gui::GLOBAL_PHASE_OFFSET_MIN,
+                    gui::GLOBAL_PHASE_OFFSET_MAX,
+                );
+            }
+            MidiTarget::PhaseOffsetMod => {
+                model.global_config.phase_offset_mod_amount = v;
             }
             MidiTarget::FadeToBlack => {
                 model.global_config.fade_to_black.led = v;
@@ -1089,6 +1113,7 @@ fn queue_led_worker_update(_app: &App, model: &mut Model) {
         shared_input.latest_state = build_led_worker_input_state(
             model.master_phase,
             model.smoothed_master_speed,
+            model.smoothed_phase_offset,
             &model.global_config,
             &model.smoothed_preset,
             &model.audio_input,
@@ -1194,6 +1219,10 @@ fn update_smoothed_master_speed(model: &mut Model) {
     let target = model.global_config.master_speed;
     model.smoothed_master_speed = model.smoothed_master_speed * (1.0 - model.smoothing_speed)
         + target * model.smoothing_speed;
+
+    let phase_offset_target = model.global_config.phase_offset;
+    model.smoothed_phase_offset = model.smoothed_phase_offset * (1.0 - model.smoothing_speed)
+        + phase_offset_target * model.smoothing_speed;
 }
 
 fn apply_led_worker_output(model: &mut Model) {
@@ -1710,8 +1739,13 @@ fn preset_uniforms(state: &LedWorkerInputState, preset: &conf::Preset) -> Unifor
             (button, state)
         })
         .collect();
-    let time =
-        state.app_time + state.snapshot_at.elapsed().as_secs_f32() * state.config.master_speed;
+    let phase_offset = (state.config.phase_offset
+        + (state.audio_envelope * state.config.phase_offset_mod_amount)
+        - (state.config.phase_offset_mod_amount / 2.0))
+        .clamp(gui::GLOBAL_PHASE_OFFSET_MIN, gui::GLOBAL_PHASE_OFFSET_MAX);
+    let time = state.app_time
+        + state.snapshot_at.elapsed().as_secs_f32() * state.config.master_speed
+        + phase_offset;
     Uniforms {
         time,
         resolution: layout::shader_resolution(led_layout),
@@ -1923,6 +1957,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
             midi_values: &mut model.midi_values,
             smoothing_speed: &mut model.smoothing_speed,
             smoothed_master_speed: model.smoothed_master_speed,
+            smoothed_phase_offset: model.smoothed_phase_offset,
             smoothed_preset: &model.smoothed_preset,
             preview_left_image_id: model.preview_images.as_ref().map(|pi| pi.left_id),
             preview_right_image_id: model.preview_images.as_ref().map(|pi| pi.right_id),

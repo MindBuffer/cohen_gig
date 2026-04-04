@@ -49,6 +49,10 @@ pub struct GlobalConfig {
     pub preset_lerp_secs: f32,
     #[serde(default = "default::master_speed")]
     pub master_speed: f32,
+    #[serde(default = "default::phase_offset")]
+    pub phase_offset: f32,
+    #[serde(default = "default::phase_offset_mod_amount")]
+    pub phase_offset_mod_amount: f32,
     /// Order and current selection of the per-file shader presets.
     #[serde(default)]
     pub shader_preset_index: ShaderPresetIndex,
@@ -383,6 +387,8 @@ impl Default for GlobalConfig {
             madmapper_project_path: None,
             preset_lerp_secs: Default::default(),
             master_speed: default::master_speed(),
+            phase_offset: default::phase_offset(),
+            phase_offset_mod_amount: default::phase_offset_mod_amount(),
             shader_preset_index: Default::default(),
         }
     }
@@ -923,6 +929,14 @@ pub mod default {
 
     pub fn master_speed() -> f32 {
         1.0
+    }
+
+    pub fn phase_offset() -> f32 {
+        0.0
+    }
+
+    pub fn phase_offset_mod_amount() -> f32 {
+        0.0
     }
 
     pub mod led_layout {
